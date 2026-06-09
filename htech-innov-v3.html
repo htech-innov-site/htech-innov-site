@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>H TECH INNOV — Ingénierie · Sécurité · Performance</title>
+<meta name="description" content="H TECH INNOV — Des solutions intelligentes, fiables et évolutives. Expert en cybersécurité, sécurité électronique, GTB/IoT, PMO, formation et énergies renouvelables. Abidjan, Côte d'Ivoire."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  /* Couleurs officielles logo H TECH INNOV */
+  --navy-deep:#1A2F4A;
+  --navy:#2B4A6B;
+  --navy-mid:#3A5F82;
+  --navy-light:#4A7499;
+  --navy-pale:#D6E4F0;
+  --navy-ultra:#EBF3FA;
+  /* Vert accent (issu du catalogue) */
+  --accent:#1D9E75;
+  --accent-dark:#0F6E56;
+  --accent-light:#5DCAA5;
+  --accent-pale:#E1F5EE;
+  /* Neutres */
+  --white:#FFFFFF;
+  --off-white:#F4F8FC;
+  --g100:#EEF3F8;
+  --g200:#C8D8E8;
+  --g400:#7A90A8;
+  --g600:#4A5F72;
+  --text:#0D1F30;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;--r-xl:24px;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--off-white);color:var(--text);overflow-x:hidden}
+
+/* ═══ LOGO SVG ═══ */
+.logo-svg{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:36px;height:36px}
+.logo-text-block{display:flex;flex-direction:column;line-height:1}
+.logo-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;color:#fff;letter-spacing:.03em}
+.logo-tagline{font-size:9px;color:rgba(255,255,255,.55);letter-spacing:.12em;text-transform:uppercase;margin-top:2px}
+
+/* ═══ NAV ═══ */
+nav{position:fixed;top:0;left:0;right:0;z-index:200;background:var(--navy);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);padding:0 2.5rem;height:66px;display:flex;align-items:center;justify-content:space-between}
+.nav-links{display:flex;align-items:center;gap:1.75rem}
+.nav-links a{color:rgba(255,255,255,.7);font-size:13px;text-decoration:none;transition:color .2s;font-weight:500}
+.nav-links a:hover{color:#fff}
+.nav-cta{background:var(--accent);color:#fff!important;padding:8px 18px;border-radius:var(--r-sm);font-weight:600!important;transition:background .2s!important}
+.nav-cta:hover{background:var(--accent-light)!important;color:var(--navy-deep)!important}
+.hamburger{display:none;background:none;border:none;cursor:pointer;color:#fff;font-size:22px}
+
+/* ═══ HERO ═══ */
+.hero{min-height:100vh;background:var(--navy-deep);display:flex;align-items:center;position:relative;overflow:hidden;padding:100px 2.5rem 70px}
+/* Grille subtile bleue */
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(74,116,153,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(74,116,153,.08) 1px,transparent 1px);background-size:56px 56px}
+/* Halo lumineux */
+.hero-halo{position:absolute;top:-160px;right:-160px;width:650px;height:650px;background:radial-gradient(circle,rgba(43,74,107,.6) 0%,transparent 65%);pointer-events:none}
+.hero-halo2{position:absolute;bottom:-180px;left:-120px;width:550px;height:550px;background:radial-gradient(circle,rgba(29,158,117,.12) 0%,transparent 65%);pointer-events:none}
+/* Onde décorative hero */
+.hero-wave{position:absolute;right:0;top:0;bottom:0;width:45%;opacity:.04;pointer-events:none}
+.hero-inner{position:relative;z-index:2;max-width:1140px;margin:0 auto;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:8px;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:var(--accent-light);font-size:11px;font-weight:600;letter-spacing:.1em;padding:5px 13px;border-radius:20px;text-transform:uppercase;margin-bottom:1.5rem}
+.hero-eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent-light);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hero-title{font-family:'Space Grotesk',sans-serif;font-size:clamp(2rem,3.8vw,3rem);font-weight:700;color:#fff;line-height:1.15;margin-bottom:1.25rem}
+.hero-title em{font-style:normal;color:var(--accent-light)}
+.hero-desc{color:rgba(255,255,255,.55);font-size:15px;line-height:1.8;margin-bottom:2rem}
+.hero-actions{display:flex;gap:12px;flex-wrap:wrap}
+.btn-primary{background:var(--accent);color:#fff;padding:12px 24px;border-radius:var(--r-md);font-weight:600;font-size:14px;text-decoration:none;border:none;cursor:pointer;transition:background .2s,transform .15s;display:inline-flex;align-items:center;gap:7px;font-family:'Inter',sans-serif}
+.btn-primary:hover{background:var(--accent-light);color:var(--navy-deep);transform:translateY(-1px)}
+.btn-outline{background:transparent;color:rgba(255,255,255,.8);padding:12px 24px;border-radius:var(--r-md);font-weight:500;font-size:14px;text-decoration:none;border:1px solid rgba(255,255,255,.2);cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:7px;font-family:'Inter',sans-serif}
+.btn-outline:hover{border-color:rgba(255,255,255,.5);color:#fff}
+.hero-stats{display:flex;gap:2.5rem;margin-top:2.5rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,.08)}
+.stat-num{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:var(--accent-light)}
+.stat-lbl{font-size:11px;color:rgba(255,255,255,.38);margin-top:2px}
+/* Cartes hero droite */
+.hero-cards{display:flex;flex-direction:column;gap:10px}
+.hcard{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-lg);padding:14px 18px;display:flex;align-items:center;gap:13px;transition:all .2s;cursor:default}
+.hcard:hover{border-color:rgba(43,74,107,.8);background:rgba(43,74,107,.2)}
+.hcard-icon{width:42px;height:42px;flex-shrink:0;border-radius:var(--r-md);background:rgba(43,74,107,.4);border:1px solid rgba(74,116,153,.3);display:flex;align-items:center;justify-content:center;font-size:18px}
+.hcard-t{font-size:13px;font-weight:600;color:#fff;margin-bottom:2px}
+.hcard-s{font-size:11px;color:rgba(255,255,255,.38)}
+
+/* ═══ SECTIONS ═══ */
+section{padding:80px 2.5rem}
+.sec-inner{max-width:1140px;margin:0 auto}
+.sec-tag{display:inline-block;background:var(--navy-pale);color:var(--navy);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 11px;border-radius:20px;margin-bottom:.75rem}
+.sec-h{font-family:'Space Grotesk',sans-serif;font-size:clamp(1.6rem,3vw,2.2rem);font-weight:700;color:var(--navy-deep);line-height:1.2;margin-bottom:.75rem}
+.sec-sub{font-size:15px;color:var(--g400);line-height:1.7;max-width:530px}
+
+/* ═══ SERVICES TABS ═══ */
+.services-sec{background:#fff}
+.tabs-nav{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:2.5rem}
+.tab-btn{padding:8px 15px;border-radius:20px;border:1px solid var(--g200);background:#fff;font-size:12px;font-weight:600;color:var(--g600);cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px}
+.tab-btn.active,.tab-btn:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+.tab-panel{display:none}
+.tab-panel.active{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:start}
+.svc-detail h3{font-family:'Space Grotesk',sans-serif;font-size:1.45rem;font-weight:700;color:var(--navy-deep);margin-bottom:.75rem;display:flex;align-items:center;gap:10px}
+.svc-detail p{font-size:14px;color:var(--g600);line-height:1.7;margin-bottom:1.25rem}
+.svc-list{list-style:none;display:flex;flex-direction:column;gap:8px;margin-bottom:1.5rem}
+.svc-list li{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--g600)}
+.svc-list li::before{content:'✓';color:var(--navy);font-weight:700;flex-shrink:0;margin-top:1px}
+.svc-tags{display:flex;flex-wrap:wrap;gap:6px}
+.svc-tag{font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;background:var(--navy-ultra);color:var(--navy)}
+
+/* ═══ CALCULATEUR ═══ */
+.calc-box{background:var(--off-white);border:1px solid var(--g200);border-radius:var(--r-xl);padding:24px;position:sticky;top:82px}
+.calc-box h4{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;color:var(--navy-deep);margin-bottom:3px;display:flex;align-items:center;gap:7px}
+.calc-sub{font-size:12px;color:var(--g400);margin-bottom:1.25rem}
+.calc-field{margin-bottom:13px}
+.calc-field label{display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:var(--g600);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.calc-field label span{font-weight:700;color:var(--navy);font-size:13px}
+.calc-field input[type=range]{width:100%;accent-color:var(--navy);height:4px;cursor:pointer}
+.calc-field select,.calc-field input[type=number]{width:100%;padding:9px 12px;border:1px solid var(--g200);border-radius:var(--r-md);font-size:13px;font-family:'Inter',sans-serif;color:var(--text);background:#fff;outline:none;transition:border-color .2s}
+.calc-field select:focus,.calc-field input[type=number]:focus{border-color:var(--navy)}
+.calc-result{background:#fff;border:1px solid var(--g200);border-radius:var(--r-lg);padding:14px;margin-top:6px}
+.calc-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.calc-metric{background:var(--navy-ultra);border-radius:var(--r-md);padding:11px}
+.calc-metric-lbl{font-size:10px;color:var(--navy-mid);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.calc-metric-val{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;color:var(--navy-deep)}
+.calc-metric-unit{font-size:10px;color:var(--g400);margin-top:1px}
+.calc-note{font-size:11px;color:var(--g400);margin-top:9px;line-height:1.5;font-style:italic}
+.calc-btn{width:100%;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;font-weight:600;cursor:pointer;margin-top:12px;font-family:'Inter',sans-serif;transition:background .2s,transform .15s;display:flex;align-items:center;justify-content:center;gap:7px}
+.calc-btn:hover{background:var(--navy-mid);transform:translateY(-1px)}
+
+/* ═══ VALEURS ═══ */
+.values-sec{background:var(--navy-deep)}
+.values-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5rem;margin-top:3rem}
+.val-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);border-radius:var(--r-lg);padding:22px;text-align:center;transition:border-color .2s}
+.val-card:hover{border-color:rgba(74,116,153,.4)}
+.val-icon{font-size:28px;margin-bottom:12px}
+.val-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;color:#fff;margin-bottom:6px}
+.val-desc{font-size:12px;color:rgba(255,255,255,.4);line-height:1.6}
+
+/* ═══ ASSISTANT IA + FORM ═══ */
+.ai-sec{background:var(--off-white)}
+.ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start}
+.chat-wrap{background:#fff;border:1px solid var(--g200);border-radius:var(--r-xl);overflow:hidden;box-shadow:0 4px 24px rgba(43,74,107,.08)}
+.chat-top{background:var(--navy-deep);padding:13px 16px;display:flex;align-items:center;gap:11px}
+.chat-av{width:38px;height:38px;border-radius:50%;background:var(--navy-mid);border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.chat-top-info p{font-weight:600;font-size:13px;color:#fff}
+.chat-top-info span{font-size:11px;color:rgba(255,255,255,.45)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent-light);margin-right:4px;animation:pulse 2s infinite}
+.chat-msgs{padding:14px;min-height:290px;max-height:310px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;background:var(--off-white)}
+.msg{max-width:84%;font-size:13px;line-height:1.55;padding:10px 13px}
+.msg.bot{background:#fff;border:1px solid var(--g200);border-radius:4px 13px 13px 13px;color:var(--text);align-self:flex-start}
+.msg.user{background:var(--navy);border-radius:13px 4px 13px 13px;color:#fff;align-self:flex-end}
+.qbtns{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.qbtn{font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid var(--navy-light);color:var(--navy);background:#fff;cursor:pointer;transition:all .15s}
+.qbtn:hover{background:var(--navy-ultra);border-color:var(--navy)}
+.typing{display:flex;align-items:center;gap:4px;padding:10px 13px;background:#fff;border:1px solid var(--g200);border-radius:4px 13px 13px 13px;align-self:flex-start;width:fit-content}
+.typing span{width:6px;height:6px;border-radius:50%;background:var(--navy-light);animation:bounce 1.2s infinite}
+.typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}
+.chat-foot{border-top:1px solid var(--g200);padding:11px;display:flex;gap:8px;background:#fff}
+.chat-foot input{flex:1;font-size:13px;padding:9px 12px;border-radius:var(--r-md);border:1px solid var(--g200);background:var(--off-white);color:var(--text);outline:none;font-family:'Inter',sans-serif;transition:border-color .2s}
+.chat-foot input:focus{border-color:var(--navy);background:#fff}
+.send-btn{width:38px;height:38px;background:var(--navy);color:#fff;border:none;border-radius:var(--r-md);cursor:pointer;font-size:14px;flex-shrink:0;transition:background .2s}
+.send-btn:hover{background:var(--navy-mid)}
+
+/* FORM */
+.form-wrap{background:#fff;border:1px solid var(--g200);border-radius:var(--r-xl);overflow:hidden;box-shadow:0 4px 24px rgba(43,74,107,.08)}
+.form-top{background:var(--navy);padding:13px 18px;display:flex;align-items:center;gap:10px}
+.form-top-icon{width:36px;height:36px;border-radius:var(--r-sm);background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:17px}
+.form-top p{font-weight:600;font-size:14px;color:#fff}
+.form-top span{font-size:11px;color:rgba(255,255,255,.55)}
+.form-body{padding:22px}
+.f-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.f-field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.f-field label{font-size:11px;font-weight:700;color:var(--g600);text-transform:uppercase;letter-spacing:.05em}
+.f-field input,.f-field select{padding:9px 12px;border:1px solid var(--g200);border-radius:var(--r-md);font-size:13px;font-family:'Inter',sans-serif;color:var(--text);background:#fff;outline:none;transition:border-color .2s}
+.f-field input:focus,.f-field select:focus{border-color:var(--navy)}
+.chk-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}
+.chk-lbl{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--g600);cursor:pointer;padding:6px 9px;border-radius:var(--r-sm);border:1px solid var(--g100);transition:all .15s}
+.chk-lbl:hover{border-color:var(--navy-light);background:var(--navy-ultra);color:var(--navy)}
+.chk-lbl input[type=checkbox]{accent-color:var(--navy);width:13px;height:13px}
+.f-submit{width:100%;padding:12px;background:var(--navy);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;margin-top:8px;transition:background .2s,transform .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.f-submit:hover{background:var(--navy-mid);transform:translateY(-1px)}
+.f-ok{display:none;margin-top:12px;background:var(--navy-ultra);border:1px solid var(--navy-pale);border-radius:var(--r-md);padding:12px;text-align:center;color:var(--navy-deep);font-size:13px;font-weight:500}
+
+/* ═══ CTA ═══ */
+.cta-sec{background:var(--navy);text-align:center;position:relative;overflow:hidden}
+.cta-sec::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -30%,rgba(74,116,153,.3) 0%,transparent 70%);pointer-events:none}
+.cta-sec .sec-h{color:#fff;position:relative;z-index:1}
+.cta-sec .sec-sub{color:rgba(255,255,255,.5);margin:0 auto 2rem;position:relative;z-index:1}
+.cta-actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;position:relative;z-index:1}
+.cta-contact{display:flex;align-items:center;justify-content:center;gap:2rem;margin-top:1.5rem;flex-wrap:wrap;position:relative;z-index:1}
+.cta-contact a{color:var(--accent-light);text-decoration:none;font-size:13px;font-weight:500}
+
+/* ═══ FOOTER ═══ */
+footer{background:var(--navy-deep);padding:50px 2.5rem 24px}
+.foot-inner{max-width:1140px;margin:0 auto;display:grid;grid-template-columns:1.8fr 1fr 1fr 1fr;gap:2.5rem;padding-bottom:2rem;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:1.5rem}
+.foot-brand .foot-logo{margin-bottom:14px}
+.foot-brand small{color:rgba(255,255,255,.38);font-size:12px;line-height:1.8;display:block}
+.foot-col h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.3);margin-bottom:13px}
+.foot-col a{display:block;color:rgba(255,255,255,.5);font-size:12px;text-decoration:none;margin-bottom:7px;transition:color .2s}
+.foot-col a:hover{color:var(--accent-light)}
+.foot-copy{max-width:1140px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.foot-copy p{font-size:11px;color:rgba(255,255,255,.22)}
+
+/* ═══ FAB ═══ */
+.fab{position:fixed;bottom:28px;right:28px;z-index:999;width:56px;height:56px;border-radius:50%;background:var(--navy);color:#fff;border:none;cursor:pointer;font-size:22px;box-shadow:0 6px 24px rgba(43,74,107,.55);display:flex;align-items:center;justify-content:center;transition:transform .2s,background .2s}
+.fab:hover{transform:scale(1.08);background:var(--navy-mid)}
+.fab-badge{position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:50%;background:#DC2626;border:2px solid #fff;animation:pulse 2s infinite}
+.fab-popup{position:fixed;bottom:96px;right:28px;z-index:998;width:318px;background:#fff;border-radius:var(--r-xl);box-shadow:0 16px 48px rgba(43,74,107,.22);border:1px solid var(--g200);overflow:hidden;display:none;animation:slideUp .25s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.fab-popup.open{display:block}
+
+/* ═══ RESPONSIVE ═══ */
+@media(max-width:900px){
+  .hero-inner,.tab-panel.active,.ai-grid,.foot-inner,.values-grid{grid-template-columns:1fr}
+  .hero-cards{display:none}
+  .nav-links{display:none}
+  .hamburger{display:block}
+  .f-row{grid-template-columns:1fr}
+  nav{padding:0 1.5rem}
+  section{padding:60px 1.5rem}
+}
+@media(max-width:600px){
+  .calc-result-grid,.chk-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ NAV ══════════ -->
+<nav>
+  <a class="logo-svg" href="#">
+    <!-- Logo SVG H TECH INNOV (ondes caractéristiques) -->
+    <svg class="logo-mark" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Fond carré arrondi couleur navy -->
+      <rect width="60" height="60" rx="10" fill="#3A5F82"/>
+      <!-- Ondes du logo (reproduites fidèlement depuis l'image) -->
+      <g stroke="white" stroke-linecap="round" fill="none">
+        <!-- Onde 1 - la plus petite en haut -->
+        <path d="M28 14 Q33 10 38 13" stroke-width="2.2"/>
+        <!-- Onde 2 -->
+        <path d="M25 19 Q33 13 41 17" stroke-width="2.2"/>
+        <!-- Onde 3 -->
+        <path d="M22 24 Q32 16 42 21" stroke-width="2.2"/>
+        <!-- Onde 4 -->
+        <path d="M19 29 Q31 20 43 26" stroke-width="2.2"/>
+        <!-- Onde 5 - la plus grande en bas -->
+        <path d="M16 34 Q30 23 44 31" stroke-width="2.2"/>
+      </g>
+      <!-- Lettre H stylisée en bas -->
+      <text x="16" y="52" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="13" fill="white" letter-spacing="0.5">HTI</text>
+    </svg>
+    <div class="logo-text-block">
+      <span class="logo-name">H TECH INNOV</span>
+      <span class="logo-tagline">Au cœur de vos projets</span>
+    </div>
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="#services">Services</a>
+    <a href="#calculateurs">Dimensionnement</a>
+    <a href="#assistant">Assistant IA</a>
+    <a href="#inscription">Inscription</a>
+    <a href="#contact" class="nav-cta">Nous contacter</a>
+  </div>
+  <button class="hamburger" onclick="toggleMenu()">☰</button>
+</nav>
+
+<!-- ══════════ HERO ══════════ -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-halo"></div>
+  <div class="hero-halo2"></div>
+  <!-- Grande onde déco fond hero -->
+  <svg class="hero-wave" viewBox="0 0 400 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="white" stroke-linecap="round" fill="none" opacity="0.6">
+      <path d="M320 80 Q360 50 390 100" stroke-width="3"/>
+      <path d="M280 130 Q350 80 400 160" stroke-width="3"/>
+      <path d="M240 185 Q340 115 400 220" stroke-width="3"/>
+      <path d="M190 245 Q330 155 400 285" stroke-width="3"/>
+      <path d="M140 310 Q315 195 400 355" stroke-width="3"/>
+      <path d="M80 380 Q300 235 400 430" stroke-width="3"/>
+    </g>
+  </svg>
+  <div class="hero-inner">
+    <div>
+      <div class="hero-eyebrow">Solutions technologiques avancées · Abidjan, CI</div>
+      <h1 class="hero-title">Des solutions <em>intelligentes,</em><br/>fiables et <em>évolutives.</em></h1>
+      <p class="hero-desc">H TECH INNOV accompagne entreprises et particuliers dans leur transformation numérique, la sécurisation de leurs actifs et l'optimisation de leurs infrastructures — de la conception à la réalisation.</p>
+      <div class="hero-actions">
+        <a href="#services" class="btn-primary">Découvrir nos services →</a>
+        <a href="#calculateurs" class="btn-outline">📐 Dimensionner mon projet</a>
+      </div>
+      <div class="hero-stats">
+        <div><div class="stat-num">10+</div><div class="stat-lbl">Pôles d'expertise</div></div>
+        <div><div class="stat-num">24/7</div><div class="stat-lbl">Support disponible</div></div>
+        <div><div class="stat-num">100%</div><div class="stat-lbl">Sur mesure</div></div>
+        <div><div class="stat-num">A→Z</div><div class="stat-lbl">Accompagnement</div></div>
+      </div>
+    </div>
+    <div class="hero-cards">
+      <div class="hcard"><div class="hcard-icon">🔒</div><div><div class="hcard-t">Cybersécurité & Réseaux</div><div class="hcard-s">Audit · Protection · Administration</div></div></div>
+      <div class="hcard"><div class="hcard-icon">📷</div><div><div class="hcard-t">Vidéosurveillance & Sécurité</div><div class="hcard-s">Caméras IP · Contrôle d'accès · Anti-intrusion</div></div></div>
+      <div class="hcard"><div class="hcard-icon">🏢</div><div><div class="hcard-t">GTB / GTC / IoT</div><div class="hcard-s">Bâtiments intelligents · Domotique</div></div></div>
+      <div class="hcard"><div class="hcard-icon">☀️</div><div><div class="hcard-t">Énergies Renouvelables</div><div class="hcard-s">Solaire · Éolien · Solutions durables</div></div></div>
+      <div class="hcard"><div class="hcard-icon">📊</div><div><div class="hcard-t">Conseil & PMO · Formation</div><div class="hcard-s">Gestion de projet · Certifications</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ SERVICES + CALCULATEURS ══════════ -->
+<section class="services-sec" id="services">
+  <div class="sec-inner" id="calculateurs">
+    <div style="margin-bottom:2rem">
+      <span class="sec-tag">Catalogue complet</span>
+      <h2 class="sec-h">Nos expertises & outils de dimensionnement</h2>
+      <p class="sec-sub">Sélectionnez un service pour explorer nos solutions et utiliser les calculateurs interactifs.</p>
+    </div>
+    <div class="tabs-nav">
+      <button class="tab-btn active" onclick="showTab('cyber',this)">🔒 Cybersécurité</button>
+      <button class="tab-btn" onclick="showTab('video',this)">📷 Vidéosurveillance</button>
+      <button class="tab-btn" onclick="showTab('acces',this)">🚪 Contrôle d'accès</button>
+      <button class="tab-btn" onclick="showTab('anti',this)">🛡️ Anti-intrusion</button>
+      <button class="tab-btn" onclick="showTab('incendie',this)">🔥 Sécurité incendie</button>
+      <button class="tab-btn" onclick="showTab('gtb',this)">🏢 GTB / IoT</button>
+      <button class="tab-btn" onclick="showTab('solaire',this)">☀️ Énergies renouvelables</button>
+      <button class="tab-btn" onclick="showTab('pmo',this)">📊 Conseil & PMO</button>
+      <button class="tab-btn" onclick="showTab('formation',this)">🎓 Formation</button>
+      <button class="tab-btn" onclick="showTab('cafe',this)">🖥️ Cyber Café</button>
+    </div>
+
+    <!-- CYBER -->
+    <div class="tab-panel active" id="tab-cyber">
+      <div class="svc-detail">
+        <h3>🔒 Cybersécurité & Réseaux</h3>
+        <p>Nous sécurisons, administrons et optimisons votre infrastructure informatique pour assurer la disponibilité, la performance et la résilience de votre entreprise face aux menaces modernes.</p>
+        <ul class="svc-list">
+          <li>Audit & analyse de vulnérabilités (RGPD, ISO 27001)</li>
+          <li>Pare-feu, EDR, Antivirus nouvelle génération</li>
+          <li>Infrastructure LAN/WAN/VPN/Wi-Fi sécurisé</li>
+          <li>Cloud sécurisé (VMware, Hyper-V, Proxmox)</li>
+          <li>Sauvegarde & plan de reprise d'activité (PRA)</li>
+          <li>Supervision 24/7 & monitoring</li>
+          <li>Gestion des identités & des accès</li>
+          <li>Sensibilisation & formation des équipes</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">ISO 27001</span><span class="svc-tag">RGPD</span><span class="svc-tag">EDR/XDR</span><span class="svc-tag">SOC 24/7</span><span class="svc-tag">Cloud</span><span class="svc-tag">PRA/PCA</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>🧮 Évaluation du risque cyber</h4>
+        <p class="calc-sub">Estimez votre niveau de protection nécessaire</p>
+        <div class="calc-field"><label>Nombre de postes <span id="cv-p">20</span></label><input type="range" min="1" max="500" value="20" oninput="document.getElementById('cv-p').textContent=this.value;calcCyber()"/></div>
+        <div class="calc-field"><label>Nombre de serveurs <span id="cv-s">3</span></label><input type="range" min="0" max="50" value="3" oninput="document.getElementById('cv-s').textContent=this.value;calcCyber()"/></div>
+        <div class="calc-field"><label>Secteur d'activité</label><select onchange="calcCyber()" id="cv-sec"><option value="1.0">Commerce / Services</option><option value="1.3">Finance / Banque</option><option value="1.5">Santé / Médical</option><option value="1.4">Industrie / BTP</option><option value="1.2">Administration / ONG</option></select></div>
+        <div class="calc-field"><label>Niveau de risque actuel</label><select onchange="calcCyber()" id="cv-r"><option value="1.0">Faible (pas d'incidents)</option><option value="1.3">Moyen (quelques incidents)</option><option value="1.6">Élevé (incidents fréquents)</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Score de risque</div><div class="calc-metric-val" id="cr-sc">48</div><div class="calc-metric-unit">/ 100</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Niveau requis</div><div class="calc-metric-val" id="cr-nv">Standard</div><div class="calc-metric-unit">de protection</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Audit estimé</div><div class="calc-metric-val" id="cr-au">3</div><div class="calc-metric-unit">jours/homme</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Endpoints</div><div class="calc-metric-val" id="cr-ep">23</div><div class="calc-metric-unit">à protéger</div></div>
+        </div><p class="calc-note" id="cr-rc">Déploiement EDR recommandé + formation équipes.</p></div>
+        <button class="calc-btn" onclick="reqDevis('Cybersécurité')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+
+    <!-- VIDEO -->
+    <div class="tab-panel" id="tab-video">
+      <div class="svc-detail">
+        <h3>📷 Vidéosurveillance</h3>
+        <p>Systèmes intelligents, fiables et évolutifs pour protéger vos sites, vos équipes et vos biens. Nous intégrons des solutions sur mesure avec accès à distance 24h/24.</p>
+        <ul class="svc-list">
+          <li>Caméras IP/HD/4K (fixes, dômes, PTZ, thermiques)</li>
+          <li>Vision nocturne et grand angle</li>
+          <li>Détection de mouvement & intrusion par IA</li>
+          <li>Enregistrement NVR/DVR + stockage cloud sécurisé</li>
+          <li>Alertes instantanées via SMS/email/application</li>
+          <li>Accès à distance (smartphone, tablette, PC)</li>
+          <li>Supervision multi-sites unifiée</li>
+          <li>Maintenance préventive & corrective</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">IP/4K</span><span class="svc-tag">Détection IA</span><span class="svc-tag">Cloud</span><span class="svc-tag">Multi-sites</span><span class="svc-tag">PTZ</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>📐 Dimensionnement vidéosurveillance</h4>
+        <p class="calc-sub">Calculez votre installation CCTV optimale</p>
+        <div class="calc-field"><label>Surface à surveiller (m²) <span id="vv-sf">500</span></label><input type="range" min="50" max="10000" step="50" value="500" oninput="document.getElementById('vv-sf').textContent=this.value;calcVideo()"/></div>
+        <div class="calc-field"><label>Nombre de zones / pièces <span id="vv-z">5</span></label><input type="range" min="1" max="50" value="5" oninput="document.getElementById('vv-z').textContent=this.value;calcVideo()"/></div>
+        <div class="calc-field"><label>Type de site</label><select onchange="calcVideo()" id="vv-t"><option value="bureau">Bureau / Locaux</option><option value="commerce">Commerce / Magasin</option><option value="entrepot">Entrepôt / Usine</option><option value="residence">Résidence / Villa</option><option value="parking">Parking / Extérieur</option></select></div>
+        <div class="calc-field"><label>Résolution souhaitée</label><select onchange="calcVideo()" id="vv-r"><option value="hd">HD 1080p (standard)</option><option value="4k">4K Ultra HD (haute sécurité)</option><option value="thermal">Thermique (périmètre)</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Caméras</div><div class="calc-metric-val" id="vr-c">8</div><div class="calc-metric-unit">unités recommandées</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Stockage</div><div class="calc-metric-val" id="vr-s">4.0</div><div class="calc-metric-unit">To (30 jours)</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">NVR requis</div><div class="calc-metric-val" id="vr-n">1</div><div class="calc-metric-unit">enregistreur(s)</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Bande passante</div><div class="calc-metric-val" id="vr-b">64</div><div class="calc-metric-unit">Mbps requis</div></div>
+        </div><p class="calc-note" id="vr-nt">Installation et câblage inclus dans notre offre clé en main.</p></div>
+        <button class="calc-btn" onclick="reqDevis('Vidéosurveillance')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+
+    <!-- ACCÈS -->
+    <div class="tab-panel" id="tab-acces">
+      <div class="svc-detail">
+        <h3>🚪 Contrôle d'accès</h3>
+        <p>Solutions intelligentes, sécurisées et évolutives pour gérer les accès à vos bâtiments, collaborateurs et visiteurs. Compatible avec vos systèmes existants.</p>
+        <ul class="svc-list">
+          <li>Contrôle d'accès filaire et sans fil</li>
+          <li>Lecteurs badges, biométrie, QR code, mobile</li>
+          <li>Serrures électriques, ventouses, portiques et tourniquets</li>
+          <li>Interphones & vidéophones IP</li>
+          <li>Journaux & historique des accès en temps réel</li>
+          <li>Alertes en cas d'accès non autorisé</li>
+          <li>Gestion multi-sites et multi-utilisateurs</li>
+          <li>Intégration alarme, vidéosurveillance et GTB</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">Biométrie</span><span class="svc-tag">RFID</span><span class="svc-tag">Multi-sites</span><span class="svc-tag">API ouverte</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>📐 Dimensionnement contrôle d'accès</h4>
+        <p class="calc-sub">Planifiez votre système de contrôle</p>
+        <div class="calc-field"><label>Points d'accès <span id="ac-p">5</span></label><input type="range" min="1" max="100" value="5" oninput="document.getElementById('ac-p').textContent=this.value;calcAcces()"/></div>
+        <div class="calc-field"><label>Nombre d'utilisateurs <span id="ac-u">50</span></label><input type="range" min="5" max="2000" step="5" value="50" oninput="document.getElementById('ac-u').textContent=this.value;calcAcces()"/></div>
+        <div class="calc-field"><label>Technologie</label><select onchange="calcAcces()" id="ac-t"><option value="badge">Badge RFID</option><option value="bio">Biométrie</option><option value="mobile">Mobile / QR Code</option><option value="multi">Multi-technologies</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Lecteurs</div><div class="calc-metric-val" id="ar-l">10</div><div class="calc-metric-unit">unités</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Centrale(s)</div><div class="calc-metric-val" id="ar-c">1</div><div class="calc-metric-unit">contrôleur(s)</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Badges (+20%)</div><div class="calc-metric-val" id="ar-b">60</div><div class="calc-metric-unit">unités</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Installation</div><div class="calc-metric-val" id="ar-i">3</div><div class="calc-metric-unit">jours estimés</div></div>
+        </div></div>
+        <button class="calc-btn" onclick="reqDevis('Contrôle d\'accès')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+
+    <!-- ANTI -->
+    <div class="tab-panel" id="tab-anti">
+      <div class="svc-detail">
+        <h3>🛡️ Anti-intrusion</h3>
+        <p>Systèmes intelligents, réactifs et évolutifs pour détecter, dissuader et alerter en temps réel toute tentative d'intrusion sur vos sites.</p>
+        <ul class="svc-list">
+          <li>Détecteurs volumétriques et périmètriques</li>
+          <li>Détecteurs d'ouverture, bris de vitre, choc, vibrations</li>
+          <li>Barrières infrarouges et rideaux IR</li>
+          <li>Centrales d'alarme filaires et sans fil</li>
+          <li>Supervision 24/7 et télésurveillance (option)</li>
+          <li>Levée de doute audio/vidéo</li>
+          <li>Interopérabilité avec vidéo et contrôle d'accès</li>
+          <li>Tests réguliers et certification</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">Périmétrique</span><span class="svc-tag">Volumétrique</span><span class="svc-tag">Télésurveillance</span><span class="svc-tag">24/7</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>📐 Dimensionnement anti-intrusion</h4>
+        <p class="calc-sub">Protégez efficacement votre périmètre</p>
+        <div class="calc-field"><label>Périmètre (ml) <span id="ai-p">80</span></label><input type="range" min="10" max="2000" step="10" value="80" oninput="document.getElementById('ai-p').textContent=this.value;calcAnti()"/></div>
+        <div class="calc-field"><label>Zones intérieures <span id="ai-z">4</span></label><input type="range" min="1" max="50" value="4" oninput="document.getElementById('ai-z').textContent=this.value;calcAnti()"/></div>
+        <div class="calc-field"><label>Niveau de protection</label><select onchange="calcAnti()" id="ai-t"><option value="basic">Basique (alarme simple)</option><option value="avance">Avancé (vidéo + alarme)</option><option value="total">Totale (télésurveillance 24/7)</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Détecteurs</div><div class="calc-metric-val" id="ainr-d">12</div><div class="calc-metric-unit">unités</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Sirènes</div><div class="calc-metric-val" id="ainr-s">2</div><div class="calc-metric-unit">int. + ext.</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Zones centrales</div><div class="calc-metric-val" id="ainr-c">1</div><div class="calc-metric-unit">contrôleur(s)</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Couverture</div><div class="calc-metric-val" id="ainr-v">95</div><div class="calc-metric-unit">% du site</div></div>
+        </div></div>
+        <button class="calc-btn" onclick="reqDevis('Anti-intrusion')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+
+    <!-- INCENDIE -->
+    <div class="tab-panel" id="tab-incendie">
+      <div class="svc-detail">
+        <h3>🔥 Sécurité incendie</h3>
+        <p>Nous concevons, installons et maintenons des systèmes de sécurité incendie conformes aux normes NF pour détecter, alerter et agir rapidement en cas de sinistre.</p>
+        <ul class="svc-list">
+          <li>Systèmes de détection incendie SSI (types 1 à 4)</li>
+          <li>Équipements d'alarme et de signalisation</li>
+          <li>Extinction automatique (sprinklers, gaz, brouillard)</li>
+          <li>BAES, plans d'évacuation et guidage des occupants</li>
+          <li>Désenfumage naturel et mécanique</li>
+          <li>Extincteurs, RIA et moyens de secours</li>
+          <li>Dossiers ICPE/ERP et conformité réglementaire</li>
+          <li>Maintenance préventive & essais périodiques</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">SSI</span><span class="svc-tag">ERP</span><span class="svc-tag">ICPE</span><span class="svc-tag">Norme NF</span><span class="svc-tag">Sprinklers</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>📐 Dimensionnement sécurité incendie</h4>
+        <p class="calc-sub">Selon normes NF S 61-936</p>
+        <div class="calc-field"><label>Surface bâtiment (m²) <span id="fi-s">1000</span></label><input type="range" min="100" max="50000" step="100" value="1000" oninput="document.getElementById('fi-s').textContent=this.value;calcFire()"/></div>
+        <div class="calc-field"><label>Nombre d'étages <span id="fi-e">2</span></label><input type="range" min="1" max="30" value="2" oninput="document.getElementById('fi-e').textContent=this.value;calcFire()"/></div>
+        <div class="calc-field"><label>Type de bâtiment</label><select onchange="calcFire()" id="fi-t"><option value="bureau">Bureau / Commerce (ERP 4-5)</option><option value="erp">ERP public (catégorie 1-3)</option><option value="industrie">Industrie / Entrepôt</option><option value="residence">Résidence / Immeuble</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Détecteurs fumée</div><div class="calc-metric-val" id="fir-d">20</div><div class="calc-metric-unit">unités</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Déclencheurs manuels</div><div class="calc-metric-val" id="fir-m">8</div><div class="calc-metric-unit">unités</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Extincteurs</div><div class="calc-metric-val" id="fir-x">10</div><div class="calc-metric-unit">unités</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Blocs BAES</div><div class="calc-metric-val" id="fir-b">12</div><div class="calc-metric-unit">unités</div></div>
+        </div><p class="calc-note" id="fir-nt">Étude technique et dossier conformité offerts sur demande.</p></div>
+        <button class="calc-btn" onclick="reqDevis('Sécurité incendie')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+
+    <!-- GTB -->
+    <div class="tab-panel" id="tab-gtb">
+      <div class="svc-detail">
+        <h3>🏢 GTB / GTC / IoT</h3>
+        <p>Nous intégrons les meilleures technologies pour optimiser la gestion, le confort, la sécurité et la performance énergétique de vos bâtiments connectés.</p>
+        <ul class="svc-list">
+          <li>Gestion CVC (Chauffage, Ventilation, Climatisation)</li>
+          <li>Gestion éclairage, stores et fluides (eau, gaz, élec.)</li>
+          <li>Supervision multi-sites unifiée (GTC)</li>
+          <li>Capteurs IoT connectés & analyse prédictive</li>
+          <li>Reporting et tableaux de bord KPIs</li>
+          <li>Protocoles BACnet, Modbus, KNX, MQTT</li>
+          <li>Maintenance et alertes techniques automatisées</li>
+          <li>Intelligence artificielle pour optimisation énergétique</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">BACnet</span><span class="svc-tag">Modbus</span><span class="svc-tag">KNX</span><span class="svc-tag">MQTT</span><span class="svc-tag">IoT</span><span class="svc-tag">IA</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>📐 ROI GTB / IoT</h4>
+        <p class="calc-sub">Estimez vos économies d'énergie</p>
+        <div class="calc-field"><label>Surface bâtiment (m²) <span id="gtb-s">2000</span></label><input type="range" min="100" max="50000" step="100" value="2000" oninput="document.getElementById('gtb-s').textContent=this.value;calcGTB()"/></div>
+        <div class="calc-field"><label>Consommation actuelle (kWh/mois) <span id="gtb-k">5000</span></label><input type="range" min="500" max="100000" step="500" value="5000" oninput="document.getElementById('gtb-k').textContent=this.value;calcGTB()"/></div>
+        <div class="calc-field"><label>Systèmes à piloter</label><select onchange="calcGTB()" id="gtb-sys"><option value="base">CVC uniquement</option><option value="moyen">CVC + Éclairage</option><option value="complet">CVC + Éclairage + Eau + Accès</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Capteurs IoT</div><div class="calc-metric-val" id="gtbr-c">40</div><div class="calc-metric-unit">points de mesure</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Économies énergie</div><div class="calc-metric-val" id="gtbr-e">25</div><div class="calc-metric-unit">% estimés</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Économies/an</div><div class="calc-metric-val" id="gtbr-sv">15 000</div><div class="calc-metric-unit">FCFA × 1000</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Retour invest.</div><div class="calc-metric-val" id="gtbr-r">18</div><div class="calc-metric-unit">mois estimés</div></div>
+        </div><p class="calc-note">Audit énergétique offert pour tout projet supérieur à 500 m².</p></div>
+        <button class="calc-btn" onclick="reqDevis('GTB / IoT')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+
+    <!-- SOLAIRE -->
+    <div class="tab-panel" id="tab-solaire">
+      <div class="svc-detail">
+        <h3>☀️ Énergies Solaire & Éolienne</h3>
+        <p>Des solutions durables pour un avenir responsable. Énergie propre, performance et rentabilité pour vos installations industrielles et résidentielles.</p>
+        <ul class="svc-list">
+          <li>Études et dimensionnement d'installations solaires</li>
+          <li>Conception et ingénierie photovoltaïque</li>
+          <li>Installation et mise en service (on-grid, off-grid, hybride)</li>
+          <li>Études de faisabilité éolienne & analyse de sites</li>
+          <li>Conception et ingénierie de parcs éoliens</li>
+          <li>Maintenance et suivi de performance</li>
+          <li>Solutions sur mesure entreprises et industries</li>
+          <li>Conformité réglementaire et certifications</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">Photovoltaïque</span><span class="svc-tag">Éolien</span><span class="svc-tag">On-grid</span><span class="svc-tag">Off-grid</span><span class="svc-tag">Hybride</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>☀️ Dimensionnement solaire</h4>
+        <p class="calc-sub">Calculez votre installation photovoltaïque</p>
+        <div class="calc-field"><label>Consommation journalière (kWh/j) <span id="sol-c">20</span></label><input type="range" min="1" max="500" value="20" oninput="document.getElementById('sol-c').textContent=this.value;calcSolaire()"/></div>
+        <div class="calc-field"><label>Heures d'ensoleillement/jour <span id="sol-h">5.0</span></label><input type="range" min="3" max="8" value="5" step="0.5" oninput="document.getElementById('sol-h').textContent=parseFloat(this.value).toFixed(1);calcSolaire()"/></div>
+        <div class="calc-field"><label>Type d'installation</label><select onchange="calcSolaire()" id="sol-t"><option value="ongrid">Raccordé réseau (on-grid)</option><option value="offgrid">Autonome (off-grid)</option><option value="hybrid">Hybride (+ batterie)</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Puissance crête</div><div class="calc-metric-val" id="solr-k">5.0</div><div class="calc-metric-unit">kWc nécessaires</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Panneaux 400Wc</div><div class="calc-metric-val" id="solr-p">13</div><div class="calc-metric-unit">panneaux</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Surface toiture</div><div class="calc-metric-val" id="solr-s">26</div><div class="calc-metric-unit">m² requis</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Production annuelle</div><div class="calc-metric-val" id="solr-pr">7 300</div><div class="calc-metric-unit">kWh/an</div></div>
+        </div><p class="calc-note" id="solr-n">Ensoleillement moyen Côte d'Ivoire : 5–6h/j. Étude de site incluse.</p></div>
+        <button class="calc-btn" onclick="reqDevis('Énergie solaire & éolienne')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+
+    <!-- PMO -->
+    <div class="tab-panel" id="tab-pmo">
+      <div class="svc-detail">
+        <h3>📊 Conseil & PMO</h3>
+        <p>Des méthodes éprouvées, des outils performants et un pilotage orienté résultats pour garantir la réussite de vos projets technologiques complexes.</p>
+        <ul class="svc-list">
+          <li>Accompagnement stratégique & opérationnel</li>
+          <li>Montage de projets technologiques complexes</li>
+          <li>Assistance à maîtrise d'ouvrage (AMOA)</li>
+          <li>PMI/PMBOK, Agile (Scrum, Kanban, SAFe), PRINCE2</li>
+          <li>Outils : MS Project, Jira, Trello, Monday.com</li>
+          <li>Tableaux de bord KPIs & reporting automatisé</li>
+          <li>Diagnostic de maturité PMO & mise en place</li>
+          <li>Coaching & formation des équipes projet</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">PMBOK</span><span class="svc-tag">Agile/Scrum</span><span class="svc-tag">PRINCE2</span><span class="svc-tag">AMOA</span><span class="svc-tag">PMO</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>📐 Estimation projet PMO</h4>
+        <p class="calc-sub">Évaluez les ressources nécessaires</p>
+        <div class="calc-field"><label>Budget projet (M FCFA) <span id="pmo-b">100</span></label><input type="range" min="5" max="5000" step="5" value="100" oninput="document.getElementById('pmo-b').textContent=this.value;calcPMO()"/></div>
+        <div class="calc-field"><label>Durée estimée (mois) <span id="pmo-d">6</span></label><input type="range" min="1" max="60" value="6" oninput="document.getElementById('pmo-d').textContent=this.value;calcPMO()"/></div>
+        <div class="calc-field"><label>Complexité</label><select onchange="calcPMO()" id="pmo-c"><option value="simple">Simple (1 équipe, 1 site)</option><option value="moyen">Moyen (multi-équipes)</option><option value="complexe">Complexe (multi-sites)</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Chef de projet</div><div class="calc-metric-val" id="pmor-p">1</div><div class="calc-metric-unit">ETP recommandé</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Jalons clés</div><div class="calc-metric-val" id="pmor-j">4</div><div class="calc-metric-unit">phases</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Comités/mois</div><div class="calc-metric-val" id="pmor-r">8</div><div class="calc-metric-unit">réunions</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Niveau de risque</div><div class="calc-metric-val" id="pmor-k">Moyen</div><div class="calc-metric-unit">évaluation initiale</div></div>
+        </div></div>
+        <button class="calc-btn" onclick="reqDevis('Conseil & PMO')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+
+    <!-- FORMATION -->
+    <div class="tab-panel" id="tab-formation">
+      <div class="svc-detail">
+        <h3>🎓 Formation</h3>
+        <p>Des formations pratiques, certifiantes et évolutives pour développer les compétences de vos équipes et renforcer la performance de votre organisation.</p>
+        <ul class="svc-list">
+          <li>Technologies & Informatique</li>
+          <li>Gestion de projet & Méthodologies (PMI, Agile)</li>
+          <li>Cybersécurité & Réseaux</li>
+          <li>Data, BI & Intelligence Artificielle</li>
+          <li>Développement personnel & Soft skills</li>
+          <li>Présentiel, distanciel, e-learning, blended</li>
+          <li>Intra-entreprise ou inter-entreprises</li>
+          <li>Certifications reconnues & attestations officielles</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">Certifiant</span><span class="svc-tag">E-learning</span><span class="svc-tag">Sur mesure</span><span class="svc-tag">Blended</span><span class="svc-tag">96% satisfaction</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>📐 Plan de formation</h4>
+        <p class="calc-sub">Planifiez votre programme de formation</p>
+        <div class="calc-field"><label>Nombre de participants <span id="frm-p">10</span></label><input type="range" min="1" max="200" value="10" oninput="document.getElementById('frm-p').textContent=this.value;calcForm()"/></div>
+        <div class="calc-field"><label>Domaine</label><select onchange="calcForm()" id="frm-d"><option value="cyber">Cybersécurité & Réseaux</option><option value="projet">Gestion de projet (PMI/Agile)</option><option value="data">Data / BI / IA</option><option value="soft">Soft skills & Management</option><option value="tech">Technologies & Informatique</option></select></div>
+        <div class="calc-field"><label>Modalité</label><select onchange="calcForm()" id="frm-m"><option value="presentiel">Présentiel</option><option value="distanciel">Distanciel</option><option value="blended">Blended (mixte)</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Durée estimée</div><div class="calc-metric-val" id="frmr-d">3</div><div class="calc-metric-unit">jours / module</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Sessions</div><div class="calc-metric-val" id="frmr-g">1</div><div class="calc-metric-unit">groupes</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Heures totales</div><div class="calc-metric-val" id="frmr-h">21</div><div class="calc-metric-unit">heures</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Certification</div><div class="calc-metric-val" id="frmr-c">Oui</div><div class="calc-metric-unit">incluse</div></div>
+        </div></div>
+        <button class="calc-btn" onclick="reqDevis('Formation')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+
+    <!-- CAFE -->
+    <div class="tab-panel" id="tab-cafe">
+      <div class="svc-detail">
+        <h3>🖥️ Cyber Café & Vente informatique</h3>
+        <p>Boutique informatique premium et cyber café haut de gamme. Vente, maintenance express et services bureautiques professionnels à Abidjan.</p>
+        <ul class="svc-list">
+          <li>Accès Internet haut débit</li>
+          <li>Services bureautiques : impression, scan, travaux numériques</li>
+          <li>Vente ordinateurs, tablettes, périphériques et accessoires</li>
+          <li>Maintenance express et dépannage on-site</li>
+          <li>Contrats de maintenance SLA garantis</li>
+          <li>Helpdesk & support utilisateurs</li>
+          <li>Mises à jour & gestion des correctifs</li>
+          <li>Gestion des actifs informatiques (CMDB)</li>
+        </ul>
+        <div class="svc-tags"><span class="svc-tag">Matériel premium</span><span class="svc-tag">SLA garanti</span><span class="svc-tag">Helpdesk</span><span class="svc-tag">Maintenance</span></div>
+      </div>
+      <div class="calc-box">
+        <h4>📐 Contrat de maintenance</h4>
+        <p class="calc-sub">Estimez votre contrat de maintenance informatique</p>
+        <div class="calc-field"><label>Postes à maintenir <span id="cc-p">10</span></label><input type="range" min="1" max="200" value="10" oninput="document.getElementById('cc-p').textContent=this.value;calcCafe()"/></div>
+        <div class="calc-field"><label>Niveau de service (SLA)</label><select onchange="calcCafe()" id="cc-s"><option value="base">Standard (48h intervention)</option><option value="avance">Avancé (24h intervention)</option><option value="premium">Premium (4h intervention)</option></select></div>
+        <div class="calc-field"><label>Périmètre</label><select onchange="calcCafe()" id="cc-r"><option value="non">Postes uniquement</option><option value="oui">Postes + imprimantes + réseau</option></select></div>
+        <div class="calc-result"><div class="calc-result-grid">
+          <div class="calc-metric"><div class="calc-metric-lbl">Interventions/an</div><div class="calc-metric-val" id="ccr-i">12</div><div class="calc-metric-unit">visites</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Temps de réponse</div><div class="calc-metric-val" id="ccr-t">48h</div><div class="calc-metric-unit">garanti</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Téléassistance</div><div class="calc-metric-val" id="ccr-l">Incluse</div><div class="calc-metric-unit">illimitée</div></div>
+          <div class="calc-metric"><div class="calc-metric-lbl">Rapport</div><div class="calc-metric-val" id="ccr-rp">Mensuel</div><div class="calc-metric-unit">tableau de bord</div></div>
+        </div></div>
+        <button class="calc-btn" onclick="reqDevis('Maintenance informatique')">📧 Demander un devis gratuit</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VALEURS -->
+<section class="values-sec">
+  <div class="sec-inner">
+    <div style="text-align:center;margin-bottom:1rem">
+      <span class="sec-tag" style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)">Pourquoi nous choisir</span>
+      <h2 class="sec-h" style="color:#fff;margin-top:.5rem">Expertise · Innovation · Engagement</h2>
+    </div>
+    <div class="values-grid">
+      <div class="val-card"><div class="val-icon">🏆</div><div class="val-title">Expertise reconnue</div><div class="val-desc">Des compétences techniques pointues dans chaque domaine d'intervention.</div></div>
+      <div class="val-card"><div class="val-icon">💡</div><div class="val-title">Technologies innovantes</div><div class="val-desc">Des solutions à la pointe pour anticiper les défis technologiques de demain.</div></div>
+      <div class="val-card"><div class="val-icon">🤝</div><div class="val-title">Accompagnement A à Z</div><div class="val-desc">Un partenaire impliqué dans la réussite de vos projets, de l'étude à la maintenance.</div></div>
+      <div class="val-card"><div class="val-icon">⚡</div><div class="val-title">Réactivité & proximité</div><div class="val-desc">Des résultats mesurables, des délais respectés, une équipe disponible 24/7.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ASSISTANT IA + INSCRIPTION -->
+<section class="ai-sec" id="assistant">
+  <div class="sec-inner">
+    <div style="margin-bottom:2.5rem">
+      <span class="sec-tag">Nouveau</span>
+      <h2 class="sec-h">Assistant IA & Inscription</h2>
+      <p class="sec-sub">Notre assistant répond à toutes vos questions 24h/24. Abonnez-vous pour recevoir nos actualités et offres.</p>
+    </div>
+    <div class="ai-grid">
+      <div class="chat-wrap">
+        <div class="chat-top">
+          <div class="chat-av">
+            <svg width="22" height="22" viewBox="0 0 60 60" fill="none"><g stroke="white" stroke-linecap="round" fill="none"><path d="M28 14 Q33 10 38 13" stroke-width="2.5"/><path d="M25 19 Q33 13 41 17" stroke-width="2.5"/><path d="M22 24 Q32 16 42 21" stroke-width="2.5"/><path d="M19 29 Q31 20 43 26" stroke-width="2.5"/><path d="M16 34 Q30 23 44 31" stroke-width="2.5"/></g></svg>
+          </div>
+          <div class="chat-top-info">
+            <p>Assistant IA — H TECH INNOV</p>
+            <span><span class="dot"></span>Disponible 24h/24 · 7j/7</span>
+          </div>
+        </div>
+        <div class="chat-msgs" id="chatMsgs">
+          <div class="msg bot" style="white-space:pre-line">Bonjour 👋 Je suis l'assistant de <strong>H TECH INNOV</strong>. Je peux vous aider à :
+• Explorer nos services & expertises
+• Obtenir un devis personnalisé
+• Prendre un rendez-vous
+• Dimensionner votre installation
+<div class="qbtns">
+  <button class="qbtn" onclick="sendQ('Quels sont vos services ?')">🔍 Services</button>
+  <button class="qbtn" onclick="sendQ('Je veux un devis')">💼 Devis</button>
+  <button class="qbtn" onclick="sendQ('Vidéosurveillance')">📷 Vidéo</button>
+  <button class="qbtn" onclick="sendQ('Cybersécurité')">🔒 Cyber</button>
+  <button class="qbtn" onclick="sendQ('Énergie solaire')">☀️ Solaire</button>
+  <button class="qbtn" onclick="sendQ('Prendre un rendez-vous')">📅 RDV</button>
+</div></div>
+        </div>
+        <div class="chat-foot">
+          <input type="text" id="chatIn" placeholder="Posez votre question…" onkeydown="if(event.key==='Enter')sendChat()"/>
+          <button class="send-btn" onclick="sendChat()">➤</button>
+        </div>
+      </div>
+
+      <div class="form-wrap" id="inscription">
+        <div class="form-top">
+          <div class="form-top-icon">✉️</div>
+          <div><p>Abonnement & Newsletter</p><span>Actualités, offres et conseils H TECH INNOV</span></div>
+        </div>
+        <div class="form-body">
+          <div class="f-row">
+            <div class="f-field"><label>Prénom *</label><input type="text" id="f_p" placeholder="Jean"/></div>
+            <div class="f-field"><label>Nom *</label><input type="text" id="f_n" placeholder="Kouassi"/></div>
+          </div>
+          <div class="f-field"><label>Email *</label><input type="email" id="f_e" placeholder="jean.kouassi@example.com"/></div>
+          <div class="f-row">
+            <div class="f-field"><label>Téléphone</label><input type="tel" id="f_t" placeholder="07 14 94 24 21"/></div>
+            <div class="f-field"><label>Entreprise</label><input type="text" id="f_c" placeholder="Votre société"/></div>
+          </div>
+          <div class="f-field"><label>Fréquence</label><select id="f_f"><option value="hebdo">Hebdomadaire</option><option value="mensuel" selected>Mensuelle</option><option value="trimestriel">Trimestrielle</option></select></div>
+          <div class="f-field"><label>Domaines d'intérêt</label>
+            <div class="chk-grid">
+              <label class="chk-lbl"><input type="checkbox" checked/> Cybersécurité</label>
+              <label class="chk-lbl"><input type="checkbox"/> Vidéosurveillance</label>
+              <label class="chk-lbl"><input type="checkbox"/> GTB / IoT</label>
+              <label class="chk-lbl"><input type="checkbox"/> Énergies</label>
+              <label class="chk-lbl"><input type="checkbox"/> Conseil & PMO</label>
+              <label class="chk-lbl"><input type="checkbox"/> Formation</label>
+            </div>
+          </div>
+          <button class="f-submit" onclick="submitForm()">✓ S'abonner à la newsletter</button>
+          <div class="f-ok" id="formOk">✅ Inscription confirmée ! Vous recevrez bientôt nos actualités.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-sec" id="contact">
+  <div class="sec-inner">
+    <span class="sec-tag" style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)">Prêt à démarrer ?</span>
+    <h2 class="sec-h" style="margin:.75rem 0">Transformons votre projet ensemble.</h2>
+    <p class="sec-sub">Expertise · Innovation · Engagement — de l'étude à la maintenance, nous sommes à vos côtés à chaque étape de vos projets.</p>
+    <div class="cta-actions">
+      <a href="mailto:info@htechinnov.com" class="btn-primary">Demander un devis gratuit →</a>
+      <a href="tel:+2250714942421" class="btn-outline">📞 07 14 94 24 21</a>
+    </div>
+    <div class="cta-contact">
+      <a href="mailto:info@htechinnov.com">📧 info@htechinnov.com</a>
+      <span style="color:rgba(255,255,255,.2)">|</span>
+      <a href="https://www.htechinnov.com">🌐 www.htechinnov.com</a>
+      <span style="color:rgba(255,255,255,.2)">|</span>
+      <span style="color:rgba(255,255,255,.35)">📍 Abidjan, Côte d'Ivoire</span>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="foot-inner">
+    <div class="foot-brand">
+      <div class="foot-logo">
+        <a class="logo-svg" href="#">
+          <svg width="32" height="32" viewBox="0 0 60 60" fill="none"><rect width="60" height="60" rx="10" fill="#3A5F82"/><g stroke="white" stroke-linecap="round" fill="none"><path d="M28 14 Q33 10 38 13" stroke-width="2.2"/><path d="M25 19 Q33 13 41 17" stroke-width="2.2"/><path d="M22 24 Q32 16 42 21" stroke-width="2.2"/><path d="M19 29 Q31 20 43 26" stroke-width="2.2"/><path d="M16 34 Q30 23 44 31" stroke-width="2.2"/></g><text x="16" y="52" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="13" fill="white" letter-spacing="0.5">HTI</text></svg>
+          <div class="logo-text-block">
+            <span class="logo-name">H TECH INNOV</span>
+            <span class="logo-tagline">Au cœur de vos projets</span>
+          </div>
+        </a>
+      </div>
+      <small>Ingénierie · Sécurité · Performance<br/>Des solutions technologiques sur mesure pour accompagner la croissance et la sécurité de votre entreprise.<br/><br/>📍 Abidjan, Côte d'Ivoire<br/>VOTRE PARTENAIRE TECHNOLOGIQUE DE CONFIANCE</small>
+    </div>
+    <div class="foot-col">
+      <h4>Services</h4>
+      <a href="#services">Cybersécurité & Réseaux</a>
+      <a href="#services">Vidéosurveillance</a>
+      <a href="#services">Contrôle d'accès</a>
+      <a href="#services">Anti-intrusion</a>
+      <a href="#services">Sécurité incendie</a>
+      <a href="#services">GTB / GTC / IoT</a>
+    </div>
+    <div class="foot-col">
+      <h4>Expertise</h4>
+      <a href="#services">Énergies renouvelables</a>
+      <a href="#services">Conseil & PMO</a>
+      <a href="#services">Formation</a>
+      <a href="#services">Cyber Café & Vente</a>
+      <a href="#calculateurs">Dimensionnement</a>
+      <a href="#assistant">Assistant IA</a>
+    </div>
+    <div class="foot-col">
+      <h4>Contact</h4>
+      <a href="tel:+2252722562837">27 22 56 28 37</a>
+      <a href="tel:+2250714942421">07 14 94 24 21</a>
+      <a href="mailto:info@htechinnov.com">info@htechinnov.com</a>
+      <a href="https://www.htechinnov.com">www.htechinnov.com</a>
+      <a href="#inscription">S'abonner</a>
+    </div>
+  </div>
+  <div class="foot-copy">
+    <p>© 2026 H TECH INNOV. Tous droits réservés.</p>
+    <p>Étude · Ingénierie · Intégration · Supervision · Maintenance · Conseil</p>
+  </div>
+</footer>
+
+<!-- FAB -->
+<button class="fab" onclick="toggleFab()" id="fabBtn" title="Assistant IA H TECH INNOV">
+  <span id="fabIcon">
+    <svg width="24" height="24" viewBox="0 0 60 60" fill="none"><g stroke="white" stroke-linecap="round" fill="none"><path d="M28 12 Q33 8 38 11" stroke-width="3"/><path d="M25 18 Q33 11 41 15" stroke-width="3"/><path d="M22 24 Q32 15 42 20" stroke-width="3"/><path d="M19 30 Q31 19 43 25" stroke-width="3"/><path d="M16 36 Q30 23 44 30" stroke-width="3"/></g></svg>
+  </span>
+  <div class="fab-badge"></div>
+</button>
+<div class="fab-popup" id="fabPopup">
+  <div class="chat-top" style="padding:11px 14px">
+    <div class="chat-av" style="width:32px;height:32px"><svg width="18" height="18" viewBox="0 0 60 60" fill="none"><g stroke="white" stroke-linecap="round" fill="none"><path d="M28 14 Q33 10 38 13" stroke-width="2.5"/><path d="M25 19 Q33 13 41 17" stroke-width="2.5"/><path d="M22 24 Q32 16 42 21" stroke-width="2.5"/><path d="M19 29 Q31 20 43 26" stroke-width="2.5"/><path d="M16 34 Q30 23 44 31" stroke-width="2.5"/></g></svg></div>
+    <div class="chat-top-info"><p style="font-size:13px">Assistant H TECH INNOV</p><span><span class="dot"></span>En ligne</span></div>
+    <button onclick="toggleFab()" style="margin-left:auto;background:none;border:none;color:rgba(255,255,255,.6);cursor:pointer;font-size:17px;line-height:1">✕</button>
+  </div>
+  <div class="chat-msgs" id="fabMsgs" style="max-height:230px;min-height:170px;padding:12px">
+    <div class="msg bot" style="font-size:12px">Bonjour ! Comment puis-je vous aider ?
+      <div class="qbtns" style="margin-top:7px">
+        <button class="qbtn" style="font-size:11px" onclick="sendFabQ('Devis rapide')">💼 Devis</button>
+        <button class="qbtn" style="font-size:11px" onclick="sendFabQ('Nos services')">🔍 Services</button>
+        <button class="qbtn" style="font-size:11px" onclick="sendFabQ('Dimensionner mon projet')">📐 Calculer</button>
+      </div>
+    </div>
+  </div>
+  <div class="chat-foot" style="padding:10px">
+    <input type="text" id="fabIn" placeholder="Votre message…" style="font-size:12px" onkeydown="if(event.key==='Enter')sendFab()"/>
+    <button class="send-btn" style="width:34px;height:34px;font-size:13px" onclick="sendFab()">➤</button>
+  </div>
+</div>
+
+<script>
+// ─── TABS ───
+function showTab(id,btn){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ─── CALCULATEURS ───
+function calcCyber(){
+  const rng=document.querySelectorAll('#tab-cyber input[type=range]');
+  const p=+rng[0].value||20,s=+rng[1].value||3;
+  const sect=+document.getElementById('cv-sec').value,risk=+document.getElementById('cv-r').value;
+  const ep=p+s,score=Math.min(100,Math.round((ep*0.8+risk*15)*sect*0.4));
+  const nv=score<30?'Basique':score<60?'Standard':score<80?'Avancé':'Critique';
+  document.getElementById('cr-sc').textContent=score;document.getElementById('cr-nv').textContent=nv;
+  document.getElementById('cr-au').textContent=Math.max(1,Math.round(ep/10*risk));document.getElementById('cr-ep').textContent=ep;
+  const rc={Basique:'Antivirus + pare-feu basique recommandés.',Standard:'Déploiement EDR + formation équipes conseillé.',Avancé:'SOC externalisé + audit annuel recommandé.',Critique:'Plan de sécurité complet + RSSI virtuel requis.'};
+  document.getElementById('cr-rc').textContent=rc[nv];
+}
+function calcVideo(){
+  const sf=+document.getElementById('vv-sf').value||500,z=+document.getElementById('vv-z').value||5;
+  const t=document.getElementById('vv-t').value,r=document.getElementById('vv-r').value;
+  const d={bureau:1,commerce:1.5,entrepot:0.8,residence:1.2,parking:0.6};
+  const bwP={hd:8,'4k':25,thermal:4};
+  const c=Math.max(z,Math.ceil(sf/60*d[t])),bw=Math.round(c*bwP[r]);
+  document.getElementById('vr-c').textContent=c;document.getElementById('vr-s').textContent=(Math.round(c*bwP[r]*0.08*30/100)/10).toFixed(1);
+  document.getElementById('vr-n').textContent=Math.ceil(c/16);document.getElementById('vr-b').textContent=bw;
+  const nt={hd:'Caméras HD 2MP recommandées pour ce site.','4k':'Caméras 4K pour identification précise des personnes.',thermal:'Caméras thermiques idéales pour périmètres nocturnes.'};
+  document.getElementById('vr-nt').textContent=nt[r];
+}
+function calcAcces(){
+  const p=+document.getElementById('ac-p').value||5,u=+document.getElementById('ac-u').value||50,t=document.getElementById('ac-t').value;
+  const f={badge:2,bio:2,mobile:1.5,multi:3};
+  document.getElementById('ar-l').textContent=p*f[t];document.getElementById('ar-c').textContent=Math.ceil(p/8);
+  document.getElementById('ar-b').textContent=Math.round(u*1.2);document.getElementById('ar-i').textContent=Math.max(1,Math.ceil(p/3));
+}
+function calcAnti(){
+  const p=+document.getElementById('ai-p').value||80,z=+document.getElementById('ai-z').value||4,t=document.getElementById('ai-t').value;
+  document.getElementById('ainr-d').textContent=Math.ceil(p/8)+z*2;document.getElementById('ainr-s').textContent=Math.ceil(z/4)+1;
+  document.getElementById('ainr-c').textContent=Math.ceil(z/8)+1;
+  document.getElementById('ainr-v').textContent=t==='total'?99:t==='avance'?95:88;
+}
+function calcFire(){
+  const s=+document.getElementById('fi-s').value||1000,e=+document.getElementById('fi-e').value||2,t=document.getElementById('fi-t').value;
+  const dd={bureau:1,erp:1.5,industrie:0.8,residence:1};
+  const d=Math.ceil(s/50*dd[t]);
+  document.getElementById('fir-d').textContent=d;document.getElementById('fir-m').textContent=Math.ceil(d/3);
+  document.getElementById('fir-x').textContent=Math.ceil(s/200);document.getElementById('fir-b').textContent=Math.ceil(s/80*e);
+  const nt={bureau:'Détection automatique obligatoire (Code du travail).',erp:'Système SSI type 1 ou 2 selon catégorie ERP.',industrie:'Détection gaz + thermostat selon type d\'activité.',residence:'Détecteurs DAAF + plan évacuation obligatoires.'};
+  document.getElementById('fir-nt').textContent=nt[t];
+}
+function calcGTB(){
+  const s=+document.getElementById('gtb-s').value||2000,k=+document.getElementById('gtb-k').value||5000,sys=document.getElementById('gtb-sys').value;
+  const cf={base:0.02,moyen:0.035,complet:0.05},ef={base:.15,moyen:.25,complet:.35};
+  const cap=Math.round(s*cf[sys]),eco=Math.round(ef[sys]*100),save=Math.round(k*ef[sys]*150*12/1000),roi=Math.round(s*cf[sys]*80000/(k*ef[sys]*150*12)*12);
+  document.getElementById('gtbr-c').textContent=cap;document.getElementById('gtbr-e').textContent=eco;
+  document.getElementById('gtbr-sv').textContent=save.toLocaleString('fr');document.getElementById('gtbr-r').textContent=roi;
+}
+function calcSolaire(){
+  const c=+document.getElementById('sol-c').value||20,h=parseFloat(document.getElementById('sol-h').value)||5,t=document.getElementById('sol-t').value;
+  const f={ongrid:1.15,offgrid:1.35,hybrid:1.25};
+  const kwc=Math.round(c/h*f[t]*10)/10,panels=Math.ceil(kwc*1000/400),prodAn=Math.round(kwc*h*365);
+  document.getElementById('solr-k').textContent=kwc.toFixed(1);document.getElementById('solr-p').textContent=panels;
+  document.getElementById('solr-s').textContent=panels*2;document.getElementById('solr-pr').textContent=prodAn.toLocaleString('fr');
+  const nt={ongrid:'Injection réseau possible — économie directe sur facture.',offgrid:'Batterie recommandée : '+(Math.round(c*1.5*10)/10)+' kWh minimum.',hybrid:'Solution optimale pour continuité en cas de coupure réseau.'};
+  document.getElementById('solr-n').textContent=nt[t];
+}
+function calcPMO(){
+  const d=+document.getElementById('pmo-d').value||6,cx=document.getElementById('pmo-c').value;
+  const pm={simple:1,moyen:2,complexe:3},reu={simple:1,moyen:1.5,complexe:2};
+  document.getElementById('pmor-p').textContent=pm[cx];document.getElementById('pmor-j').textContent=Math.ceil(d/2);
+  document.getElementById('pmor-r').textContent=Math.ceil(d*reu[cx]);
+  document.getElementById('pmor-k').textContent={simple:'Faible',moyen:'Moyen',complexe:'Élevé'}[cx];
+}
+function calcForm(){
+  const p=+document.getElementById('frm-p').value||10,d=document.getElementById('frm-d').value,m=document.getElementById('frm-m').value;
+  const dm={cyber:3,projet:2,data:4,soft:2,tech:3},hf={presentiel:7,distanciel:6,blended:5};
+  const dur=dm[d];
+  document.getElementById('frmr-d').textContent=dur;document.getElementById('frmr-g').textContent=Math.ceil(p/15);
+  document.getElementById('frmr-h').textContent=dur*hf[m];
+  document.getElementById('frmr-c').textContent=d==='cyber'||d==='projet'?'Certifiante':'Attestation';
+}
+function calcCafe(){
+  const p=+document.getElementById('cc-p').value||10,s=document.getElementById('cc-s').value;
+  const tmap={base:'48h',avance:'24h',premium:'4h'},imap={base:Math.ceil(p/5),avance:Math.ceil(p/4),premium:Math.ceil(p/3)};
+  document.getElementById('ccr-i').textContent=imap[s];document.getElementById('ccr-t').textContent=tmap[s];
+  document.getElementById('ccr-l').textContent=s==='premium'?'Prioritaire':'Incluse';
+  document.getElementById('ccr-rp').textContent=s==='base'?'Trimestriel':'Mensuel';
+}
+// Init calculateurs
+[calcCyber,calcVideo,calcAcces,calcAnti,calcFire,calcGTB,calcSolaire,calcPMO,calcForm,calcCafe].forEach(f=>f());
+
+// ─── DEVIS REQUEST ───
+function reqDevis(svc){
+  document.getElementById('assistant').scrollIntoView({behavior:'smooth'});
+  setTimeout(()=>sendQ('Je souhaite un devis pour '+svc),700);
+}
+
+// ─── CHATBOT ───
+const BOTS={
+  'service':`H TECH INNOV propose 10 expertises :\n🔒 Cybersécurité & Réseaux\n📷 Vidéosurveillance\n🚪 Contrôle d'accès\n🛡️ Anti-intrusion\n🔥 Sécurité incendie\n🏢 GTB/GTC/IoT\n☀️ Énergies solaire & éolienne\n📊 Conseil & PMO\n🎓 Formation\n🖥️ Cyber Café & Vente\n\nQuel service vous intéresse ?`,
+  'devis':`Pour un devis gratuit et personnalisé :\n📞 07 14 94 24 21\n📧 info@htechinnov.com\n\nOu utilisez nos outils de dimensionnement interactifs dans la section Services ↑\n\nNos experts vous répondent sous 24h.`,
+  'dimensionner':`Utilisez nos calculateurs interactifs !\nCliquez sur l'onglet du service souhaité dans la section "Nos expertises" ↑`,
+  'rendez-vous':`Prenez rendez-vous :\n📅 Disponibilités : Lundi–Vendredi 8h–18h\n📞 07 14 94 24 21\n📧 info@htechinnov.com\n\nNos équipes interviennent à Abidjan et en Côte d'Ivoire.`,
+  'video':`Vidéosurveillance H TECH INNOV :\n• Caméras IP/HD/4K, dômes, PTZ\n• Détection IA intelligente\n• Accès distance 24/7\n• Stockage local et cloud\n\nUtilisez notre calculateur de dimensionnement !`,
+  'cyber':`Cybersécurité H TECH INNOV :\n• Audit & analyse vulnérabilités\n• Protection EDR/XDR\n• Infrastructure LAN/WAN sécurisée\n• Conformité ISO 27001 / RGPD\n• Supervision 24/7\n\nCalculez votre niveau de risque avec notre outil !`,
+  'solaire':`Énergies renouvelables H TECH INNOV :\n☀️ Solaire photovoltaïque on-grid/off-grid/hybride\n💨 Éolien terrestre et côtier\n\nEnsoleillement CI : 5–6h/j en moyenne\nDimensionnez votre installation avec notre calculateur !`,
+  'gtb':`GTB/GTC/IoT H TECH INNOV :\n• Bâtiments intelligents connectés\n• Économies d'énergie : 15–35%\n• Capteurs IoT (BACnet, KNX, Modbus)\n\nCalculez votre retour sur investissement !`,
+  'formation':`Formations H TECH INNOV :\n📚 Cybersécurité, Gestion de projet, Data/IA\n🎓 Certifiantes et pratiques\n💻 Présentiel, distanciel, e-learning\n96% de satisfaction apprenante !`,
+  'pmo':`Conseil & PMO H TECH INNOV :\n• PMI/PMBOK, Agile, PRINCE2\n• Montage projets technologiques\n• Tableaux de bord & KPIs\n• AMOA et conduite du changement\n📍 Abidjan, Côte d'Ivoire`,
+  'incendie':`Sécurité incendie H TECH INNOV :\n• Systèmes SSI conformes normes NF\n• Détection, extinction, évacuation\n• Dossiers ERP/ICPE\n• Maintenance & essais périodiques`,
+  'acces':`Contrôle d'accès H TECH INNOV :\n• Badge, biométrie, QR code, mobile\n• Gestion multi-sites unifiée\n• Journaux accès temps réel\n• Intégration alarme & vidéo`,
+  'contact':`Contactez H TECH INNOV :\n📞 27 22 56 28 37 / 07 14 94 24 21\n📧 info@htechinnov.com\n🌐 www.htechinnov.com\n📍 Abidjan, Côte d'Ivoire`,
+  'default':`Merci pour votre message ! Un expert H TECH INNOV vous répondra sous 24h.\n\n📞 07 14 94 24 21\n📧 info@htechinnov.com\n🌐 www.htechinnov.com`
+};
+function getBot(msg){
+  const m=msg.toLowerCase();
+  const keys=['service','devis','dimensionner','rendez-vous','rdv','video','cyber','solaire','gtb','iot','formation','pmo','contact','incendie','acces','accès'];
+  const map={rdv:'rendez-vous','accès':'acces','iot':'gtb'};
+  for(const k of keys){if(m.includes(k))return BOTS[map[k]||k]||BOTS.default;}
+  return BOTS.default;
+}
+function addMsg(cid,txt,type){
+  const c=document.getElementById(cid);
+  const d=document.createElement('div');d.className='msg '+type;d.style.whiteSpace='pre-line';d.innerHTML=txt;
+  c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
+function showTyp(cid){
+  const c=document.getElementById(cid);
+  const d=document.createElement('div');d.className='typing';d.id='typ_'+cid;
+  d.innerHTML='<span></span><span></span><span></span>';c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
+function sendQ(t){addMsg('chatMsgs',t,'user');showTyp('chatMsgs');setTimeout(()=>{const x=document.getElementById('typ_chatMsgs');if(x)x.remove();addMsg('chatMsgs',getBot(t),'bot');},1100);}
+function sendChat(){const i=document.getElementById('chatIn');const v=i.value.trim();if(!v)return;i.value='';sendQ(v);}
+function sendFabQ(t){addMsg('fabMsgs',t,'user');showTyp('fabMsgs');setTimeout(()=>{const x=document.getElementById('typ_fabMsgs');if(x)x.remove();addMsg('fabMsgs',getBot(t),'bot');},1000);}
+function sendFab(){const i=document.getElementById('fabIn');const v=i.value.trim();if(!v)return;i.value='';sendFabQ(v);}
+function toggleFab(){
+  const p=document.getElementById('fabPopup'),b=document.querySelector('.fab-badge');
+  p.classList.toggle('open');
+  document.getElementById('fabIcon').innerHTML=p.classList.contains('open')?
+    '<span style="font-size:18px;color:#fff">✕</span>':
+    '<svg width="24" height="24" viewBox="0 0 60 60" fill="none"><g stroke="white" stroke-linecap="round" fill="none"><path d="M28 12 Q33 8 38 11" stroke-width="3"/><path d="M25 18 Q33 11 41 15" stroke-width="3"/><path d="M22 24 Q32 15 42 20" stroke-width="3"/><path d="M19 30 Q31 19 43 25" stroke-width="3"/><path d="M16 36 Q30 23 44 30" stroke-width="3"/></g></svg>';
+  if(p.classList.contains('open')&&b)b.style.display='none';
+}
+
+// ─── FORM ───
+function submitForm(){
+  const p=document.getElementById('f_p').value.trim(),n=document.getElementById('f_n').value.trim(),e=document.getElementById('f_e').value.trim();
+  if(!p||!n||!e){alert('Veuillez remplir les champs obligatoires : Prénom, Nom et Email.');return;}
+  document.querySelector('.f-submit').style.display='none';document.getElementById('formOk').style.display='block';
+}
+
+// ─── MENU MOBILE ───
+function toggleMenu(){
+  const nl=document.getElementById('navLinks');
+  if(nl.style.display!=='flex'){
+    nl.style.cssText='display:flex;flex-direction:column;position:fixed;top:66px;left:0;right:0;background:'+getComputedStyle(document.documentElement).getPropertyValue('--navy-deep')+';padding:1.5rem 2rem;gap:1.25rem;z-index:199;border-bottom:1px solid rgba(255,255,255,.1)';
+  }else{nl.style.display='none';}
+}
+</script>
+</body>
+</html>
