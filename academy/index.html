@@ -1,1 +1,624 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>H TECH ACADEMY — Formations certifiantes PMP®, PRINCE2®, Agile, ESG à Abidjan</title>
+<meta name="description" content="H TECH ACADEMY, centre de formation de H TECH INNOV à Abidjan : préparation PMP®, CAPM®, PRINCE2®, Agile Scrum, gestion de projet durable, ESG. Présentiel, classe virtuelle, soirs et week-ends. Un expert vous suit tout au long de votre parcours.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="H TECH ACADEMY — Formez vos talents aux certifications qui comptent">
+<meta property="og:description" content="Préparation PMP®, CAPM®, PRINCE2®, Agile, ESG à Abidjan et en classe virtuelle. Un expert dédié suit chaque apprenant. Paiement en 3 fois possible.">
+<meta property="og:image" content="https://www.htechinnov.com/assets/hti-logo.jpg">
+<meta property="og:locale" content="fr_FR">
+<meta name="theme-color" content="#0A2A66">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Crect width='44' height='44' rx='10' fill='%230A2A66'/%3E%3Cg fill='none' stroke='%2342A5F5' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M8 32a14 14 0 0 1 28 0'/%3E%3Cpath d='M14 32a8 8 0 0 1 16 0'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--navy:#0A2A66;--blue:#1565C0;--blue2:#42A5F5;--green:#3F8A1E;--green-pale:#E9F6EF;--pale:#E8F0FB;--off:#F4F7FC;--line:#D5E0F0;--text:#0F1B33;--muted:#4A5A78;--red:#C62828;--amber:#B45309;
+  --head:'Montserrat',system-ui,sans-serif;--body:'Source Sans 3',system-ui,sans-serif;--r:14px}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:var(--body);color:var(--text);background:#fff;font-size:16px;line-height:1.6}
+a{color:var(--blue)}
+h1,h2,h3,h4{font-family:var(--head);color:var(--navy);margin:0;line-height:1.2}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 20px;border-radius:10px;border:0;font-family:var(--head);font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;transition:transform .2s,background .2s,box-shadow .2s}
+.btn:hover{transform:translateY(-1px)}
+.btn-p{background:var(--navy);color:#fff}.btn-p:hover{background:var(--blue);color:#fff}
+.btn-g{background:var(--green);color:#fff}.btn-g:hover{background:#357517;color:#fff}
+.btn-o{background:#fff;color:var(--navy);border:2px solid var(--navy)}.btn-o:hover{background:var(--pale)}
+.btn-s{min-height:38px;padding:0 14px;font-size:13px}
+.kick{font-family:var(--head);font-weight:700;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--green)}
+:focus-visible{outline:3px solid var(--blue2);outline-offset:2px}
+/* En-tête */
+.top{background:var(--navy);color:#fff;font-size:13px}
+.top .wrap{display:flex;justify-content:space-between;align-items:center;min-height:38px;gap:12px;flex-wrap:wrap}
+.top a{color:#fff;text-decoration:none}.top a:hover{text-decoration:underline}
+header.nav{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+header.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:74px;gap:16px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo svg{width:40px;height:22px;fill:none;stroke:var(--navy);stroke-width:2.8;stroke-linecap:round}
+.logo b{font-family:var(--head);font-weight:800;font-size:19px;color:var(--navy);letter-spacing:.01em}
+.logo span{display:block;font-size:10px;letter-spacing:.16em;color:var(--green);font-weight:700}
+nav.links{display:flex;gap:22px}
+nav.links a{font-family:var(--head);font-weight:600;font-size:14px;color:var(--text);text-decoration:none;padding:6px 0;border-bottom:2px solid transparent}
+nav.links a:hover,nav.links a.on{border-bottom-color:var(--green)}
+.burger{display:none;background:none;border:0;font-size:24px;cursor:pointer;color:var(--navy);min-width:44px;min-height:44px}
+/* Accueil */
+.hero{background:var(--off);padding:72px 0 64px}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+.hero h1{font-size:46px;font-weight:800}
+.hero h1 em{font-style:normal;color:var(--green)}
+.hero p.lead{font-size:19px;color:var(--muted);margin:18px 0 26px}
+.hero-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 20px 50px rgba(10,42,102,.10)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
+.stat{background:var(--pale);border-radius:12px;padding:14px;text-align:center}
+.stat b{display:block;font-family:var(--head);font-size:26px;color:var(--navy)}
+.stat span{font-size:12.5px;color:var(--muted)}
+section.sec{padding:72px 0}
+section.alt{background:var(--off)}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+.sec-head h2{font-size:34px;margin-top:8px}
+.sec-head p{margin:6px 0 0;color:var(--muted);max-width:640px}
+.seg{display:inline-flex;background:var(--pale);border-radius:12px;padding:4px;gap:4px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;padding:9px 14px;border-radius:9px;font-family:var(--head);font-weight:700;font-size:13px;color:var(--muted);cursor:pointer;min-height:40px}
+.seg button.on{background:#fff;color:var(--navy);box-shadow:0 2px 8px rgba(10,42,102,.12)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:22px;display:flex;flex-direction:column;gap:10px;transition:transform .25s,box-shadow .25s}
+.card:hover{transform:translateY(-4px);box-shadow:0 16px 36px rgba(10,42,102,.12)}
+.card .tag{align-self:flex-start;font-size:11.5px;font-weight:700;color:var(--blue);background:var(--pale);padding:3px 10px;border-radius:999px}
+.card h3{font-size:18px}
+.card p{margin:0;color:var(--muted);font-size:14.5px}
+.prix{font-family:var(--head);font-weight:800;font-size:22px;color:var(--navy)}
+.prix small{font-family:var(--body);font-weight:500;font-size:12.5px;color:var(--muted)}
+.meta{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.card .actions{display:flex;gap:8px;margin-top:auto;padding-top:6px;flex-wrap:wrap}
+.session{font-size:13px;color:var(--green);font-weight:600}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;counter-reset:s}
+.step{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:22px;position:relative}
+.step::before{counter-increment:s;content:counter(s);display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:var(--navy);color:#fff;font-family:var(--head);font-weight:800;margin-bottom:12px}
+.step h3{font-size:16.5px;margin-bottom:6px}.step p{margin:0;color:var(--muted);font-size:14.5px}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+.panel{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:24px}
+.check{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-direction:column;gap:9px}
+.check li{padding-left:28px;position:relative}
+.check li::before{content:"";position:absolute;left:0;top:4px;width:18px;height:18px;border-radius:50%;background:var(--green-pale);border:2px solid var(--green)}
+.faq details{border-bottom:1px solid var(--line);padding:14px 0}
+.faq summary{cursor:pointer;font-family:var(--head);font-weight:700;color:var(--navy)}
+.faq p{margin:8px 0 0;color:var(--muted)}
+.cta{background:var(--navy);color:#fff;border-radius:20px;padding:40px;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}
+.cta h2{color:#fff;font-size:28px}.cta p{color:#C9D6EC;margin:6px 0 0}
+/* Formulaires */
+.form{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form .full{grid-column:1/-1}
+label.f{display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.in,select.in,textarea.in{width:100%;min-height:46px;padding:11px 13px;border:1px solid #C5D6F0;border-radius:10px;font:inherit;font-size:15px;background:#fff;color:var(--text)}
+textarea.in{min-height:96px;resize:vertical}
+.in:focus{outline:2px solid var(--blue);outline-offset:1px}
+.profils{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.profils label{border:2px solid var(--line);border-radius:12px;padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.profils input{position:absolute;opacity:0}
+.profils label:has(input:checked){border-color:var(--green);background:var(--green-pale)}
+.profils b{font-family:var(--head);color:var(--navy)}.profils span{font-size:13px;color:var(--muted)}
+.choix{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.choix label{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:14.5px}
+.choix label:has(input:checked){border-color:var(--blue);background:var(--pale)}
+.choix small{display:block;color:var(--muted)}
+.err{color:var(--red);font-size:13px;font-weight:600;min-height:18px}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.note{font-size:13px;color:var(--muted)}
+.recap{background:var(--green-pale);border:1px solid #BFE3C9;border-radius:var(--r);padding:20px}
+/* Espace apprenant */
+.espace{padding:40px 0 72px;min-height:70vh}
+.login{max-width:440px;margin:30px auto;background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px;box-shadow:0 20px 50px rgba(10,42,102,.08)}
+.login h1{font-size:24px;margin-bottom:6px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:18px 0}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi span{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.kpi b{display:block;font-family:var(--head);font-size:22px;color:var(--navy)}
+.bar{height:10px;border-radius:5px;background:var(--pale);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--green);border-radius:5px;transition:width .6s}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:18px 0;flex-wrap:wrap}
+.tabs button{border:0;background:none;padding:12px 16px;font-family:var(--head);font-weight:700;font-size:14px;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer;min-height:46px}
+.tabs button.on{color:var(--navy);border-bottom-color:var(--green)}
+.module{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden;background:#fff}
+.module>summary{padding:14px 16px;cursor:pointer;font-family:var(--head);font-weight:700;color:var(--navy);display:flex;justify-content:space-between;gap:10px;background:var(--off)}
+.lecon{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
+.lecon .ico{width:34px;height:34px;border-radius:9px;background:var(--pale);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lecon .t{flex:1}.lecon .t b{display:block;font-weight:600}.lecon .t small{color:var(--muted)}
+.lecon.fait .ico{background:var(--green-pale)}
+.done{font-size:12px;font-weight:700;color:var(--green)}
+.lecteur{background:#000;border-radius:12px;overflow:hidden;aspect-ratio:16/9;margin-bottom:12px}
+.lecteur iframe{width:100%;height:100%;border:0}
+.fil{display:flex;flex-direction:column;gap:10px;max-height:52vh;overflow-y:auto;padding:4px}
+.msg{max-width:80%;padding:10px 14px;border-radius:14px;font-size:14.5px}
+.msg.moi{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:4px}
+.msg.lui{align-self:flex-start;background:var(--pale);border-bottom-left-radius:4px}
+.msg small{display:block;opacity:.75;font-size:11.5px;margin-bottom:2px}
+.expert{display:flex;gap:14px;align-items:center}
+.avatar{width:54px;height:54px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--head);font-weight:800}
+.badge{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--pale);color:var(--blue)}
+.badge.vert{background:var(--green-pale);color:var(--green)}.badge.gris{background:#EEF1F6;color:var(--muted)}
+.vide{text-align:center;color:var(--muted);padding:28px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 18px;border-radius:10px;font-weight:600;z-index:100;box-shadow:0 10px 30px rgba(0,0,0,.2);display:none;max-width:92vw}
+footer{background:var(--navy);color:#C9D6EC;padding:48px 0 28px;font-size:14px}
+footer .cols{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:24px}
+footer h4{color:#fff;font-size:14px;margin-bottom:10px}
+footer a{color:#C9D6EC;text-decoration:none;display:block;padding:3px 0}footer a:hover{color:#fff}
+footer .bas{border-top:1px solid rgba(255,255,255,.15);margin-top:28px;padding-top:16px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px}
+#attestation{display:none}
+@media (max-width:900px){
+  .hero .wrap,.duo{grid-template-columns:1fr}.hero h1{font-size:34px}.steps{grid-template-columns:1fr 1fr}
+  nav.links{display:none;position:absolute;top:74px;left:0;right:0;background:#fff;flex-direction:column;padding:16px 24px;border-bottom:1px solid var(--line);gap:8px}
+  nav.links.open{display:flex}.burger{display:block}.form{grid-template-columns:1fr}.profils{grid-template-columns:1fr}footer .cols{grid-template-columns:1fr 1fr}
+}
+@media (max-width:520px){.top span:first-child{display:none}.logo span{display:none}.logo b{font-size:16px}#btnEspace{padding:0 12px}.steps{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr 1fr}.wrap{padding:0 16px}.sec-head h2{font-size:27px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+@media print{body *{visibility:hidden}#attestation,#attestation *{visibility:visible}#attestation{display:block!important;position:absolute;inset:0}}
+</style>
+</head>
+<body>
+<div class="top"><div class="wrap">
+  <span>Centre de formation de <a href="https://www.htechinnov.com/">H TECH INNOV</a> · Abidjan, Cocody Riviera Jules Verne</span>
+  <span><a href="tel:+2250714942421">07 14 94 24 21</a> · <a href="mailto:info@htechinnov.com">info@htechinnov.com</a></span>
+</div></div>
+<header class="nav"><div class="wrap">
+  <a class="logo" href="#/" aria-label="H TECH ACADEMY — accueil">
+    <svg viewBox="0 0 44 24" aria-hidden="true"><path d="M4 22a18 18 0 0 1 36 0"/><path d="M10 22a12 12 0 0 1 24 0"/><path d="M16 22a6 6 0 0 1 12 0"/></svg>
+    <div><b>H TECH ACADEMY</b><span>AU CŒUR DE VOS COMPÉTENCES</span></div>
+  </a>
+  <nav class="links" id="navLinks" aria-label="Navigation principale">
+    <a href="#/" data-r="accueil">Accueil</a>
+    <a href="#/formations" data-r="formations">Formations</a>
+    <a href="#/financement" data-r="financement">Financement</a>
+    <a href="#/besoin" data-r="besoin">Exprimer mon besoin</a>
+    <a href="https://www.htechinnov.com/">Site H TECH INNOV ↗</a>
+  </nav>
+  <div style="display:flex;gap:8px;align-items:center">
+    <a class="btn btn-g btn-s" href="#/espace" id="btnEspace">Espace apprenant</a>
+    <button class="burger" aria-label="Menu" aria-expanded="false" onclick="toggleMenu(this)">☰</button>
+  </div>
+</div></header>
 
+<main id="app" tabindex="-1"><div class="wrap espace"><p class="vide">Chargement…</p></div></main>
+
+<footer><div class="wrap">
+  <div class="cols">
+    <div><h4>H TECH ACADEMY</h4><p style="margin:0">Formations pratiques et certifiantes en gestion de projet, ESG et transformation, pensées pour le contexte africain et alignées sur les standards internationaux.</p></div>
+    <div><h4>Formations</h4><a href="#/formations">Catalogue</a><a href="#/besoin">Exprimer mon besoin</a><a href="#/financement">Financement et paiement</a><a href="#/espace">Espace apprenant</a></div>
+    <div><h4>H TECH INNOV</h4><a href="https://www.htechinnov.com/">Site principal</a><a href="https://www.htechinnov.com/#poles">Nos services</a><a href="https://www.htechinnov.com/#rdv">Prendre rendez-vous</a><a href="https://www.htechinnov.com/htech-erp-dolibarr.html">Espace équipe (ERP)</a></div>
+    <div><h4>Contact</h4><a href="tel:+2250714942421">07 14 94 24 21</a><a href="tel:+2252722562837">27 22 56 28 37</a><a href="mailto:info@htechinnov.com">info@htechinnov.com</a><a href="https://wa.me/2250714942421" target="_blank" rel="noopener">WhatsApp</a></div>
+  </div>
+  <div class="bas"><span>© 2026 H TECH INNOV SARL · RCCM CI-ABJ-03-2026-B12-06284 · BP 1002 Abidjan</span>
+  <span>PMP®, CAPM® et PMI® sont des marques du Project Management Institute · PRINCE2® est une marque de PeopleCert · P5™, PRiSM™ et CSPP™ sont des marques de GPM Global</span></div>
+</div></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="attestation"></div>
+
+<script>
+// ═══ Configuration ═══
+const CONFIG={
+  SUPABASE_URL:'https://mgdpbngmjybqphonshsl.supabase.co',
+  SUPABASE_KEY:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZHBibmdtanlicXBob25zaHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzk4NTUsImV4cCI6MjA5Njk1NTg1NX0.Xe0cONWJBxIltu7WlAq_aGGbQ5MoRZk1zhmrCIn3XWA',
+  SITE:'https://www.htechinnov.com/',
+  ERP:'https://www.htechinnov.com/htech-erp-dolibarr.html',
+  WHATSAPP:'2250714942421'
+};
+const TYPE_AUTH=new URLSearchParams(location.hash.slice(1)).get('type'); // invite / recovery (lien reçu par email)
+const sb=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:'hti-academy-auth',detectSessionInUrl:true}});
+
+// Catalogue de référence (grille tarifaire 2026-2027) — remplacé par la version de l'ERP si disponible
+const CATALOGUE_DEFAUT=[{"reference": "HTI-FO-PMP", "designation": "Préparation à la certification PMP®", "description": "35 heures de formation, dossier d’éligibilité PMI inclus. Durée : 5 jours ou 6 semaines. Prix par participant, supports inclus. Présentiel à Abidjan, classe virtuelle ou soirs et week-ends. Frais d’examen non inclus, payés directement à l’organisme certificateur.", "categorie": "Formations inter-entreprises", "unite": "participant", "tarifs": {"organisation": 850000, "particulier": 550000, "etudiant": 350000}}, {"reference": "HTI-FO-CAPM", "designation": "Préparation à la certification CAPM®", "description": "Préparation à la certification d’associé en gestion de projet. Durée : 3 jours. Prix par participant, supports inclus. Présentiel à Abidjan, classe virtuelle ou soirs et week-ends. Frais d’examen non inclus, payés directement à l’organisme certificateur.", "categorie": "Formations inter-entreprises", "unite": "participant", "tarifs": {"organisation": 450000, "particulier": 300000, "etudiant": 200000}}, {"reference": "HTI-FO-PRINCE2", "designation": "Préparation PRINCE2® Foundation", "description": "Méthode PRINCE2, niveau Foundation. Durée : 3 jours. Prix par participant, supports inclus. Présentiel à Abidjan, classe virtuelle ou soirs et week-ends. Frais d’examen non inclus, payés directement à l’organisme certificateur.", "categorie": "Formations inter-entreprises", "unite": "participant", "tarifs": {"organisation": 650000, "particulier": 450000, "etudiant": 300000}}, {"reference": "HTI-FO-AGILE", "designation": "Agile et Scrum", "description": "Principes agiles, cadre Scrum et mises en situation. Durée : 2 jours. Prix par participant, supports inclus. Présentiel à Abidjan, classe virtuelle ou soirs et week-ends.", "categorie": "Formations inter-entreprises", "unite": "participant", "tarifs": {"organisation": 350000, "particulier": 250000, "etudiant": 150000}}, {"reference": "HTI-FO-DURABLE", "designation": "Gestion de projet durable (P5™ et PRiSM™)", "description": "Intégrer la durabilité dans la gestion de projet. Durée : 2 jours. Prix par participant, supports inclus. Présentiel à Abidjan, classe virtuelle ou soirs et week-ends.", "categorie": "Formations inter-entreprises", "unite": "participant", "tarifs": {"organisation": 400000, "particulier": 280000, "etudiant": 180000}}, {"reference": "HTI-FO-CSPP", "designation": "Préparation à la certification CSPP™", "description": "Certification de praticien en gestion de projet durable. Durée : 3 jours. Prix par participant, supports inclus. Présentiel à Abidjan, classe virtuelle ou soirs et week-ends. Frais d’examen non inclus, payés directement à l’organisme certificateur.", "categorie": "Formations inter-entreprises", "unite": "participant", "tarifs": {"organisation": 550000, "particulier": 380000, "etudiant": 250000}}, {"reference": "HTI-FO-GOUVERNANCE", "designation": "Gouvernance, PMO et gestion de portefeuille", "description": "Mettre en place la gouvernance, le PMO et le pilotage du portefeuille. Durée : 3 jours. Prix par participant, supports inclus. Présentiel à Abidjan, classe virtuelle ou soirs et week-ends.", "categorie": "Formations inter-entreprises", "unite": "participant", "tarifs": {"organisation": 600000, "particulier": 420000, "etudiant": null}}, {"reference": "HTI-FO-ESG", "designation": "ESG et conduite du changement", "description": "Enjeux ESG et accompagnement du changement dans l’organisation. Durée : 2 jours. Prix par participant, supports inclus. Présentiel à Abidjan, classe virtuelle ou soirs et week-ends.", "categorie": "Formations inter-entreprises", "unite": "participant", "tarifs": {"organisation": 400000, "particulier": 280000, "etudiant": 180000}}, {"reference": "HTI-FO-INTRA", "designation": "Formation intra-entreprise sur mesure — par jour", "description": "Dans les locaux du client, programme sur mesure, jusqu’à 12 participants. Prix par jour pour le groupe, selon le thème et le niveau de personnalisation, hors location de salle. Peut être présentée au FDFP pour financement (sous réserve d’agrément).", "categorie": "Formation intra-entreprise", "unite": "jour", "tarifs": {"A": [750000, 1200000], "B": [750000, 1200000], "C": [750000, 1200000], "D": [750000, 1200000]}}];
+const DOMAINES={'HTI-FO-PMP':'Gestion de projet','HTI-FO-CAPM':'Gestion de projet','HTI-FO-PRINCE2':'Gestion de projet','HTI-FO-AGILE':'Agilité','HTI-FO-DURABLE':'Durabilité et ESG','HTI-FO-CSPP':'Durabilité et ESG','HTI-FO-GOUVERNANCE':'Gouvernance et PMO','HTI-FO-ESG':'Durabilité et ESG','HTI-FO-INTRA':'Sur mesure'};
+const PROFILS={organisation:['Organisation','Entreprise, administration, ONG : la formation est payée par l’employeur'],particulier:['Particulier','Vous financez vous-même votre formation'],etudiant:['Étudiant / demandeur d’emploi','Sur justificatif']};
+let CATALOGUE=CATALOGUE_DEFAUT,SESSIONS=[],PROFIL=localStorage.getItem('hti-academy-profil')||'organisation',USER=null,MOI=null;
+
+// ═══ Outils ═══
+function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function fcfa(n){return Math.round(Number(n)||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' FCFA';}
+function dateFr(d){if(!d)return'';const x=new Date(d);return isNaN(x)?'':x.toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});}
+function toast(m,ms){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',ms||3500);}
+function app(html){const a=document.getElementById('app');a.innerHTML=html;window.scrollTo(0,0);a.focus({preventScroll:true});}
+function toggleMenu(b){const n=document.getElementById('navLinks');n.classList.toggle('open');b.setAttribute('aria-expanded',n.classList.contains('open'));}
+function prixFormation(f,profil){
+  const t=f.tarifs||{};
+  if(t.organisation!==undefined){const v=t[profil];return v==null?null:{v,unite:'par participant'};}
+  const v=t.A;return{v:Array.isArray(v)?v:[v,v],unite:'par jour pour le groupe',groupe:true};
+}
+function prixTexte(f,profil){
+  const p=prixFormation(f,profil);if(!p)return'<span class="note">Non proposé pour ce profil</span>';
+  if(p.groupe)return `${fcfa(p.v[0]).replace(' FCFA','')} à ${fcfa(p.v[1])} <small>HT ${esc(p.unite)}</small>`;
+  return `${fcfa(p.v)} <small>HT ${esc(p.unite)}</small>`;
+}
+function duree(f){const m=/Durée\s*:\s*([^.]+)\./.exec(f.description||'');return m?m[1]:'';}
+function descCourte(f){return (f.description||'').replace(/Durée\s*:[^.]+\.\s*/,'').replace(/Prix par participant[^.]*\.\s*/,'').replace(/Présentiel à Abidjan[^.]*\.\s*/,'').replace(/Frais d’examen[^.]*\./,'').trim();}
+function prochaineSession(ref){const s=SESSIONS.filter(x=>x.formation_ref===ref&&x.date_debut>=new Date().toISOString().slice(0,10)).sort((a,b)=>a.date_debut.localeCompare(b.date_debut))[0];return s;}
+
+// ═══ Données publiques ═══
+async function chargerCatalogue(){
+  try{const{data,error}=await sb.rpc('academy_catalogue');if(!error&&data&&data.length)CATALOGUE=data;}catch(e){}
+  try{const{data}=await sb.from('academy_sessions').select('*').eq('publique',true).order('date_debut');SESSIONS=data||[];}catch(e){}
+}
+
+// ═══ Pages publiques ═══
+function carte(f){
+  const s=prochaineSession(f.reference),d=duree(f);
+  return `<article class="card">
+    <span class="tag">${esc(DOMAINES[f.reference]||f.categorie||'Formation')}</span>
+    <h3>${esc(f.designation)}</h3>
+    <p>${esc(descCourte(f)).slice(0,170)}</p>
+    <div class="meta">${d?`<span>⏱ ${esc(d)}</span>`:''}<span>📍 Abidjan ou classe virtuelle</span></div>
+    <div class="prix">${prixTexte(f,PROFIL)}</div>
+    ${s?`<div class="session">Prochaine session : ${esc(dateFr(s.date_debut))}${s.format?' · '+esc(s.format):''}</div>`:'<div class="note">Sessions sur demande</div>'}
+    <div class="actions"><a class="btn btn-o btn-s" href="#/formation/${encodeURIComponent(f.reference)}">Détails</a><a class="btn btn-g btn-s" href="#/besoin/${encodeURIComponent(f.reference)}">Je suis intéressé(e)</a></div>
+  </article>`;
+}
+function selecteurProfil(){
+  return `<div class="seg" role="group" aria-label="Votre profil">${Object.entries(PROFILS).map(([k,v])=>`<button type="button" class="${k===PROFIL?'on':''}" aria-pressed="${k===PROFIL}" onclick="choisirProfil('${k}')">${esc(v[0])}</button>`).join('')}</div>`;
+}
+function choisirProfil(p){PROFIL=p;localStorage.setItem('hti-academy-profil',p);route();}
+function pageAccueil(){
+  app(`
+  <section class="hero"><div class="wrap">
+    <div>
+      <span class="kick">H TECH ACADEMY · Abidjan</span>
+      <h1 style="margin-top:12px">Formez-vous aux certifications <em>qui font la différence</em>.</h1>
+      <p class="lead">PMP®, CAPM®, PRINCE2®, Agile, gestion de projet durable, ESG : des formations pratiques, en présentiel, en classe virtuelle ou en soirée, avec un expert qui vous suit personnellement jusqu’à la certification.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap"><a class="btn btn-g" href="#/besoin">Exprimer mon besoin de formation</a><a class="btn btn-o" href="#/formations">Voir le catalogue</a></div>
+    </div>
+    <div class="hero-card">
+      <h3 style="font-size:18px">Votre parcours avec un expert dédié</h3>
+      <ul class="check"><li>Un expert certifié associé à chaque apprenant</li><li>Cours enregistrés, supports PDF et exercices en ligne</li><li>Suivi de votre progression et examens blancs</li><li>Compteur des 35 heures exigées pour le dossier PMP®</li><li>Paiement en 3 fois sans frais pour les particuliers</li></ul>
+      <div class="stats"><div class="stat"><b>95 %</b><span>de réussite au 1er passage</span></div><div class="stat"><b>${CATALOGUE.length}</b><span>formations au catalogue</span></div><div class="stat"><b>3</b><span>formats au choix</span></div></div>
+    </div>
+  </div></section>
+  <section class="sec"><div class="wrap">
+    <div class="sec-head"><div><span class="kick">Catalogue</span><h2>Nos formations</h2><p>Les prix s’affichent selon votre profil. Ils sont hors taxes ; la TVA de 18 % s’ajoute sauf exonération.</p></div>${selecteurProfil()}</div>
+    <div class="grid">${CATALOGUE.filter(f=>f.reference!=='HTI-FO-INTRA').slice(0,6).map(carte).join('')}</div>
+    <p style="text-align:center;margin-top:22px"><a class="btn btn-o" href="#/formations">Tout le catalogue</a></p>
+  </div></section>
+  <section class="sec alt"><div class="wrap">
+    <div class="sec-head"><div><span class="kick">Comment ça marche</span><h2>De votre besoin à votre certification</h2></div></div>
+    <div class="steps">
+      <div class="step"><h3>Vous exprimez votre besoin</h3><p>En quelques minutes, en vous aidant du catalogue : formation, objectif, format, disponibilités.</p></div>
+      <div class="step"><h3>Nous vous conseillons</h3><p>Un conseiller vous rappelle sous 48 h et vous envoie une proposition chiffrée.</p></div>
+      <div class="step"><h3>Vous suivez votre parcours</h3><p>Dans votre espace apprenant : cours, supports, exercices, examens blancs, avec votre expert.</p></div>
+      <div class="step"><h3>Vous vous certifiez</h3><p>Accompagnement à l’inscription à l’examen et attestation de formation H TECH ACADEMY.</p></div>
+    </div>
+  </div></section>
+  <section class="sec"><div class="wrap duo">
+    <div class="panel"><span class="kick">Suivi personnalisé</span><h2 style="font-size:26px;margin-top:8px">Un expert à vos côtés</h2>
+      <p class="note" style="font-size:15px">Chaque apprenant est associé à un expert certifié. Il suit votre progression, répond à vos questions par message, commente vos examens blancs et vous alerte si vous décrochez.</p>
+      <ul class="check"><li>Messagerie directe avec votre expert</li><li>Notes de suivi et conseils personnalisés</li><li>Points d’étape avant l’examen</li></ul></div>
+    <div class="panel"><span class="kick">Formats</span><h2 style="font-size:26px;margin-top:8px">S’adapter à votre agenda</h2>
+      <ul class="check"><li><b>Présentiel à Abidjan</b>, dans notre salle de formation</li><li><b>Classe virtuelle</b>, depuis toute l’Afrique de l’Ouest</li><li><b>Soirs et week-ends</b>, pour les actifs</li><li><b>Intra-entreprise</b>, programme sur mesure jusqu’à 12 participants</li></ul>
+      <a class="btn btn-o btn-s" href="#/formation/HTI-FO-INTRA" style="margin-top:14px">Former une équipe</a></div>
+  </div></section>
+  <section class="sec alt"><div class="wrap">
+    <div class="sec-head"><div><span class="kick">Questions fréquentes</span><h2>Bon à savoir</h2></div></div>
+    <div class="faq">
+      <details><summary>Les frais d’examen sont-ils inclus ?</summary><p>Non. Ils sont payés directement à l’organisme certificateur. Pour le PMP®, comptez environ 425 USD pour un membre du PMI et 675 USD pour un non-membre (montants 2026 à confirmer sur pmi.org). Nous vous accompagnons dans l’inscription et le paiement.</p></details>
+      <details><summary>Puis-je payer en plusieurs fois ?</summary><p>Oui : les particuliers et étudiants peuvent payer en 3 fois sans frais, le solde avant l’examen blanc final. Les organisations règlent 50 % à l’inscription et le solde avant le début de la formation. Virement, chèque, Orange Money, MTN MoMo, Moov Money ou Wave.</p></details>
+      <details><summary>Mon entreprise peut-elle financer ma formation ?</summary><p>Oui. Les formations intra-entreprise peuvent être présentées au FDFP pour un financement, sous réserve d’agrément du programme. Nous aidons à monter le dossier.</p></details>
+      <details><summary>Comment fonctionne l’espace apprenant ?</summary><p>Après votre inscription, vous recevez un email pour créer votre mot de passe. Vous retrouvez ensuite vos cours enregistrés, vos supports PDF, votre progression, vos examens blancs et la messagerie avec votre expert.</p></details>
+    </div>
+  </div></section>
+  <section class="sec"><div class="wrap"><div class="cta"><div><h2>Prêt(e) à passer à l’étape suivante ?</h2><p>Dites-nous ce que vous visez : nous vous proposons le parcours adapté sous 48 h.</p></div><a class="btn btn-g" href="#/besoin">Exprimer mon besoin</a></div></div></section>`);
+}
+function pageFormations(){
+  const doms=[...new Set(CATALOGUE.map(f=>DOMAINES[f.reference]||f.categorie||'Autres'))];
+  app(`<section class="sec"><div class="wrap">
+    <div class="sec-head"><div><span class="kick">Catalogue 2026-2027</span><h1 style="font-size:36px;margin-top:8px">Toutes nos formations</h1><p>Prix hors taxes selon votre profil ; TVA de 18 % en sus sauf exonération. Supports inclus.</p></div>${selecteurProfil()}</div>
+    <div class="seg" style="margin-bottom:20px" role="group" aria-label="Domaine"><button type="button" class="on" onclick="filtreDomaine(this,'')">Tous les domaines</button>${doms.map(d=>`<button type="button" onclick="filtreDomaine(this,'${esc(d)}')">${esc(d)}</button>`).join('')}</div>
+    <div class="grid" id="gridF">${CATALOGUE.map(carte).join('')}</div>
+  </div></section>`);
+}
+function filtreDomaine(b,d){
+  b.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  document.getElementById('gridF').innerHTML=CATALOGUE.filter(f=>!d||(DOMAINES[f.reference]||f.categorie)===d).map(carte).join('');
+}
+function pageFormation(ref){
+  const f=CATALOGUE.find(x=>x.reference===ref);if(!f)return pageFormations();
+  const ses=SESSIONS.filter(x=>x.formation_ref===ref&&x.date_debut>=new Date().toISOString().slice(0,10));
+  app(`<section class="sec"><div class="wrap duo">
+    <div><a href="#/formations">← Toutes les formations</a>
+      <span class="kick" style="display:block;margin-top:16px">${esc(DOMAINES[ref]||f.categorie||'')}</span>
+      <h1 style="font-size:34px;margin:8px 0 14px">${esc(f.designation)}</h1>
+      <p style="font-size:17px;color:var(--muted)">${esc(f.description)}</p>
+      <h3 style="margin-top:22px;font-size:18px">Ce que comprend la formation</h3>
+      <ul class="check"><li>Formation animée par un expert certifié</li><li>Supports de cours et exercices dans votre espace apprenant</li><li>Un expert associé qui suit votre progression</li><li>Examens blancs et retours personnalisés${/PMP|CAPM|PRINCE2|CSPP/.test(ref)?'</li><li>Accompagnement à l’inscription à l’examen de certification':''}</li><li>Attestation de formation H TECH ACADEMY</li></ul>
+    </div>
+    <aside class="panel">
+      <h3 style="font-size:17px">Tarifs ${f.tarifs&&f.tarifs.organisation!==undefined?'par participant':''}</h3>
+      ${f.tarifs&&f.tarifs.organisation!==undefined?Object.entries(PROFILS).map(([k,v])=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)"><span>${esc(v[0])}</span><b>${f.tarifs[k]==null?'—':fcfa(f.tarifs[k])}</b></div>`).join(''):`<p class="prix">${prixTexte(f,'organisation')}</p>`}
+      <p class="note">Montants hors taxes, TVA de 18 % en sus sauf exonération.</p>
+      <h3 style="font-size:17px;margin-top:18px">Prochaines sessions</h3>
+      ${ses.length?ses.map(s=>`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${esc(dateFr(s.date_debut))}${s.date_fin?' → '+esc(dateFr(s.date_fin)):''}</b><div class="note">${esc([s.format,s.lieu].filter(Boolean).join(' · '))}${s.places?' · '+esc(s.places)+' places':''}</div></div>`).join(''):'<p class="note">Sessions planifiées selon les demandes : indiquez vos disponibilités.</p>'}
+      <a class="btn btn-g" style="width:100%;margin-top:16px" href="#/besoin/${encodeURIComponent(ref)}">Je suis intéressé(e)</a>
+      <a class="btn btn-o" style="width:100%;margin-top:8px" href="https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent('Bonjour H TECH ACADEMY, je souhaite des informations sur la formation « '+f.designation+' ».')}" target="_blank" rel="noopener">Poser une question sur WhatsApp</a>
+    </aside>
+  </div></section>`);
+}
+function pageFinancement(){
+  app(`<section class="sec"><div class="wrap">
+    <span class="kick">Financement et paiement</span><h1 style="font-size:36px;margin:8px 0 22px">Un prix adapté à votre situation</h1>
+    <div class="duo">
+      <div class="panel"><h3>Trois tarifs selon le financeur</h3><ul class="check"><li><b>Organisation</b> : entreprise, administration ou ONG qui finance la formation</li><li><b>Particulier</b> : vous financez vous-même</li><li><b>Étudiant ou demandeur d’emploi</b> : tarif réduit sur justificatif</li></ul>
+        <h3 style="margin-top:20px">Remises</h3><ul class="check"><li>10 % dès 3 participants d’une même organisation</li><li>15 % pour un crédit formation annuel (10 places ou plus)</li><li>5 % de fidélité si vous revenez dans les 12 mois</li></ul><p class="note">Remises cumulables dans la limite de 20 %.</p></div>
+      <div class="panel"><h3>Modalités de paiement</h3><ul class="check"><li><b>Organisations</b> : 50 % à l’inscription, solde avant le début de la formation</li><li><b>Particuliers et étudiants</b> : paiement en 3 fois sans frais, solde avant l’examen blanc final</li><li><b>Secteur public</b> : bon de commande ou marché public</li></ul>
+        <p>Virement, chèque, Orange Money, MTN MoMo, Moov Money, Wave.</p>
+        <h3 style="margin-top:20px">Financement FDFP</h3><p class="note" style="font-size:15px">Les entreprises ivoiriennes cotisent au Fonds de Développement de la Formation Professionnelle. Nos formations intra-entreprise peuvent lui être présentées pour financement, sous réserve d’agrément du programme : nous vous aidons à monter le dossier.</p></div>
+    </div>
+    <div class="cta" style="margin-top:32px"><div><h2>Besoin d’un devis ?</h2><p>Nous vous envoyons une proposition chiffrée sous 48 h.</p></div><a class="btn btn-g" href="#/besoin">Exprimer mon besoin</a></div>
+  </div></section>`);
+}
+
+// ═══ Formulaire de besoin ═══
+function pageBesoin(ref){
+  const coch=r=>r===ref?'checked':'';
+  app(`<section class="sec"><div class="wrap" style="max-width:900px">
+    <span class="kick">Exprimer mon besoin</span><h1 style="font-size:34px;margin:8px 0 6px">Parlez-nous de votre projet de formation</h1>
+    <p class="note" style="font-size:15.5px">Aidez-vous du <a href="#/formations">catalogue</a>. Un conseiller vous recontacte sous 48 h avec une proposition adaptée.</p>
+    <form id="fBesoin" class="panel" novalidate onsubmit="envoyerBesoin(event)" style="margin-top:20px">
+      <div class="form">
+        <div class="full"><span class="f" style="display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">Vous êtes *</span>
+          <div class="profils">${Object.entries(PROFILS).map(([k,v])=>`<label><input type="radio" name="profil" value="${k}" ${k===PROFIL?'checked':''} onchange="majFormBesoin()"><b>${esc(v[0])}</b><span>${esc(v[1])}</span></label>`).join('')}</div></div>
+        <div><label class="f" for="bPrenom">Prénom *</label><input class="in" id="bPrenom" autocomplete="given-name" required></div>
+        <div><label class="f" for="bNom">Nom *</label><input class="in" id="bNom" autocomplete="family-name" required></div>
+        <div><label class="f" for="bEmail">Email *</label><input class="in" id="bEmail" type="email" autocomplete="email" required></div>
+        <div><label class="f" for="bTel">Téléphone / WhatsApp *</label><input class="in" id="bTel" type="tel" autocomplete="tel" placeholder="07 00 00 00 00" required></div>
+        <div class="full" id="zOrg"><label class="f" for="bOrg">Organisation</label><input class="in" id="bOrg" autocomplete="organization" placeholder="Entreprise, administration, ONG…"></div>
+        <div class="full"><span class="f" style="display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">Formation(s) souhaitée(s) *</span>
+          <div class="choix">${CATALOGUE.map(f=>`<label><input type="checkbox" name="formation" value="${esc(f.reference)}" ${coch(f.reference)} onchange="majFormBesoin()"><span>${esc(f.designation)}<small data-prix="${esc(f.reference)}"></small></span></label>`).join('')}
+          <label><input type="checkbox" name="formation" value="AUTRE" onchange="majFormBesoin()"><span>Autre besoin / je ne sais pas encore<small>Nous vous conseillerons</small></span></label></div></div>
+        <div id="zPart"><label class="f" for="bPart">Nombre de participants</label><input class="in" id="bPart" type="number" min="1" value="1" oninput="majFormBesoin()"></div>
+        <div><label class="f" for="bObj">Votre objectif</label><select class="in" id="bObj"><option>Obtenir une certification</option><option>Monter en compétences dans mon poste</option><option>Former / structurer une équipe</option><option>Me reconvertir</option><option>Autre</option></select></div>
+        <div><label class="f" for="bFormat">Format souhaité</label><select class="in" id="bFormat"><option>Présentiel à Abidjan</option><option>Classe virtuelle</option><option>Soirs et week-ends</option><option>Intra-entreprise (dans nos locaux ou les vôtres)</option><option>Indifférent</option></select></div>
+        <div><label class="f" for="bFin">Financement envisagé</label><select class="in" id="bFin"><option>Mon employeur</option><option>Personnel (paiement en 3 fois)</option><option>FDFP</option><option>Bailleur / projet</option><option>À définir</option></select></div>
+        <div class="full"><label class="f" for="bDispo">Disponibilités</label><input class="in" id="bDispo" placeholder="Ex. à partir de novembre, en soirée"></div>
+        <div class="full"><label class="f" for="bMsg">Précisions (facultatif)</label><textarea class="in" id="bMsg" placeholder="Votre expérience, la date visée pour l’examen, vos questions…"></textarea></div>
+        <div class="hp" aria-hidden="true"><label>Ne pas remplir<input id="bSite" tabindex="-1" autocomplete="off"></label></div>
+        <div class="full"><label style="display:flex;gap:10px;align-items:flex-start;font-size:14px"><input type="checkbox" id="bOk" style="margin-top:4px"> <span>J’accepte que H TECH INNOV utilise ces informations pour me recontacter au sujet de ma demande de formation, conformément à la loi ivoirienne n°2013-450 sur la protection des données personnelles. *</span></label></div>
+        <div class="full recap" id="estim" hidden></div>
+        <div class="full"><div class="err" id="bErr" role="alert"></div><button class="btn btn-g" type="submit" id="bGo">Envoyer ma demande</button></div>
+      </div>
+    </form>
+  </div></section>`);
+  majFormBesoin();
+}
+function majFormBesoin(){
+  const p=document.querySelector('input[name=profil]:checked')?.value||'organisation';
+  document.getElementById('zOrg').style.display=p==='organisation'?'':'none';
+  document.getElementById('zPart').style.display=p==='organisation'?'':'none';
+  CATALOGUE.forEach(f=>{const el=document.querySelector(`[data-prix="${CSS.escape(f.reference)}"]`);if(el){const x=prixFormation(f,p);el.textContent=!x?'Non proposé pour ce profil':(x.groupe?fcfa(x.v[0])+' à '+fcfa(x.v[1])+' HT / jour (groupe)':fcfa(x.v)+' HT par participant');}});
+  const sel=[...document.querySelectorAll('input[name=formation]:checked')].map(i=>i.value).filter(v=>v!=='AUTRE');
+  const nb=p==='organisation'?Math.max(1,parseInt(document.getElementById('bPart').value)||1):1;
+  let total=0,ok=0;sel.forEach(r=>{const f=CATALOGUE.find(x=>x.reference===r),x=f&&prixFormation(f,p);if(x&&!x.groupe){total+=x.v*nb;ok++;}});
+  const e=document.getElementById('estim');
+  if(ok){const rem=p==='organisation'&&nb>=3?.1:0;e.hidden=false;
+    e.innerHTML=`<b>Estimation indicative :</b> ${fcfa(total*(1-rem))} HT${rem?` (remise de 10 % dès 3 participants incluse)`:''} pour ${ok} formation(s)${nb>1?' × '+nb+' participants':''}. <span class="note">Le prix définitif figurera sur votre proposition ; TVA 18 % en sus sauf exonération, frais d’examen non inclus.</span>`;}
+  else e.hidden=true;
+}
+async function envoyerBesoin(ev){
+  ev.preventDefault();
+  const err=document.getElementById('bErr');err.textContent='';
+  if(document.getElementById('bSite').value)return; // robot
+  const v=id=>document.getElementById(id).value.trim();
+  const profil=document.querySelector('input[name=profil]:checked')?.value;
+  const formations=[...document.querySelectorAll('input[name=formation]:checked')].map(i=>i.value);
+  if(!v('bPrenom')||!v('bNom')){err.textContent='Indiquez votre prénom et votre nom.';return;}
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v('bEmail'))){err.textContent='Adresse email invalide.';document.getElementById('bEmail').focus();return;}
+  if(v('bTel').replace(/\D/g,'').length<8){err.textContent='Numéro de téléphone invalide.';document.getElementById('bTel').focus();return;}
+  if(!formations.length){err.textContent='Choisissez au moins une formation (ou « Autre besoin »).';return;}
+  if(!document.getElementById('bOk').checked){err.textContent='Merci d’accepter l’utilisation de vos informations pour être recontacté(e).';return;}
+  const b=document.getElementById('bGo');b.disabled=true;b.textContent='Envoi…';
+  const d={prenom:v('bPrenom'),nom:v('bNom'),email:v('bEmail').toLowerCase(),telephone:v('bTel'),organisation:profil==='organisation'?v('bOrg')||null:null,profil,formations,
+    objectif:v('bObj'),format:v('bFormat'),financement:v('bFin'),disponibilites:v('bDispo')||null,message:v('bMsg')||null,
+    participants:profil==='organisation'?Math.max(1,parseInt(v('bPart'))||1):1,consentement:true,statut:'nouvelle'};
+  const{error}=await sb.from('academy_demandes').insert(d);
+  b.disabled=false;b.textContent='Envoyer ma demande';
+  if(error){err.innerHTML='Envoi impossible pour le moment. Écrivez-nous sur <a href="https://wa.me/'+CONFIG.WHATSAPP+'" target="_blank" rel="noopener">WhatsApp</a> ou à info@htechinnov.com.';return;}
+  const noms=formations.map(r=>CATALOGUE.find(f=>f.reference===r)?.designation||'Autre besoin');
+  app(`<section class="sec"><div class="wrap" style="max-width:720px;text-align:center">
+    <div style="font-size:52px">✅</div><h1 style="font-size:32px;margin:10px 0">Merci ${esc(d.prenom)}, votre demande est bien reçue</h1>
+    <p style="color:var(--muted);font-size:17px">Un conseiller H TECH ACADEMY vous recontacte sous 48 h au ${esc(d.telephone)} ou par email avec une proposition pour :</p>
+    <ul class="check" style="text-align:left;max-width:480px;margin:16px auto">${noms.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px"><a class="btn btn-g" href="https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent('Bonjour, je viens de déposer une demande de formation sur H TECH ACADEMY ('+noms.join(', ')+'). '+d.prenom+' '+d.nom)}" target="_blank" rel="noopener">Accélérer sur WhatsApp</a><a class="btn btn-o" href="#/formations">Retour au catalogue</a></div>
+  </div></section>`);
+}
+
+// ═══ Espace apprenant ═══
+async function session(){const{data}=await sb.auth.getSession();USER=data.session?.user||null;if(USER&&!MOI){const{data:p}=await sb.from('profiles').select('id,prenom,nom,email,role').eq('id',USER.id).maybeSingle();MOI=p;}return USER;}
+function pageConnexion(msg){
+  app(`<div class="wrap espace"><div class="login">
+    <h1>Espace apprenant</h1><p class="note">Connectez-vous avec l’email utilisé lors de votre inscription.</p>
+    ${msg?`<p class="recap" style="padding:12px">${esc(msg)}</p>`:''}
+    <form onsubmit="seConnecter(event)" novalidate>
+      <label class="f" for="lEmail" style="margin-top:14px">Email</label><input class="in" id="lEmail" type="email" autocomplete="email" required>
+      <label class="f" for="lMdp" style="margin-top:12px">Mot de passe</label><input class="in" id="lMdp" type="password" autocomplete="current-password" required>
+      <div class="err" id="lErr" role="alert"></div>
+      <button class="btn btn-p" style="width:100%" type="submit">Se connecter</button>
+    </form>
+    <p style="text-align:center;margin:14px 0 0"><button type="button" class="btn btn-o btn-s" onclick="mdpOublie()">Mot de passe oublié ?</button></p>
+    <p class="note" style="text-align:center;margin-top:16px">Pas encore inscrit(e) ? <a href="#/besoin">Exprimez votre besoin de formation</a>.<br>Membre de l’équipe H TECH INNOV ? <a href="${esc(CONFIG.ERP)}">Accéder à l’ERP</a>.</p>
+  </div></div>`);
+}
+async function seConnecter(ev){
+  ev.preventDefault();const e=document.getElementById('lErr');e.textContent='';
+  const{error}=await sb.auth.signInWithPassword({email:document.getElementById('lEmail').value.trim(),password:document.getElementById('lMdp').value});
+  if(error){e.textContent='Email ou mot de passe incorrect.';return;}
+  MOI=null;await session();route();
+}
+async function mdpOublie(){
+  const email=document.getElementById('lEmail').value.trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){document.getElementById('lErr').textContent='Saisissez d’abord votre email ci-dessus.';return;}
+  await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+  toast('Si un compte existe, un lien de réinitialisation vient d’être envoyé à '+email,6000);
+}
+function pageMotDePasse(){
+  app(`<div class="wrap espace"><div class="login"><h1>Choisissez votre mot de passe</h1><p class="note">Pour accéder à votre espace apprenant H TECH ACADEMY.</p>
+    <form onsubmit="definirMdp(event)" novalidate><label class="f" for="m1" style="margin-top:14px">Nouveau mot de passe (8 caractères minimum)</label><input class="in" id="m1" type="password" autocomplete="new-password" minlength="8" required>
+    <label class="f" for="m2" style="margin-top:12px">Confirmation</label><input class="in" id="m2" type="password" autocomplete="new-password" required>
+    <div class="err" id="mErr" role="alert"></div><button class="btn btn-g" style="width:100%" type="submit">Enregistrer et accéder à mon espace</button></form></div></div>`);
+}
+async function definirMdp(ev){
+  ev.preventDefault();const a=document.getElementById('m1').value,b=document.getElementById('m2').value,e=document.getElementById('mErr');
+  if(a.length<8){e.textContent='8 caractères minimum.';return;}if(a!==b){e.textContent='Les deux mots de passe sont différents.';return;}
+  const{error}=await sb.auth.updateUser({password:a});if(error){e.textContent=error.message;return;}
+  toast('Mot de passe enregistré');location.hash='#/espace';
+}
+async function seDeconnecter(){await sb.auth.signOut();USER=null;MOI=null;location.hash='#/espace';}
+async function signedUrl(chemin){
+  if(/^https?:\/\//.test(chemin))return chemin;
+  const{data,error}=await sb.storage.from('academy').createSignedUrl(chemin,3600);return error?null:data.signedUrl;
+}
+function embed(u){
+  try{const x=new URL(u);const h=x.hostname.replace(/^www\./,'');
+    if(h==='youtube.com'||h==='m.youtube.com'){const id=x.searchParams.get('v');if(id)return 'https://www.youtube-nocookie.com/embed/'+encodeURIComponent(id);}
+    if(h==='youtu.be')return 'https://www.youtube-nocookie.com/embed/'+encodeURIComponent(x.pathname.slice(1));
+    if(h==='youtube-nocookie.com'&&x.pathname.startsWith('/embed/'))return x.href;
+    if(h==='vimeo.com'){const id=x.pathname.split('/').filter(Boolean)[0];if(/^\d+$/.test(id))return 'https://player.vimeo.com/video/'+id;}
+    if(h==='player.vimeo.com'||h==='iframe.mediadelivery.net')return x.href;
+    if(h==='drive.google.com'){const m=/\/file\/d\/([^/]+)/.exec(x.pathname);if(m)return 'https://drive.google.com/file/d/'+encodeURIComponent(m[1])+'/preview';}
+  }catch(e){}
+  return null;
+}
+async function pageEspace(){
+  if(!await session())return pageConnexion();
+  if(MOI&&!['apprenant','client'].includes(MOI.role)){
+    return app(`<div class="wrap espace"><div class="login"><h1>Compte de l’équipe</h1><p>Vous êtes connecté(e) avec un compte H TECH INNOV. Le suivi des apprenants se fait dans l’ERP (H TECH Academy › Mes apprenants).</p><a class="btn btn-p" href="${esc(CONFIG.ERP)}">Ouvrir l’ERP</a> <button class="btn btn-o" onclick="seDeconnecter()">Se déconnecter</button></div></div>`);
+  }
+  const{data:ins}=await sb.from('academy_inscriptions').select('*').order('created_at',{ascending:false});
+  const L=ins||[];
+  const progr={};
+  if(L.length){
+    const refs=[...new Set(L.map(i=>i.formation_ref))];
+    const{data:mods}=await sb.from('academy_modules').select('id,formation_ref').in('formation_ref',refs);
+    const{data:lec}=await sb.from('academy_lecons').select('id,module_id,duree_min').in('module_id',(mods||[]).map(m=>m.id));
+    const{data:pr}=await sb.from('academy_progression').select('inscription_id,lecon_id').in('inscription_id',L.map(i=>i.id));
+    L.forEach(i=>{const ms=(mods||[]).filter(m=>m.formation_ref===i.formation_ref).map(m=>m.id);const ls=(lec||[]).filter(l=>ms.includes(l.module_id));
+      const fait=(pr||[]).filter(p=>p.inscription_id===i.id&&ls.some(l=>l.id===p.lecon_id)).length;progr[i.id]=ls.length?Math.round(100*fait/ls.length):0;});
+  }
+  const titre=i=>i.formation_titre||CATALOGUE.find(f=>f.reference===i.formation_ref)?.designation||i.formation_ref;
+  const st={en_cours:['En cours',''],terminee:['Terminée','vert'],suspendue:['Suspendue','gris'],abandon:['Abandonnée','gris']};
+  app(`<div class="wrap espace">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><span class="kick">Espace apprenant</span><h1 style="font-size:30px;margin-top:6px">Bonjour ${esc(MOI?.prenom||'')}</h1></div><button class="btn btn-o btn-s" onclick="seDeconnecter()">Se déconnecter</button></div>
+    ${L.length?`<div class="kpis"><div class="kpi"><span>Formations suivies</span><b>${L.length}</b></div><div class="kpi"><span>En cours</span><b>${L.filter(i=>i.statut==='en_cours').length}</b></div><div class="kpi"><span>Progression moyenne</span><b>${Math.round(L.reduce((s,i)=>s+progr[i.id],0)/L.length)} %</b></div></div>
+    <div class="grid">${L.map(i=>`<article class="card"><span class="badge ${st[i.statut]?.[1]||''}">${esc(st[i.statut]?.[0]||i.statut)}</span><h3>${esc(titre(i))}</h3>
+      <div class="meta"><span>👤 Expert : ${esc(i.expert_nom||'en cours d’attribution')}</span>${i.date_debut?`<span>📅 depuis le ${esc(dateFr(i.date_debut))}</span>`:''}</div>
+      <div class="bar" aria-label="Progression ${progr[i.id]} %"><i style="width:${progr[i.id]}%"></i></div><div class="note">${progr[i.id]} % du parcours</div>
+      <div class="actions"><a class="btn btn-g btn-s" href="#/espace/f/${encodeURIComponent(i.id)}">${progr[i.id]?'Continuer':'Commencer'}</a></div></article>`).join('')}</div>`
+    :`<div class="panel vide" style="margin-top:20px"><h3>Aucune formation pour le moment</h3><p>Votre inscription est peut-être en cours de traitement. Pour toute question : <a href="https://wa.me/${CONFIG.WHATSAPP}" target="_blank" rel="noopener">WhatsApp</a> ou info@htechinnov.com.</p><a class="btn btn-g" href="#/besoin">Exprimer un besoin de formation</a></div>`}
+  </div>`);
+}
+let COURS=null;
+async function pageCours(id,onglet){
+  if(!await session())return pageConnexion();
+  const{data:i}=await sb.from('academy_inscriptions').select('*').eq('id',id).maybeSingle();
+  if(!i)return app('<div class="wrap espace"><p class="vide">Formation introuvable. <a href="#/espace">Retour</a></p></div>');
+  const[{data:mods},{data:pr},{data:docs},{data:notes},{data:ex},{data:msgs}]=await Promise.all([
+    sb.from('academy_modules').select('*').eq('formation_ref',i.formation_ref).order('ordre'),
+    sb.from('academy_progression').select('*').eq('inscription_id',id),
+    sb.from('academy_documents').select('*').or(`formation_ref.eq.${i.formation_ref},inscription_id.eq.${id}`).order('created_at'),
+    sb.from('academy_notes').select('*').eq('inscription_id',id).order('created_at',{ascending:false}),
+    sb.from('academy_examens').select('*').eq('inscription_id',id).order('date',{ascending:false}),
+    sb.from('academy_messages').select('*').eq('inscription_id',id).order('created_at')]);
+  const{data:lec}=await sb.from('academy_lecons').select('*').in('module_id',(mods||[]).map(m=>m.id)).order('ordre');
+  COURS={i,mods:mods||[],lec:lec||[],pr:new Set((pr||[]).map(p=>p.lecon_id)),docs:docs||[],notes:notes||[],ex:ex||[],msgs:msgs||[],onglet:onglet||'parcours',lecon:null};
+  rendreCours();
+}
+function heures(){const min=COURS.lec.filter(l=>COURS.pr.has(l.id)).reduce((s,l)=>s+(l.duree_min||0),0);return Math.round((min/60+Number(COURS.i.heures_presentiel||0))*10)/10;}
+function rendreCours(){
+  const C=COURS,i=C.i,f=CATALOGUE.find(x=>x.reference===i.formation_ref);
+  const total=C.lec.length,fait=C.lec.filter(l=>C.pr.has(l.id)).length,pc=total?Math.round(100*fait/total):0,h=heures(),pmp=/PMP/.test(i.formation_ref);
+  const ico={video:'▶',pdf:'📄',lien:'🔗',exercice:'✍'};
+  const tabs=[['parcours','Parcours'],['documents','Documents'],['expert','Mon expert'],['suivi','Suivi et examens']];
+  let corps='';
+  if(C.onglet==='parcours'){
+    corps=(C.lecon?`<div class="panel" style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><h3 style="font-size:18px">${esc(C.lecon.titre)}</h3><button class="btn btn-o btn-s" onclick="COURS.lecon=null;rendreCours()">Fermer</button></div><div id="zLecon"></div>${C.lecon.description?`<p class="note">${esc(C.lecon.description)}</p>`:''}
+      <button class="btn ${C.pr.has(C.lecon.id)?'btn-o':'btn-g'} btn-s" onclick="basculerFait('${C.lecon.id}')">${C.pr.has(C.lecon.id)?'Marquer comme non terminée':'Marquer comme terminée'}</button></div>`:'')+
+      (C.mods.length?C.mods.map((m,k)=>{const ls=C.lec.filter(l=>l.module_id===m.id),d=ls.filter(l=>C.pr.has(l.id)).length;
+        return `<details class="module" ${k===0||ls.some(l=>!C.pr.has(l.id))&&k<2?'open':''}><summary><span>${esc(m.titre)}</span><span class="note">${d}/${ls.length}</span></summary>
+        ${m.description?`<p class="note" style="padding:0 16px">${esc(m.description)}</p>`:''}
+        ${ls.map(l=>`<div class="lecon ${C.pr.has(l.id)?'fait':''}"><span class="ico" aria-hidden="true">${ico[l.type]||'•'}</span><div class="t"><b>${esc(l.titre)}</b><small>${esc({video:'Vidéo',pdf:'Support PDF',lien:'Ressource en ligne',exercice:'Exercice'}[l.type]||'')}${l.duree_min?' · '+esc(l.duree_min)+' min':''}</small></div>
+          ${C.pr.has(l.id)?'<span class="done">✓ Terminée</span>':''}<button class="btn btn-o btn-s" onclick="ouvrirLecon('${l.id}')">Ouvrir</button></div>`).join('')}</details>`;}).join('')
+      :'<div class="panel vide">Les contenus de votre formation seront bientôt disponibles ici. Votre expert vous préviendra.</div>');
+  }
+  if(C.onglet==='documents')corps=C.docs.length?`<div class="panel">${C.docs.map(d=>`<div class="lecon"><span class="ico">📄</span><div class="t"><b>${esc(d.titre)}</b><small>${d.inscription_id?'Document personnel':'Support de la formation'}</small></div><button class="btn btn-o btn-s" onclick="ouvrirDoc('${d.id}')">Ouvrir</button></div>`).join('')}</div>`:'<div class="panel vide">Aucun document pour le moment.</div>';
+  if(C.onglet==='expert')corps=`<div class="panel"><div class="expert"><div class="avatar">${esc((i.expert_nom||'?').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase())}</div><div><b style="font-family:var(--head);color:var(--navy)">${esc(i.expert_nom||'Expert en cours d’attribution')}</b><div class="note">Votre expert H TECH ACADEMY · réponse sous 48 h ouvrées</div></div></div>
+    <div class="fil" id="fil" style="margin-top:16px">${C.msgs.length?C.msgs.map(m=>`<div class="msg ${m.auteur_id===USER.id?'moi':'lui'}"><small>${esc(m.auteur_nom||'')} · ${esc(new Date(m.created_at).toLocaleString('fr-FR'))}</small>${esc(m.contenu).replace(/\n/g,'<br>')}</div>`).join(''):'<p class="vide">Posez votre première question à votre expert.</p>'}</div>
+    <form onsubmit="event.preventDefault();envoyerMsg();" style="display:flex;gap:8px;margin-top:12px"><textarea class="in" id="msgTxt" rows="2" placeholder="Votre message…" style="min-height:52px" aria-label="Votre message"></textarea><button class="btn btn-p" type="submit">Envoyer</button></form></div>`;
+  if(C.onglet==='suivi')corps=`<div class="duo"><div class="panel"><h3 style="font-size:17px">Heures de formation</h3>
+      <p class="prix" style="margin:8px 0">${String(h).replace('.',',')} h</p><p class="note">Leçons terminées en ligne et séances suivies en présentiel ou en classe virtuelle.</p>
+      ${pmp?`<div class="bar" style="margin-top:10px"><i style="width:${Math.min(100,Math.round(100*h/35))}%"></i></div><p class="note"><b>${Math.min(100,Math.round(100*h/35))} % des 35 heures</b> exigées par le PMI pour le dossier d’éligibilité PMP®.</p>`:''}
+      <h3 style="font-size:17px;margin-top:20px">Examens blancs</h3>${C.ex.length?C.ex.map(e=>{const s=e.sur?Math.round(100*e.score/e.sur):e.score;return `<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between"><b>${esc(e.titre)}</b><b style="color:${s>=70?'var(--green)':'var(--amber)'}">${esc(s)} %</b></div><div class="note">${esc(dateFr(e.date))}${e.details?' · '+esc(e.details):''}</div></div>`;}).join(''):'<p class="note">Aucun examen blanc pour le moment.</p>'}</div>
+    <div class="panel"><h3 style="font-size:17px">Retours de votre expert</h3>${C.notes.length?C.notes.map(n=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="note">${esc(n.auteur_nom||'')} · ${esc(dateFr(n.created_at))}</div><p style="margin:4px 0 0">${esc(n.contenu).replace(/\n/g,'<br>')}</p></div>`).join(''):'<p class="note">Votre expert ajoutera ici ses observations sur votre progression.</p>'}
+      ${i.statut==='terminee'?`<button class="btn btn-g" style="margin-top:16px" onclick="attestation()">Télécharger mon attestation</button>`:`<p class="note" style="margin-top:16px">L’attestation de formation sera disponible ici à la fin de votre parcours.</p>`}</div></div>`;
+  app(`<div class="wrap espace">
+    <a href="#/espace">← Mes formations</a>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-top:10px"><div><span class="kick">${esc(DOMAINES[i.formation_ref]||'Formation')}</span><h1 style="font-size:28px;margin-top:6px">${esc(i.formation_titre||f?.designation||i.formation_ref)}</h1></div>
+    <div style="min-width:240px"><div class="note">${fait}/${total} leçons · ${pc} %</div><div class="bar"><i style="width:${pc}%"></i></div></div></div>
+    <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${C.onglet===k}" class="${C.onglet===k?'on':''}" onclick="COURS.onglet='${k}';rendreCours()">${l}${k==='expert'&&C.msgs.length?' ('+C.msgs.length+')':''}</button>`).join('')}</div>
+    ${corps}</div>`);
+  if(C.onglet==='parcours'&&C.lecon)montrerLecon();
+  if(C.onglet==='expert'){const fil=document.getElementById('fil');fil.scrollTop=fil.scrollHeight;}
+}
+function ouvrirLecon(id){COURS.lecon=COURS.lec.find(l=>l.id===id);rendreCours();}
+async function montrerLecon(){
+  const l=COURS.lecon,z=document.getElementById('zLecon');if(!z)return;
+  if(l.type==='video'){const e=l.url&&embed(l.url);z.innerHTML=e?`<div class="lecteur"><iframe src="${esc(e)}" title="${esc(l.titre)}" allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>`:(l.url?`<p><a class="btn btn-p btn-s" href="${esc(l.url)}" target="_blank" rel="noopener">Ouvrir la vidéo</a></p>`:'<p class="note">Vidéo bientôt disponible.</p>');}
+  else if(l.type==='pdf'){z.innerHTML='<p class="note">Préparation du document…</p>';const u=l.url&&await signedUrl(l.url);z.innerHTML=u?`<p><a class="btn btn-p btn-s" href="${esc(u)}" target="_blank" rel="noopener">Ouvrir le support PDF</a></p>`:'<p class="note">Document indisponible.</p>';}
+  else z.innerHTML=l.url?`<p><a class="btn btn-p btn-s" href="${esc(l.url)}" target="_blank" rel="noopener">Ouvrir la ressource</a></p>`:'';
+}
+async function basculerFait(lid){
+  const C=COURS;if(C.i.statut!=='en_cours'){toast('Cette formation n’est plus en cours');return;}
+  if(C.pr.has(lid)){const{error}=await sb.from('academy_progression').delete().eq('inscription_id',C.i.id).eq('lecon_id',lid);if(!error)C.pr.delete(lid);}
+  else{const{error}=await sb.from('academy_progression').insert({inscription_id:C.i.id,lecon_id:lid});if(!error){C.pr.add(lid);toast('Leçon terminée, bravo !');}else toast('Enregistrement impossible');}
+  rendreCours();
+}
+async function ouvrirDoc(id){const d=COURS.docs.find(x=>x.id===id);const u=d&&await signedUrl(d.chemin);if(u)window.open(u,'_blank','noopener');else toast('Document indisponible');}
+let _envoi=false;
+async function envoyerMsg(){
+  const z=document.getElementById('msgTxt');const t=(z?.value||'').trim();if(!t||_envoi)return;
+  _envoi=true;
+  const{data,error}=await sb.from('academy_messages').insert({inscription_id:COURS.i.id,contenu:t,auteur_id:USER.id,auteur_nom:[MOI?.prenom,MOI?.nom].filter(Boolean).join(' ')||USER.email}).select().single();
+  _envoi=false;
+  if(error){toast('Envoi impossible, réessayez');return;}COURS.msgs.push(data);rendreCours();
+}
+function attestation(){
+  const i=COURS.i,nom=[MOI?.prenom,MOI?.nom].filter(Boolean).join(' ');
+  document.getElementById('attestation').innerHTML=`<div style="font-family:var(--body);padding:60px;border:10px solid #0A2A66;margin:20px;min-height:90vh;text-align:center">
+    <div style="font-family:var(--head);font-weight:800;color:#0A2A66;font-size:26px">H TECH ACADEMY</div><div style="color:#3F8A1E;letter-spacing:.2em;font-size:12px">H TECH INNOV SARL · ABIDJAN</div>
+    <h1 style="font-size:34px;margin:60px 0 20px">Attestation de formation</h1><p style="font-size:18px">Nous attestons que</p><p style="font-family:var(--head);font-size:30px;color:#0A2A66;margin:10px 0">${esc(nom)}</p>
+    <p style="font-size:18px">a suivi la formation</p><p style="font-family:var(--head);font-size:24px;color:#0A2A66">${esc(i.formation_titre||i.formation_ref)}</p>
+    <p style="font-size:16px">soit ${String(heures()).replace('.',',')} heures de formation${i.date_fin?', achevée le '+esc(dateFr(i.date_fin)):''}.</p>
+    <p style="margin-top:70px">Fait à Abidjan, le ${esc(dateFr(new Date()))}</p><p style="margin-top:40px">Pour H TECH INNOV</p>
+    <p style="font-size:11px;color:#4A5A78;margin-top:60px">H TECH INNOV SARL · RCCM CI-ABJ-03-2026-B12-06284 · Cocody Riviera Jules Verne, BP 1002 Abidjan · info@htechinnov.com</p></div>`;
+  window.print();
+}
+
+// ═══ Routage ═══
+async function route(){
+  const h=decodeURIComponent(location.hash.replace(/^#\/?/,''));
+  if(h.startsWith('access_token')||h.includes('type=')){return;} // retour d'un lien email : géré par la session
+  const[p,a,b]=h.split('/');
+  document.querySelectorAll('nav.links a[data-r]').forEach(x=>x.classList.toggle('on',x.dataset.r===(p||'accueil')));
+  document.getElementById('navLinks').classList.remove('open');
+  if(!p)return pageAccueil();
+  if(p==='formations')return pageFormations();
+  if(p==='formation')return pageFormation(a);
+  if(p==='financement')return pageFinancement();
+  if(p==='besoin')return pageBesoin(a);
+  if(p==='mot-de-passe')return pageMotDePasse();
+  if(p==='espace'&&a==='f'&&b)return pageCours(b);
+  if(p==='espace')return pageEspace();
+  pageAccueil();
+}
+window.addEventListener('hashchange',route);
+sb.auth.onAuthStateChange((ev)=>{if(ev==='PASSWORD_RECOVERY'||(ev==='SIGNED_IN'&&TYPE_AUTH==='invite')){history.replaceState(null,'',location.pathname+'#/mot-de-passe');route();}});
+(async()=>{await chargerCatalogue();if(TYPE_AUTH==='invite'||TYPE_AUTH==='recovery'){await session();if(USER){history.replaceState(null,'',location.pathname+'#/mot-de-passe');}}route();})();
+</script>
+</body>
+</html>
