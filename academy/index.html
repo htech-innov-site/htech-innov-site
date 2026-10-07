@@ -202,7 +202,7 @@ footer .bas{border-top:1px solid rgba(255,255,255,.15);margin-top:28px;padding-t
     <a href="https://www.htechinnov.com/">Site H TECH INNOV ↗</a>
   </nav>
   <div style="display:flex;gap:8px;align-items:center">
-    <a class="btn btn-g btn-s" href="#/espace" id="btnEspace">Espace apprenant</a>
+    <a class="btn btn-g btn-s" href="#/espace" id="btnEspace">Mon espace</a>
     <button class="burger" aria-label="Menu" aria-expanded="false" onclick="toggleMenu(this)">☰</button>
   </div>
 </div></header>
@@ -571,7 +571,7 @@ async function envoyerBesoin(ev){
 async function session(){const{data}=await sb.auth.getSession();USER=data.session?.user||null;if(USER&&!MOI){const{data:p}=await sb.from('profiles').select('id,prenom,nom,email,role').eq('id',USER.id).maybeSingle();MOI=p;}return USER;}
 function pageConnexion(msg){
   app(`<div class="wrap espace"><div class="login">
-    <h1>Espace apprenant</h1><p class="note">Connectez-vous avec l’email utilisé lors de votre inscription.</p>
+    <h1>Mon espace</h1><p class="note">Apprenants, formateurs et administration : connectez-vous avec votre email.</p>
     ${msg?`<p class="recap" style="padding:12px">${esc(msg)}</p>`:''}
     <form onsubmit="seConnecter(event)" novalidate>
       <label class="f" for="lEmail" style="margin-top:14px">Email</label><input class="in" id="lEmail" type="email" autocomplete="email" required>
@@ -625,10 +625,16 @@ function embed(u){
 }
 async function pageEspace(){
   if(!await session())return pageConnexion();
-  if(MOI&&!['apprenant','client'].includes(MOI.role)){
+  if(!VUE&&MOI&&['admin','superadmin'].includes(MOI.role)){location.hash='#/admin';return;}
+  if(!VUE&&MOI&&MOI.role==='formateur'){location.hash='#/formateur';return;}
+  if(!VUE&&MOI&&!['apprenant','client'].includes(MOI.role)){
+    const{count}=await sb.from('academy_inscriptions').select('id',{count:'exact',head:true});
+    if(count){location.hash='#/formateur';return;}
     return app(`<div class="wrap espace"><div class="login"><h1>Compte de l’équipe</h1><p>Vous êtes connecté(e) avec un compte H TECH INNOV. Le suivi des apprenants se fait dans l’ERP (H TECH Academy › Mes apprenants).</p><a class="btn btn-p" href="${esc(CONFIG.ERP)}">Ouvrir l’ERP</a> <button class="btn btn-o" onclick="seDeconnecter()">Se déconnecter</button></div></div>`);
   }
-  const{data:ins}=await sb.from('academy_inscriptions').select('*').order('created_at',{ascending:false});
+  let qi=sb.from('academy_inscriptions').select('*').order('created_at',{ascending:false});
+  qi=VUE?.mode==='apprenant'?qi.eq('apprenant_id',VUE.id):qi.eq('apprenant_id',USER.id);
+  const{data:ins}=await qi;
   const L=ins||[];
   const progr={};
   if(L.length){
@@ -641,8 +647,8 @@ async function pageEspace(){
   }
   const titre=i=>i.formation_titre||CATALOGUE.find(f=>f.reference===i.formation_ref)?.designation||i.formation_ref;
   const st={en_cours:['En cours',''],terminee:['Terminée','vert'],suspendue:['Suspendue','gris'],abandon:['Abandonnée','gris']};
-  app(`<div class="wrap espace">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><span class="kick">Espace apprenant</span><h1 style="font-size:30px;margin-top:6px">Bonjour ${esc(MOI?.prenom||'')}</h1></div><button class="btn btn-o btn-s" onclick="seDeconnecter()">Se déconnecter</button></div>
+  app(`<div class="wrap espace">${bandeauVue()}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><span class="kick">Espace apprenant</span><h1 style="font-size:30px;margin-top:6px">Bonjour ${esc(VUE?VUE.nom:(MOI?.prenom||''))}</h1></div>${VUE?'':'<button class="btn btn-o btn-s" onclick="seDeconnecter()">Se déconnecter</button>'}</div>
     ${L.length?`<div class="kpis"><div class="kpi"><span>Formations suivies</span><b>${L.length}</b></div><div class="kpi"><span>En cours</span><b>${L.filter(i=>i.statut==='en_cours').length}</b></div><div class="kpi"><span>Progression moyenne</span><b>${Math.round(L.reduce((s,i)=>s+progr[i.id],0)/L.length)} %</b></div></div>
     <div class="grid">${L.map(i=>`<article class="card"><span class="badge ${st[i.statut]?.[1]||''}">${esc(st[i.statut]?.[0]||i.statut)}</span><h3>${esc(titre(i))}</h3>
       <div class="meta"><span>👤 Expert : ${esc(i.expert_nom||'en cours d’attribution')}</span>${i.date_debut?`<span>📅 depuis le ${esc(dateFr(i.date_debut))}</span>`:''}</div>
@@ -664,7 +670,10 @@ async function pageCours(id,onglet){
     sb.from('academy_examens').select('*').eq('inscription_id',id).order('date',{ascending:false}),
     sb.from('academy_messages').select('*').eq('inscription_id',id).order('created_at')]);
   const{data:lec}=await sb.from('academy_lecons').select('*').in('module_id',(mods||[]).map(m=>m.id)).order('ordre');
-  COURS={i,mods:mods||[],lec:lec||[],pr:new Set((pr||[]).map(p=>p.lecon_id)),docs:docs||[],notes:notes||[],ex:ex||[],msgs:msgs||[],onglet:onglet||'parcours',lecon:null};
+  const[{data:pubsT},{data:rendus}]=await Promise.all([sb.from('academy_publications').select('*').order('created_at',{ascending:false}),sb.from('academy_rendus').select('*').eq('inscription_id',id)]);
+  const pubs=(pubsT||[]).filter(p=>(p.cible==='formation'&&p.formation_ref===i.formation_ref)||(p.cible==='session'&&p.session_id===i.session_id)||(p.cible==='apprenants'&&(p.inscriptions||[]).includes(i.id)))
+    .filter(p=>!p.disponible_le||new Date(p.disponible_le)<=new Date());
+  COURS={i,pubs,rendus:rendus||[],mods:mods||[],lec:lec||[],pr:new Set((pr||[]).map(p=>p.lecon_id)),docs:docs||[],notes:notes||[],ex:ex||[],msgs:msgs||[],onglet:onglet||'parcours',lecon:null};
   rendreCours();
 }
 function heures(){const min=COURS.lec.filter(l=>COURS.pr.has(l.id)).reduce((s,l)=>s+(l.duree_min||0),0);return Math.round((min/60+Number(COURS.i.heures_presentiel||0))*10)/10;}
@@ -672,7 +681,8 @@ function rendreCours(){
   const C=COURS,i=C.i,f=CATALOGUE.find(x=>x.reference===i.formation_ref);
   const total=C.lec.length,fait=C.lec.filter(l=>C.pr.has(l.id)).length,pc=total?Math.round(100*fait/total):0,h=heures(),pmp=/PMP/.test(i.formation_ref);
   const ico={video:'▶',pdf:'📄',lien:'🔗',exercice:'✍'};
-  const tabs=[['parcours','Parcours'],['documents','Documents'],['expert','Mon expert'],['suivi','Suivi et examens']];
+  const nDev=C.pubs.filter(p=>p.type==='devoir'&&!C.rendus.some(r=>r.publication_id===p.id)).length;
+  const tabs=[['parcours','Parcours'],['documents','Cours et documents'+(C.pubs.filter(p=>p.type!=='devoir').length?' ('+C.pubs.filter(p=>p.type!=='devoir').length+')':'')],['travaux','Mes travaux'+(nDev?' ('+nDev+' à rendre)':'')],['expert','Mon formateur'],['suivi','Suivi et examens']];
   let corps='';
   if(C.onglet==='parcours'){
     corps=(C.lecon?`<div class="panel" style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><h3 style="font-size:18px">${esc(C.lecon.titre)}</h3><button class="btn btn-o btn-s" onclick="COURS.lecon=null;rendreCours()">Fermer</button></div><div id="zLecon"></div>${C.lecon.description?`<p class="note">${esc(C.lecon.description)}</p>`:''}
@@ -684,7 +694,21 @@ function rendreCours(){
           ${C.pr.has(l.id)?'<span class="done">✓ Terminée</span>':''}<button class="btn btn-o btn-s" onclick="ouvrirLecon('${l.id}')">Ouvrir</button></div>`).join('')}</details>`;}).join('')
       :'<div class="panel vide">Les contenus de votre formation seront bientôt disponibles ici. Votre expert vous préviendra.</div>');
   }
-  if(C.onglet==='documents')corps=C.docs.length?`<div class="panel">${C.docs.map(d=>`<div class="lecon"><span class="ico">📄</span><div class="t"><b>${esc(d.titre)}</b><small>${d.inscription_id?'Document personnel':'Support de la formation'}</small></div><button class="btn btn-o btn-s" onclick="ouvrirDoc('${d.id}')">Ouvrir</button></div>`).join('')}</div>`:'<div class="panel vide">Aucun document pour le moment.</div>';
+  if(C.onglet==='documents'){const P=C.pubs.filter(p=>p.type!=='devoir');
+    corps=(P.length?`<div class="panel" style="margin-bottom:14px"><h3 style="font-size:17px">De votre formateur</h3>${P.map(p=>`<div class="lecon"><span class="ico">${TYPES_PUB[p.type]?.[0]||'•'}</span><div class="t"><b>${esc(p.titre)}</b><small>${esc(p.auteur_nom||'')} · ${esc(dateCourte(p.created_at))}</small>${p.contenu?`<div style="margin-top:4px;font-size:14.5px">${esc(p.contenu).replace(/\n/g,'<br>')}</div>`:''}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${p.fichier?`<button class="btn btn-o btn-s" onclick="ouvrirFichier('${esc(p.fichier)}')">Ouvrir</button>`:''}${p.url?`<a class="btn btn-o btn-s" href="${esc(p.url)}" target="_blank" rel="noopener">Voir</a>`:''}</div></div>`).join('')}</div>`:'')
+    +(C.docs.length?`<div class="panel">${C.docs.map(d=>`<div class="lecon"><span class="ico">📄</span><div class="t"><b>${esc(d.titre)}</b><small>${d.inscription_id?'Document personnel':'Support de la formation'}</small></div><button class="btn btn-o btn-s" onclick="ouvrirDoc('${d.id}')">Ouvrir</button></div>`).join('')}</div>`:(P.length?'':'<div class="panel vide">Aucun document pour le moment.</div>'));}
+  if(C.onglet==='travaux'){const D=C.pubs.filter(p=>p.type==='devoir');
+    corps=D.length?D.map(d=>{const r=C.rendus.find(x=>x.publication_id===d.id),corrige=r&&r.note!=null,retard=d.date_limite&&new Date(d.date_limite)<new Date();
+      return `<div class="panel" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><h3 style="font-size:17px">✍ ${esc(d.titre)}</h3>
+        <span class="badge ${corrige?'vert':r?'':'gris'}">${corrige?'Noté : '+esc(r.note)+' / '+esc(d.bareme||20):r?'Rendu, en attente de correction':'À rendre'}</span></div>
+        <div class="note">${d.date_limite?'À rendre avant le '+esc(new Date(d.date_limite).toLocaleString('fr-FR')):'Sans date limite'} · ${esc(d.auteur_nom||'')}</div>
+        ${d.contenu?`<p style="margin:8px 0">${esc(d.contenu).replace(/\n/g,'<br>')}</p>`:''}${d.fichier?`<button class="btn btn-o btn-s" onclick="ouvrirFichier('${esc(d.fichier)}')">Sujet joint</button>`:''}
+        ${corrige?`<div class="recap" style="margin-top:10px"><b>Commentaire de votre formateur :</b> ${esc(r.commentaire_formateur||'—')}</div>`:''}
+        ${!corrige&&!VUE&&C.i.statut==='en_cours'?`<div style="margin-top:10px"><label class="f" for="rf-${d.id}">${r?'Remplacer votre copie':'Votre copie (fichier)'}</label><input class="in" id="rf-${d.id}" type="file">
+          <label class="f" for="rc-${d.id}" style="margin-top:8px">Message ou réponse (facultatif)</label><textarea class="in" id="rc-${d.id}" style="min-height:70px">${esc(r?.commentaire_apprenant||'')}</textarea>
+          <button class="btn btn-g btn-s" style="margin-top:8px" onclick="rendreDevoir('${d.id}')">${r?'Mettre à jour mon rendu':'Rendre mon travail'}</button>${retard&&!r?' <span class="note" style="color:var(--amber)">Date limite dépassée</span>':''}</div>`:''}
+        ${r&&r.fichier?`<p class="note" style="margin-top:6px">Copie envoyée le ${esc(new Date(r.rendu_le).toLocaleString('fr-FR'))} · <a href="#" onclick="ouvrirFichier('${esc(r.fichier)}');return false">voir</a></p>`:''}</div>`;}).join(''):'<div class="panel vide">Aucun devoir pour le moment.</div>';}
   if(C.onglet==='expert')corps=`<div class="panel"><div class="expert"><div class="avatar">${esc((i.expert_nom||'?').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase())}</div><div><b style="font-family:var(--head);color:var(--navy)">${esc(i.expert_nom||'Expert en cours d’attribution')}</b><div class="note">Votre expert H TECH ACADEMY · réponse sous 48 h ouvrées</div></div></div>
     <div class="fil" id="fil" style="margin-top:16px">${C.msgs.length?C.msgs.map(m=>`<div class="msg ${m.auteur_id===USER.id?'moi':'lui'}"><small>${esc(m.auteur_nom||'')} · ${esc(new Date(m.created_at).toLocaleString('fr-FR'))}</small>${esc(m.contenu).replace(/\n/g,'<br>')}</div>`).join(''):'<p class="vide">Posez votre première question à votre expert.</p>'}</div>
     <div style="display:flex;gap:8px;margin-top:12px"><textarea class="in" id="msgTxt" rows="2" placeholder="Votre message… (Ctrl + Entrée pour envoyer)" style="min-height:52px" aria-label="Votre message" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();envoyerMsg();}"></textarea><button class="btn btn-p" type="button" id="btnMsg" onclick="envoyerMsg()">Envoyer</button></div></div>`;
@@ -737,6 +761,207 @@ function attestation(){
   window.print();
 }
 
+// ═══ Espaces formateur et administrateur ═══
+let VUE=null; // consultation d'un espace par l'administrateur : {mode:'formateur'|'apprenant', id, nom}
+const TYPES_PUB={document:['📄','Document'],video:['▶','Vidéo'],lien:['🔗','Lien'],annonce:['📣','Annonce'],devoir:['✍','Devoir à rendre']};
+function estAdmin(){return MOI&&['admin','superadmin'].includes(MOI.role);}
+function bandeauVue(){return VUE?`<div class="panel" style="background:#FFF7E6;border-color:#F0D58C;margin-bottom:16px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><span>👁 Vous consultez l’espace ${VUE.mode==='formateur'?'du formateur':'de l’apprenant'} <b>${esc(VUE.nom)}</b> en tant qu’administrateur.</span><button class="btn btn-o btn-s" onclick="VUE=null;location.hash='#/admin'">Revenir à l’administration</button></div>`:'';}
+function dateCourte(d){return d?new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}):'';}
+// Inscriptions encadrées par un formateur : comme expert ou comme formateur de la session
+async function chargerEncadrement(fid){
+  const{data:sf}=await sb.from('academy_session_formateurs').select('session_id').eq('formateur_id',fid);
+  const sids=(sf||[]).map(x=>x.session_id);
+  let q=sb.from('academy_inscriptions').select('*').order('apprenant_nom');
+  q=sids.length?q.or(`expert_id.eq.${fid},session_id.in.(${sids.join(',')})`):q.eq('expert_id',fid);
+  const[{data:ins},{data:ses}]=await Promise.all([q,sids.length?sb.from('academy_sessions').select('*').in('id',sids).order('date_debut'):Promise.resolve({data:[]})]);
+  return{ins:ins||[],ses:ses||[],sids};
+}
+async function progressions(L){
+  const pr={};if(!L.length)return pr;
+  const refs=[...new Set(L.map(i=>i.formation_ref))];
+  const{data:mods}=await sb.from('academy_modules').select('id,formation_ref').in('formation_ref',refs);
+  const{data:lec}=await sb.from('academy_lecons').select('id,module_id').in('module_id',(mods||[]).map(m=>m.id));
+  const{data:p}=await sb.from('academy_progression').select('inscription_id,lecon_id').in('inscription_id',L.map(i=>i.id));
+  L.forEach(i=>{const ms=(mods||[]).filter(m=>m.formation_ref===i.formation_ref).map(m=>m.id),ls=(lec||[]).filter(l=>ms.includes(l.module_id));
+    pr[i.id]=ls.length?Math.round(100*(p||[]).filter(x=>x.inscription_id===i.id&&ls.some(l=>l.id===x.lecon_id)).length/ls.length):0;});
+  return pr;
+}
+function titreFormation(ref,t){return t||CATALOGUE.find(f=>f.reference===ref)?.designation||ref;}
+
+async function pageFormateur(){
+  if(!await session())return pageConnexion();
+  const fid=VUE?.mode==='formateur'?VUE.id:USER.id;
+  const{ins,ses}=await chargerEncadrement(fid);
+  const[pr,{data:pubs},{data:rendus}]=await Promise.all([progressions(ins),sb.from('academy_publications').select('*').eq('auteur_id',fid).order('created_at',{ascending:false}).limit(50),
+    ins.length?sb.from('academy_rendus').select('*').in('inscription_id',ins.map(i=>i.id)).order('rendu_le',{ascending:false}):Promise.resolve({data:[]})]);
+  const aCorriger=(rendus||[]).filter(r=>r.note==null);
+  FORM_CTX={fid,ins,ses,pubs:pubs||[],rendus:rendus||[]};
+  app(`<div class="wrap espace">${bandeauVue()}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><span class="kick">Espace formateur</span><h1 style="font-size:30px;margin-top:6px">Bonjour ${esc(VUE?VUE.nom:(MOI?.prenom||''))}</h1></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-g btn-s" href="#/formateur/publier">＋ Publier un cours ou un devoir</a>${VUE?'':'<button class="btn btn-o btn-s" onclick="seDeconnecter()">Se déconnecter</button>'}</div></div>
+    <div class="kpis"><div class="kpi"><span>Apprenants</span><b>${ins.length}</b></div><div class="kpi"><span>Sessions</span><b>${ses.length}</b></div>
+      <div class="kpi"><span>Copies à corriger</span><b style="color:${aCorriger.length?'var(--amber)':'var(--navy)'}">${aCorriger.length}</b></div><div class="kpi"><span>Publications</span><b>${(pubs||[]).length}</b></div></div>
+    ${aCorriger.length?`<div class="panel" style="margin-bottom:16px"><h3 style="font-size:17px">✍ À corriger</h3>${aCorriger.slice(0,8).map(r=>{const i=ins.find(x=>x.id===r.inscription_id);const p=(pubs||[]).find(x=>x.id===r.publication_id);
+      return `<div class="lecon"><span class="ico">✍</span><div class="t"><b>${esc(i?.apprenant_nom||'')}</b><small>${esc(p?.titre||'Devoir')} · rendu le ${esc(dateCourte(r.rendu_le))}</small></div><a class="btn btn-o btn-s" href="#/formateur/apprenant/${encodeURIComponent(r.inscription_id)}">Corriger</a></div>`;}).join('')}</div>`:''}
+    ${ses.length?`<h2 style="font-size:20px;margin:20px 0 10px">Mes sessions</h2><div class="grid">${ses.map(s=>`<article class="card"><span class="tag">${esc(dateCourte(s.date_debut))}${s.format?' · '+esc(s.format):''}</span><h3>${esc(s.titre||titreFormation(s.formation_ref))}</h3><p>${ins.filter(i=>i.session_id===s.id).length} apprenant(s)</p></article>`).join('')}</div>`:''}
+    <h2 style="font-size:20px;margin:22px 0 10px">Mes apprenants</h2>
+    ${ins.length?`<div class="panel" style="padding:0;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:14.5px"><thead><tr style="background:var(--off);text-align:left"><th style="padding:10px 14px">Apprenant</th><th>Formation</th><th>Lien</th><th>Progression</th><th></th></tr></thead><tbody>
+      ${ins.map(i=>`<tr style="border-top:1px solid var(--line)"><td style="padding:10px 14px"><b>${esc(i.apprenant_nom||'')}</b><div class="note">${esc({en_cours:'En cours',terminee:'Terminée',suspendue:'Suspendue',abandon:'Abandon'}[i.statut]||i.statut)}</div></td>
+        <td>${esc(titreFormation(i.formation_ref,i.formation_titre))}</td><td><span class="badge ${i.expert_id===fid?'vert':''}">${i.expert_id===fid?'Expert associé':'Session'}</span></td>
+        <td style="min-width:120px"><div class="bar"><i style="width:${pr[i.id]||0}%"></i></div><span class="note">${pr[i.id]||0} %</span></td>
+        <td style="padding-right:12px"><a class="btn btn-o btn-s" href="#/formateur/apprenant/${encodeURIComponent(i.id)}">Ouvrir</a></td></tr>`).join('')}</tbody></table></div>`
+      :'<div class="panel vide">Aucun apprenant ne vous est encore attribué. L’administration vous associe à une session ou à des apprenants.</div>'}
+    <h2 style="font-size:20px;margin:22px 0 10px">Mes publications</h2>
+    ${(pubs||[]).length?`<div class="panel">${pubs.map(p=>`<div class="lecon"><span class="ico">${TYPES_PUB[p.type]?.[0]||'•'}</span><div class="t"><b>${esc(p.titre)}</b><small>${esc(TYPES_PUB[p.type]?.[1]||'')} · ${esc(libCible(p))} · ${esc(dateCourte(p.created_at))}${p.disponible_le&&new Date(p.disponible_le)>new Date()?' · visible le '+esc(dateCourte(p.disponible_le)):''}</small></div>${VUE&&!estAdmin()?'':`<button class="btn btn-o btn-s" onclick="supprimerPub('${p.id}')">Retirer</button>`}</div>`).join('')}</div>`:'<div class="panel vide">Rien publié pour le moment.</div>'}
+  </div>`);
+}
+let FORM_CTX=null;
+function libCible(p){
+  if(p.cible==='formation')return 'Toute la formation '+titreFormation(p.formation_ref);
+  if(p.cible==='session'){const s=FORM_CTX?.ses?.find(x=>x.id===p.session_id);return 'Session '+(s?(s.titre||titreFormation(s.formation_ref))+' du '+dateCourte(s.date_debut):'');}
+  const n=(p.inscriptions||[]).map(id=>FORM_CTX?.ins?.find(i=>i.id===id)?.apprenant_nom).filter(Boolean);return (n.length>2?n.length+' apprenants':n.join(', '))||'Apprenants choisis';
+}
+async function supprimerPub(id){if(!confirm('Retirer cette publication ? Les apprenants ne la verront plus.'))return;const{error}=await sb.from('academy_publications').delete().eq('id',id);if(error){toast('Suppression impossible : '+error.message);return;}toast('Publication retirée');route();}
+
+async function pagePublier(){
+  if(!await session())return pageConnexion();
+  const fid=VUE?.mode==='formateur'?VUE.id:USER.id;
+  if(!FORM_CTX||FORM_CTX.fid!==fid){const c=await chargerEncadrement(fid);FORM_CTX={fid,...c,pubs:[],rendus:[]};}
+  const{ins,ses}=FORM_CTX,refs=[...new Set([...ses.map(s=>s.formation_ref),...ins.map(i=>i.formation_ref)])];
+  app(`<div class="wrap espace" style="max-width:860px">${bandeauVue()}<a href="#/formateur">← Espace formateur</a>
+    <h1 style="font-size:28px;margin:10px 0 16px">Publier pour mes apprenants</h1>
+    <form class="panel" onsubmit="event.preventDefault();envoyerPub()" novalidate><div class="form">
+      <div><label class="f" for="pT">Type</label><select class="in" id="pT" onchange="majPubForm()">${Object.entries(TYPES_PUB).map(([k,v])=>`<option value="${k}">${v[0]} ${v[1]}</option>`).join('')}</select></div>
+      <div><label class="f" for="pDisp">Visible à partir du (facultatif)</label><input class="in" id="pDisp" type="datetime-local"></div>
+      <div class="full"><label class="f" for="pTitre">Titre *</label><input class="in" id="pTitre" placeholder="Ex. Module 3 — Gestion des risques"></div>
+      <div class="full"><label class="f" for="pTxt">Texte, consignes ou annonce</label><textarea class="in" id="pTxt" placeholder="Explications, objectifs, consignes du devoir…"></textarea></div>
+      <div class="full" id="zUrl"><label class="f" for="pUrl">Lien (vidéo YouTube non répertoriée, Vimeo, Google Drive, site…)</label><input class="in" id="pUrl" placeholder="https://"></div>
+      <div class="full"><label class="f" for="pF">Fichier joint (PDF, Word, Excel, PowerPoint, image — 20 Mo maximum)</label><input class="in" id="pF" type="file"></div>
+      <div id="zDev" hidden><label class="f" for="pLim">Date limite de rendu</label><input class="in" id="pLim" type="datetime-local"></div>
+      <div id="zBar" hidden><label class="f" for="pBar">Noté sur</label><input class="in" id="pBar" type="number" value="20" min="1"></div>
+      <div class="full"><span class="f" style="display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">Destinataires *</span>
+        <div class="profils">
+          <label><input type="radio" name="cible" value="session" ${ses.length?'checked':''} onchange="majPubForm()"><b>Une session</b><span>Toute une promotion</span></label>
+          <label><input type="radio" name="cible" value="apprenants" ${ses.length?'':'checked'} onchange="majPubForm()"><b>Des apprenants</b><span>Un ou plusieurs, au choix</span></label>
+          <label><input type="radio" name="cible" value="formation" onchange="majPubForm()"><b>Toute une formation</b><span>Toutes les sessions</span></label></div></div>
+      <div class="full" id="zSes"><label class="f" for="pSes">Session</label><select class="in" id="pSes">${ses.map(s=>`<option value="${esc(s.id)}">${esc((s.titre||titreFormation(s.formation_ref))+' — '+dateCourte(s.date_debut))}</option>`).join('')||'<option value="">Aucune session</option>'}</select></div>
+      <div class="full" id="zApp"><div class="choix">${ins.map(i=>`<label><input type="checkbox" name="pApp" value="${esc(i.id)}"><span>${esc(i.apprenant_nom||'')}<small>${esc(titreFormation(i.formation_ref,i.formation_titre))}</small></span></label>`).join('')||'<span class="note">Aucun apprenant</span>'}</div></div>
+      <div class="full" id="zForm"><label class="f" for="pRef">Formation</label><select class="in" id="pRef">${refs.map(r=>`<option value="${esc(r)}">${esc(titreFormation(r))}</option>`).join('')}</select></div>
+      <div class="full"><div class="err" id="pErr" role="alert"></div><button class="btn btn-g" type="submit" id="pGo">Publier</button></div>
+    </div></form></div>`);
+  majPubForm();
+}
+function majPubForm(){
+  const t=document.getElementById('pT').value,c=document.querySelector('input[name=cible]:checked')?.value;
+  document.getElementById('zUrl').hidden=!['video','lien','document'].includes(t);
+  document.getElementById('zDev').hidden=document.getElementById('zBar').hidden=t!=='devoir';
+  document.getElementById('zSes').hidden=c!=='session';document.getElementById('zApp').hidden=c!=='apprenants';document.getElementById('zForm').hidden=c!=='formation';
+}
+async function envoyerPub(){
+  const e=document.getElementById('pErr');e.textContent='';
+  const v=id=>document.getElementById(id).value.trim(),type=v('pT'),cible=document.querySelector('input[name=cible]:checked')?.value;
+  if(!v('pTitre')){e.textContent='Indiquez un titre.';return;}
+  const p={id:crypto.randomUUID(),auteur_id:USER.id,auteur_nom:[MOI?.prenom,MOI?.nom].filter(Boolean).join(' ')||USER.email,type,titre:v('pTitre'),contenu:v('pTxt')||null,url:v('pUrl')||null,cible,
+    disponible_le:v('pDisp')?new Date(v('pDisp')).toISOString():new Date().toISOString(),date_limite:type==='devoir'&&v('pLim')?new Date(v('pLim')).toISOString():null,bareme:type==='devoir'?(Number(v('pBar'))||20):null};
+  if(p.url&&!/^https?:\/\//i.test(p.url))p.url='https://'+p.url;
+  if(cible==='session'){p.session_id=v('pSes');if(!p.session_id){e.textContent='Choisissez une session.';return;}}
+  if(cible==='apprenants'){p.inscriptions=[...document.querySelectorAll('input[name=pApp]:checked')].map(i=>i.value);if(!p.inscriptions.length){e.textContent='Cochez au moins un apprenant.';return;}}
+  if(cible==='formation'){p.formation_ref=v('pRef');if(!p.formation_ref){e.textContent='Choisissez une formation.';return;}}
+  const f=document.getElementById('pF').files[0];
+  if(f&&f.size>20*1024*1024){e.textContent='Fichier trop lourd (20 Mo maximum).';return;}
+  const b=document.getElementById('pGo');b.disabled=true;b.textContent='Publication…';
+  if(f){const chemin='pub/'+p.id+'/'+f.name.replace(/[^\w.\-]+/g,'_');const up=await sb.storage.from('academy').upload(chemin,f);
+    if(up.error){b.disabled=false;b.textContent='Publier';e.textContent='Envoi du fichier impossible : '+up.error.message;return;}p.fichier=chemin;}
+  const{error}=await sb.from('academy_publications').insert(p);
+  b.disabled=false;b.textContent='Publier';
+  if(error){e.textContent='Publication refusée : '+(/row-level|policy/i.test(error.message)?'ces destinataires ne vous sont pas attribués.':error.message);return;}
+  toast('✅ Publié : vos apprenants le voient dans leur espace');FORM_CTX=null;location.hash='#/formateur';
+}
+
+async function pageFicheApprenant(insId){
+  if(!await session())return pageConnexion();
+  const{data:i}=await sb.from('academy_inscriptions').select('*').eq('id',insId).maybeSingle();
+  if(!i)return app('<div class="wrap espace"><p class="vide">Apprenant introuvable ou non attribué. <a href="#/formateur">Retour</a></p></div>');
+  const[pr,{data:pubs},{data:rendus},{data:msgs},{data:notes},{data:ex}]=await Promise.all([progressions([i]),sb.from('academy_publications').select('*').eq('type','devoir'),
+    sb.from('academy_rendus').select('*').eq('inscription_id',insId),sb.from('academy_messages').select('*').eq('inscription_id',insId).order('created_at'),
+    sb.from('academy_notes').select('*').eq('inscription_id',insId).order('created_at',{ascending:false}),sb.from('academy_examens').select('*').eq('inscription_id',insId).order('date',{ascending:false})]);
+  const devoirs=(pubs||[]).filter(p=>(p.cible==='formation'&&p.formation_ref===i.formation_ref)||(p.cible==='session'&&p.session_id===i.session_id)||(p.cible==='apprenants'&&(p.inscriptions||[]).includes(i.id)));
+  FICHE={i,rendus:rendus||[]};
+  app(`<div class="wrap espace">${bandeauVue()}<a href="#/formateur">← Mes apprenants</a>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-top:10px"><div><span class="kick">${esc(titreFormation(i.formation_ref,i.formation_titre))}</span><h1 style="font-size:28px;margin-top:6px">${esc(i.apprenant_nom||'')}</h1></div>
+      <div style="min-width:220px"><div class="note">Progression ${pr[i.id]||0} % · ${esc(i.heures_presentiel||0)} h en séance</div><div class="bar"><i style="width:${pr[i.id]||0}%"></i></div></div></div>
+    <div class="duo" style="margin-top:18px">
+      <div class="panel"><h3 style="font-size:17px">Devoirs et copies</h3>
+        ${devoirs.length?devoirs.map(d=>{const r=(rendus||[]).find(x=>x.publication_id===d.id);
+          return `<div style="padding:12px 0;border-bottom:1px solid var(--line)"><b>${esc(d.titre)}</b><div class="note">${d.date_limite?'À rendre avant le '+esc(dateCourte(d.date_limite)):'Sans date limite'}</div>
+          ${!r?'<div class="note" style="color:var(--amber)">Pas encore rendu</div>':`<div class="note">Rendu le ${esc(dateCourte(r.rendu_le))}${r.commentaire_apprenant?' · « '+esc(r.commentaire_apprenant)+' »':''}</div>
+            ${r.fichier?`<button class="btn btn-o btn-s" style="margin:6px 0" onclick="ouvrirFichier('${esc(r.fichier)}')">Ouvrir la copie</button>`:''}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"><div><label class="f" for="n-${r.id}">Note / ${esc(d.bareme||20)}</label><input class="in" id="n-${r.id}" type="number" step="0.25" min="0" max="${esc(d.bareme||20)}" value="${r.note??''}" style="width:110px"></div>
+            <div style="flex:1;min-width:200px"><label class="f" for="c-${r.id}">Commentaire</label><input class="in" id="c-${r.id}" value="${esc(r.commentaire_formateur||'')}"></div>
+            <button class="btn btn-g btn-s" onclick="corriger('${r.id}',${Number(d.bareme)||20})">${r.note==null?'Noter':'Mettre à jour'}</button></div>`}</div>`;}).join(''):'<p class="note">Aucun devoir publié pour cet apprenant. <a href="#/formateur/publier">Publier un devoir</a></p>'}
+        <h3 style="font-size:17px;margin-top:18px">Examens blancs</h3>${(ex||[]).map(x=>`<div class="note">${esc(x.titre)} : <b>${esc(x.score)} %</b> · ${esc(dateCourte(x.date))}</div>`).join('')||'<p class="note">Aucun.</p>'}
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><input class="in" id="exT" placeholder="Examen blanc n°…" style="flex:1;min-width:160px"><input class="in" id="exS" type="number" min="0" max="100" placeholder="Score %" style="width:110px"><button class="btn btn-o btn-s" onclick="ajouterExamen('${i.id}')">Ajouter</button></div></div>
+      <div class="panel"><h3 style="font-size:17px">Messages</h3><div class="fil" id="fil" style="margin-top:10px">${(msgs||[]).map(m=>`<div class="msg ${m.auteur_id===USER.id?'moi':'lui'}"><small>${esc(m.auteur_nom||'')} · ${esc(new Date(m.created_at).toLocaleString('fr-FR'))}</small>${esc(m.contenu).replace(/\n/g,'<br>')}</div>`).join('')||'<p class="vide">Aucun message.</p>'}</div>
+        <div style="display:flex;gap:8px;margin-top:10px"><textarea class="in" id="fMsg" rows="2" style="min-height:52px" placeholder="Écrire à l’apprenant…" aria-label="Message"></textarea><button class="btn btn-p" onclick="ecrireApprenant('${i.id}')">Envoyer</button></div>
+        <h3 style="font-size:17px;margin-top:18px">Retours de suivi</h3>
+        <textarea class="in" id="fNote" placeholder="Points forts, axes de progrès…"></textarea><label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0"><input type="checkbox" id="fVis" checked> Visible par l’apprenant</label>
+        <button class="btn btn-o btn-s" onclick="ajouterNote('${i.id}')">Ajouter le retour</button>
+        ${(notes||[]).map(n=>`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="note">${esc(n.auteur_nom||'')} · ${esc(dateCourte(n.created_at))}${n.visible_apprenant?'':' · interne'}</div>${esc(n.contenu)}</div>`).join('')}</div>
+    </div></div>`);
+  const fl=document.getElementById('fil');if(fl)fl.scrollTop=fl.scrollHeight;
+}
+let FICHE=null;
+async function ouvrirFichier(ch){const u=await signedUrl(ch);if(u)window.open(u,'_blank','noopener');else toast('Fichier indisponible');}
+async function corriger(rid,bar){
+  const n=document.getElementById('n-'+rid).value,c=document.getElementById('c-'+rid).value.trim();
+  if(n===''||Number(n)<0||Number(n)>bar){toast('Note entre 0 et '+bar);return;}
+  const{error}=await sb.from('academy_rendus').update({note:Number(n),commentaire_formateur:c||null,corrige_par:USER.id,corrige_par_nom:[MOI?.prenom,MOI?.nom].filter(Boolean).join(' '),corrige_le:new Date().toISOString()}).eq('id',rid);
+  if(error){toast('Correction impossible : '+error.message);return;}toast('✅ Note enregistrée, visible par l’apprenant');route();
+}
+async function ecrireApprenant(insId){const t=document.getElementById('fMsg').value.trim();if(!t)return;
+  const{error}=await sb.from('academy_messages').insert({inscription_id:insId,contenu:t,auteur_id:USER.id,auteur_nom:([MOI?.prenom,MOI?.nom].filter(Boolean).join(' ')||'Formateur')+(estAdmin()?' (administration)':' (formateur)')});
+  if(error){toast('Envoi impossible');return;}route();}
+async function ajouterNote(insId){const t=document.getElementById('fNote').value.trim();if(!t)return;
+  const{error}=await sb.from('academy_notes').insert({inscription_id:insId,contenu:t,auteur_id:USER.id,auteur_nom:[MOI?.prenom,MOI?.nom].filter(Boolean).join(' '),visible_apprenant:document.getElementById('fVis').checked});
+  if(error){toast('Enregistrement impossible');return;}toast('Retour ajouté');route();}
+async function ajouterExamen(insId){const t=document.getElementById('exT').value.trim(),s=Number(document.getElementById('exS').value);if(!t||isNaN(s)){toast('Titre et score requis');return;}
+  const{error}=await sb.from('academy_examens').insert({inscription_id:insId,titre:t,score:Math.max(0,Math.min(100,s)),sur:100});if(error){toast('Enregistrement impossible');return;}route();}
+
+async function pageAdmin(){
+  if(!await session())return pageConnexion();
+  if(!estAdmin())return pageEspace();
+  VUE=null;
+  const[{data:forms},{data:ins}]=await Promise.all([sb.from('profiles').select('id,prenom,nom,email,role').eq('role','formateur').order('nom'),sb.from('academy_inscriptions').select('*').order('apprenant_nom')]);
+  const experts=[...new Set((ins||[]).map(i=>i.expert_id).filter(Boolean))];
+  const{data:autres}=experts.length?await sb.from('profiles').select('id,prenom,nom,email,role').in('id',experts):{data:[]};
+  const F=[...(forms||[]),...(autres||[]).filter(a=>!(forms||[]).some(f=>f.id===a.id))];
+  const appr={};(ins||[]).forEach(i=>{(appr[i.apprenant_id]=appr[i.apprenant_id]||{id:i.apprenant_id,nom:i.apprenant_nom,f:[]}).f.push(titreFormation(i.formation_ref,i.formation_titre));});
+  const nom=p=>[p.prenom,p.nom].filter(Boolean).join(' ')||p.email;
+  app(`<div class="wrap espace"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><span class="kick">Administration</span><h1 style="font-size:30px;margin-top:6px">Tous les espaces</h1></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-o btn-s" href="${esc(CONFIG.ERP)}">Ouvrir l’ERP</a><button class="btn btn-o btn-s" onclick="seDeconnecter()">Se déconnecter</button></div></div>
+    <p class="note" style="font-size:15px">Ouvrez l’espace d’un formateur ou d’un apprenant pour voir exactement ce qu’il voit. Les comptes, sessions et affectations se gèrent dans l’ERP (H TECH Academy).</p>
+    <div class="duo" style="margin-top:14px"><div class="panel"><h3 style="font-size:17px">Formateurs (${F.length})</h3><input class="in" placeholder="Rechercher…" oninput="filtrerListe(this,'lf')" style="margin:8px 0">
+      <div id="lf">${F.map(f=>`<div class="lecon" data-t="${esc(nom(f).toLowerCase())}"><div class="avatar" style="width:38px;height:38px;font-size:13px">${esc(initiales(nom(f)))}</div><div class="t"><b>${esc(nom(f))}</b><small>${esc(f.role==='formateur'?'Formateur':'Équipe H TECH INNOV')} · ${(ins||[]).filter(i=>i.expert_id===f.id).length} apprenant(s) en suivi</small></div>
+        <button class="btn btn-o btn-s" onclick="ouvrirVue('formateur','${f.id}','${esc(nom(f)).replace(/'/g,'&#39;')}')">Ouvrir son espace</button></div>`).join('')||'<p class="note">Aucun formateur.</p>'}</div></div>
+      <div class="panel"><h3 style="font-size:17px">Apprenants (${Object.keys(appr).length})</h3><input class="in" placeholder="Rechercher…" oninput="filtrerListe(this,'la')" style="margin:8px 0">
+      <div id="la">${Object.values(appr).map(a=>`<div class="lecon" data-t="${esc(String(a.nom||'').toLowerCase())}"><div class="avatar" style="width:38px;height:38px;font-size:13px;background:var(--green)">${esc(initiales(a.nom))}</div><div class="t"><b>${esc(a.nom||'')}</b><small>${esc(a.f.join(' · '))}</small></div>
+        <button class="btn btn-o btn-s" onclick="ouvrirVue('apprenant','${a.id}','${esc(a.nom||'').replace(/'/g,'&#39;')}')">Ouvrir son espace</button></div>`).join('')||'<p class="note">Aucun apprenant.</p>'}</div></div></div></div>`);
+}
+function filtrerListe(inp,id){const q=inp.value.toLowerCase();document.querySelectorAll('#'+id+' [data-t]').forEach(x=>x.style.display=x.dataset.t.includes(q)?'':'none');}
+function ouvrirVue(mode,id,nom){VUE={mode,id,nom};location.hash=mode==='formateur'?'#/formateur':'#/espace';route();}
+// Devoirs côté apprenant
+async function rendreDevoir(pubId){
+  const f=document.getElementById('rf-'+pubId)?.files?.[0],c=(document.getElementById('rc-'+pubId)?.value||'').trim();
+  if(!f&&!c){toast('Joignez un fichier ou écrivez votre réponse');return;}
+  if(f&&f.size>20*1024*1024){toast('Fichier trop lourd (20 Mo maximum)');return;}
+  const i=COURS.i;let chemin=null;
+  if(f){chemin='rendus/'+i.id+'/'+pubId+'-'+Date.now()+'-'+f.name.replace(/[^\w.\-]+/g,'_');const up=await sb.storage.from('academy').upload(chemin,f);if(up.error){toast('Envoi impossible : '+up.error.message);return;}}
+  const ex=COURS.rendus.find(r=>r.publication_id===pubId);
+  const d={commentaire_apprenant:c||null,rendu_le:new Date().toISOString()};if(chemin)d.fichier=chemin;
+  const r=ex?await sb.from('academy_rendus').update(d).eq('id',ex.id):await sb.from('academy_rendus').insert({...d,publication_id:pubId,inscription_id:i.id,apprenant_id:USER.id});
+  if(r.error){toast('Rendu impossible : '+r.error.message);return;}toast('✅ Travail rendu à votre formateur');pageCours(i.id,'travaux');
+}
+
 // ═══ Routage ═══
 async function route(){
   const h=decodeURIComponent(location.hash.replace(/^#\/?/,''));
@@ -753,6 +978,10 @@ async function route(){
   if(p==='besoin')return pageBesoin(a);
   if(p==='mot-de-passe')return pageMotDePasse();
   if(p==='espace'&&a==='f'&&b)return pageCours(b);
+  if(p==='admin')return pageAdmin();
+  if(p==='formateur'&&a==='publier')return pagePublier();
+  if(p==='formateur'&&a==='apprenant'&&b)return pageFicheApprenant(b);
+  if(p==='formateur')return pageFormateur();
   if(p==='espace')return pageEspace();
   pageAccueil();
 }
