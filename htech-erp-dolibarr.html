@@ -4914,6 +4914,8 @@ async function commandePDF(id){
     };
     const figees=c.annexes||{};
     docData._annexes=await Promise.all(BC_TYPE_ANNEXES[docData.type_commande].map(async k=>({...(await annexeVersion(k,figees[k])),code:k})));
+    for(let i=0;i<docData._annexes.length;i++){const a=docData._annexes[i];
+      if(a.format==='pdf'){try{a._src=await mdSourcePdf(a);}catch(e){logErr(e);toast('⚠️ Annexe '+a.code+' (PDF) introuvable : texte par défaut utilisé',6000);docData._annexes[i]={...ANNEXES_DEFAUT[a.code],code:a.code};}}}
     docPDF(docData,'BON DE COMMANDE','BonCommande',fourn);
   }catch(e){toast('❌ '+e.message);}
 }
@@ -12200,7 +12202,9 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
     doc.text(T('Page '+i+' / '+nb),W-M,289.5,{align:'right'});
     if(pagesAnnexes.includes(i)){doc.setFontSize(7.5);color(NAVY,'bold');doc.text(T('Paraphe du fournisseur : ________'),W-M,279,{align:'right'});}
   }
-  doc.save(T(prefixFichier+'-'+(d.reference||'document'))+'.pdf');
+  const insBC=isBC&&Array.isArray(d._annexes)?d._annexes.filter(a=>a._src&&a._pages).map(a=>({bytes:a._src.bytes,pages:a._pages})):[];
+  if(insBC.length){try{mdTelecharger(await mdIncruster(doc,insBC),T(prefixFichier+'-'+(d.reference||'document'))+'.pdf');}catch(e){logErr(e);toast('❌ Annexe PDF : '+e.message);return;}}
+  else doc.save(T(prefixFichier+'-'+(d.reference||'document'))+'.pdf');
   toast('✅ '+(isDev?'Devis':isAv?'Avoir':isFac?'Facture':'Bon de commande')+' PDF téléchargé');
 }
 function fmtQte(q){const n=numIn(q);return Number.isInteger(n)?String(n):String(n).replace('.',',');}
@@ -14072,6 +14076,7 @@ function bcDessinerAnnexes(doc,annexes,ref,entete){
   const W=210,M=14,BAS=272,NAVY=[10,42,102],BLUE=[21,101,192],GREY=[96,108,130],LINE=[213,224,240];
   const T=pdfT,pages=[];
   annexes.forEach(a=>{
+    if(a.format==='pdf'&&a._src){a._pages=mdReserverPages(doc,a._src.count,entete,'ANNEXE '+a.code+' - '+String(a.titre||'').toUpperCase()+' - version '+(a.version||1)+' - document joint');pages.push(...a._pages);return;}
     doc.addPage();entete(false);pages.push(doc.getNumberOfPages());
     let y=22;
     const saut=h=>{if(y+h>BAS){doc.addPage();entete(false);pages.push(doc.getNumberOfPages());y=22;}};
@@ -14165,6 +14170,1058 @@ async function caApercu(k){
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-conditions-achat')){const d=document.createElement('div');d.className='page';d.id='page-conditions-achat';ref.parentNode.appendChild(d);}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// PARTENARIATS — fiches partenaires et contrats générés par type (octobre 2026)
+// Modèle = articles « **Article # – Titre.** texte », variables {{champ}},
+// blocs conditionnels [[si:cle]]…[[/si]] ou [[si:cle=valeur]]…[[/si]],
+// tableaux en lignes « | … | ». Les articles sont renumérotés à l'impression.
+// Textes versionnés (table modeles_contrat), modifiables par l'administrateur.
+// ══════════════════════════════════════════════════════════════════════
+var PART_STATUTS={brouillon:'Brouillon',envoye:'Envoyé pour signature',signe:'Signé',actif:'Actif',suspendu:'Suspendu',expire:'Expiré',resilie:'Résilié'};
+var PART_STATUT_COUL={brouillon:'#7A90A8',envoye:'#D97706',signe:'#0891B2',actif:'#3F8A1E',suspendu:'#DC2626',expire:'#9CA3AF',resilie:'#9CA3AF'};
+var PART_OPTIONS={
+  exclusivite:'Exclusivité',
+  non_sollicitation:'Non-sollicitation (clients et personnel, 12 mois)',
+  non_concurrence:'Non-concurrence (12 mois, limitée au périmètre du contrat)',
+  confidentialite_renforcee:'Confidentialité renforcée (5 ans)',
+  resiliation_libre:'Résiliation anticipée possible avec préavis'
+};
+var PART_GROUPES=['Locaux et services','Conseil et prestations','Commercial','Constructeurs et éditeurs','Projets et appels d’offres','H TECH Academy','Financement et visibilité'];
+// Champs : k (clé), l (libellé), t (text|textarea|number|money|pct|date|select), o (options), d (défaut), req (obligatoire)
+var PART_TYPES={
+espace:{groupe:'Locaux et services',icone:'🏢',l:'Mise à disposition d’espace de travail',titre:'CONVENTION DE MISE À DISPOSITION D’ESPACE DE TRAVAIL',
+  personne:'morale',options:['non_sollicitation'],duree:6,facturable:true,
+  champs:[
+   {k:'nb_postes',l:'Nombre de postes de travail',t:'number',d:1,req:1},
+   {k:'beneficiaires',l:'Personnes autorisées (nom et fonction, une par ligne)',t:'textarea',req:1},
+   {k:'espaces',l:'Espaces mis à disposition',t:'text',d:'la salle de travail partagée et, sur réservation, l’atelier de raccordement',req:1},
+   {k:'horaires',l:'Horaires d’accès',t:'text',d:'du lundi au vendredi, de 8h00 à 18h00, hors jours fériés',req:1},
+   {k:'description_participation',l:'Nature de la participation',t:'text',d:'participation forfaitaire au loyer et aux charges de fonctionnement des locaux'},
+   {k:'montant_mensuel',l:'Participation mensuelle HT',t:'money',req:1},
+   {k:'services_inclus',l:'Services inclus',t:'text',d:'électricité, eau, accès internet invité, entretien des parties communes et accès aux sanitaires'},
+   {k:'jour_paiement',l:'Paiement avant le (jour du mois)',t:'number',d:5},
+   {k:'tva',l:'TVA sur la participation',t:'select',o:{soumis:'Soumise à TVA',exonere:'Exonérée'},d:'soumis'},
+   {k:'depot_garantie',l:'Dépôt de garantie',t:'money',d:0}
+  ]},
+consultant:{groupe:'Conseil et prestations',icone:'🧑‍💼',l:'Consultant associé',titre:'CONTRAT DE PARTENARIAT – CONSULTANT ASSOCIÉ',
+  personne:'physique',options:['non_sollicitation','resiliation_libre'],duree:12,
+  champs:[
+   {k:'domaines',l:'Domaines d’intervention',t:'textarea',d:'Management de projet (PMO), conseil en transformation, accompagnement ESG',req:1},
+   {k:'tjm',l:'Taux journalier (TJM) HT',t:'money',req:1},
+   {k:'frais',l:'Frais de mission',t:'select',o:{inclus:'Inclus dans le TJM',justificatif:'Remboursés sur justificatif, après accord préalable'},d:'justificatif'},
+   {k:'delai_paiement',l:'Délai de paiement (jours)',t:'number',d:30}
+  ]},
+freelance:{groupe:'Conseil et prestations',icone:'💻',l:'Développeur / freelance',titre:'CONTRAT DE PRESTATION – DÉVELOPPEUR INDÉPENDANT',
+  personne:'physique',options:['non_sollicitation','confidentialite_renforcee','resiliation_libre'],duree:6,
+  champs:[
+   {k:'perimetre',l:'Périmètre des développements',t:'textarea',req:1},
+   {k:'technos',l:'Technologies',t:'text',d:'HTML/JavaScript, Supabase (PostgreSQL)'},
+   {k:'mode',l:'Mode de rémunération',t:'select',o:{tjm:'Au temps passé (TJM)',forfait:'Au forfait par lot'},d:'tjm'},
+   {k:'montant',l:'TJM ou montant du forfait HT',t:'money',req:1},
+   {k:'depot',l:'Dépôt du code source',t:'text',d:'le dépôt Git appartenant à H TECH INNOV'},
+   {k:'garantie_mois',l:'Garantie de correction (mois)',t:'number',d:3},
+   {k:'delai_paiement',l:'Délai de paiement (jours)',t:'number',d:30}
+  ]},
+soustraitant:{groupe:'Conseil et prestations',icone:'🛠️',l:'Sous-traitant récurrent (contrat-cadre)',titre:'CONTRAT-CADRE DE SOUS-TRAITANCE',
+  personne:'morale',options:['non_sollicitation','resiliation_libre'],duree:12,
+  champs:[
+   {k:'prestations',l:'Prestations couvertes',t:'textarea',d:'Pose, câblage et raccordement de systèmes de sécurité électronique ; maintenance préventive et corrective',req:1},
+   {k:'zones',l:'Zones d’intervention',t:'text',d:'District d’Abidjan'},
+   {k:'tarifs',l:'Tarifs (ou référence de la grille annexée)',t:'textarea',d:'Selon la grille tarifaire annexée, ferme pour la durée du contrat'},
+   {k:'habilitations',l:'Habilitations exigées',t:'text',d:'habilitation électrique adaptée, formation au travail en hauteur'},
+   {k:'delai_reponse',l:'Délai de réponse à une demande (heures)',t:'number',d:24}
+  ]},
+apporteur:{groupe:'Commercial',icone:'🤝',l:'Apporteur d’affaires',titre:'CONTRAT D’APPORTEUR D’AFFAIRES',
+  personne:'physique',options:['resiliation_libre'],duree:12,
+  champs:[
+   {k:'perimetre',l:'Offres concernées',t:'text',d:'l’ensemble des offres de H TECH INNOV (conseil, digital et IA, cybersécurité, smart building, formation)',req:1},
+   {k:'commission_pct',l:'Commission (% du HT encaissé)',t:'pct',d:10,req:1},
+   {k:'duree_commission_mois',l:'Contrats commissionnés signés dans un délai de (mois)',t:'number',d:12},
+   {k:'delai_paiement',l:'Paiement de la commission après encaissement (jours)',t:'number',d:15}
+  ]},
+fournisseur:{groupe:'Commercial',icone:'🏭',l:'Fournisseur partenaire',titre:'CONTRAT-CADRE DE PARTENARIAT FOURNISSEUR',
+  personne:'morale',options:['resiliation_libre'],duree:12,
+  champs:[
+   {k:'produits',l:'Gammes de produits',t:'textarea',req:1},
+   {k:'remise_pct',l:'Remise sur tarif public (%)',t:'pct',req:1},
+   {k:'delai_livraison',l:'Délai de livraison standard (jours)',t:'number',d:7},
+   {k:'protection_prix',l:'Protection de prix sur devis en cours (jours)',t:'number',d:60},
+   {k:'delai_paiement',l:'Délai de paiement (jours)',t:'number',d:30},
+   {k:'support',l:'Support et SAV',t:'text',d:'support technique de niveau 2, échange standard (RMA) sous 7 jours, prêt de matériel en cas de panne critique'}
+  ]},
+revendeur:{groupe:'Commercial',icone:'🏪',l:'Revendeur / distributeur',titre:'CONTRAT DE REVENTE ET DE DISTRIBUTION',
+  personne:'morale',options:['resiliation_libre'],duree:12,
+  champs:[
+   {k:'offres',l:'Produits et services confiés à la revente',t:'textarea',req:1},
+   {k:'territoire',l:'Territoire',t:'text',d:'Côte d’Ivoire',req:1},
+   {k:'remise_pct',l:'Remise revendeur (%)',t:'pct',req:1},
+   {k:'objectif_annuel',l:'Objectif annuel de chiffre d’affaires HT',t:'money'},
+   {k:'delai_paiement',l:'Délai de paiement (jours)',t:'number',d:30}
+  ]},
+constructeur:{groupe:'Constructeurs et éditeurs',icone:'🏷️',l:'Constructeur (programme partenaire)',titre:'PROTOCOLE DE PARTENARIAT CONSTRUCTEUR',
+  personne:'morale',options:[],duree:12,suivi:true,
+  champs:[
+   {k:'marque',l:'Marque',t:'text',req:1},
+   {k:'programme',l:'Programme et niveau de partenariat',t:'text',d:'Revendeur agréé',req:1},
+   {k:'numero_partenaire',l:'Numéro de partenaire',t:'text'},
+   {k:'contrat_ref',l:'Référence du contrat du programme',t:'text'},
+   {k:'remise_pct',l:'Remise accordée (%)',t:'pct'},
+   {k:'objectifs',l:'Objectifs annuels',t:'text'},
+   {k:'certifications',l:'Certifications des techniciens (nom – certification – expiration)',t:'textarea'},
+   {k:'expiration_certif',l:'Prochaine expiration de certification',t:'date'},
+   {k:'contact_support',l:'Contact support / chargé de compte',t:'text'}
+  ]},
+editeur:{groupe:'Constructeurs et éditeurs',icone:'🧩',l:'Éditeur de logiciels / SaaS',titre:'PROTOCOLE DE PARTENARIAT ÉDITEUR DE LOGICIELS',
+  personne:'morale',options:[],duree:12,suivi:true,
+  champs:[
+   {k:'solutions',l:'Solutions concernées',t:'textarea',req:1},
+   {k:'modele',l:'Modèle de partenariat',t:'select',o:{revente:'Revente de licences',msp:'Fournisseur de services managés (MSP)',integrateur:'Intégrateur'},d:'revente'},
+   {k:'programme',l:'Programme et niveau',t:'text'},
+   {k:'contrat_ref',l:'Référence du contrat de l’éditeur',t:'text'},
+   {k:'marge_pct',l:'Remise ou marge (%)',t:'pct'},
+   {k:'expiration_certif',l:'Prochaine expiration de certification',t:'date'},
+   {k:'contact_support',l:'Contact support / chargé de compte',t:'text'}
+  ]},
+cotraitance:{groupe:'Projets et appels d’offres',icone:'🧱',l:'Groupement / co-traitance',titre:'CONVENTION DE GROUPEMENT MOMENTANÉ D’ENTREPRISES',
+  personne:'morale',options:['exclusivite','confidentialite_renforcee'],duree:12,
+  champs:[
+   {k:'marche',l:'Objet du marché ou de l’appel d’offres',t:'text',req:1},
+   {k:'maitre_ouvrage',l:'Maître d’ouvrage / acheteur',t:'text',req:1},
+   {k:'reference_ao',l:'Référence de l’appel d’offres',t:'text'},
+   {k:'forme',l:'Forme du groupement',t:'select',o:{conjoint:'Conjoint (chacun responsable de ses lots)',solidaire:'Solidaire'},d:'conjoint'},
+   {k:'mandataire',l:'Mandataire',t:'select',o:{hti:'H TECH INNOV',partenaire:'Le Partenaire'},d:'hti'},
+   {k:'lots_hti',l:'Prestations de H TECH INNOV',t:'textarea',req:1},
+   {k:'part_hti',l:'Part de H TECH INNOV (% du marché)',t:'pct',req:1},
+   {k:'lots_partenaire',l:'Prestations du Partenaire',t:'textarea',req:1},
+   {k:'part_partenaire',l:'Part du Partenaire (% du marché)',t:'pct',req:1}
+  ]},
+marque_blanche:{groupe:'Projets et appels d’offres',icone:'⚪',l:'Prestation en marque blanche',titre:'CONTRAT DE PRESTATION EN MARQUE BLANCHE',
+  personne:'morale',options:['non_sollicitation','confidentialite_renforcee','resiliation_libre'],duree:12,
+  champs:[
+   {k:'sens',l:'Qui réalise les prestations ?',t:'select',o:{hti:'H TECH INNOV réalise pour le Partenaire',partenaire:'Le Partenaire réalise pour H TECH INNOV'},d:'hti'},
+   {k:'services',l:'Prestations concernées',t:'textarea',req:1},
+   {k:'tarifs',l:'Tarifs',t:'textarea',req:1},
+   {k:'niveaux_service',l:'Niveaux de service',t:'text',d:'prise en charge sous 4 heures ouvrées, rétablissement sous 2 jours ouvrés'},
+   {k:'delai_paiement',l:'Délai de paiement (jours)',t:'number',d:30}
+  ]},
+formateur:{groupe:'H TECH Academy',icone:'🎓',l:'Formateur partenaire',titre:'CONTRAT DE PARTENARIAT – FORMATEUR',
+  personne:'physique',options:['non_sollicitation','resiliation_libre'],duree:12,
+  champs:[
+   {k:'thematiques',l:'Thématiques',t:'textarea',req:1},
+   {k:'tarif_jour',l:'Rémunération par jour de formation HT',t:'money',req:1},
+   {k:'modalites',l:'Modalités',t:'text',d:'présentiel dans les locaux de H TECH INNOV ou chez le client, ou distanciel'},
+   {k:'supports',l:'Supports pédagogiques',t:'select',o:{cession:'Conçus par le formateur et cédés à H TECH INNOV',licence:'Conçus par le formateur, licence d’usage à H TECH INNOV',hti:'Fournis par H TECH INNOV'},d:'licence'},
+   {k:'delai_paiement',l:'Délai de paiement (jours)',t:'number',d:30}
+  ]},
+academique:{groupe:'H TECH Academy',icone:'🏛️',l:'Établissement académique',titre:'CONVENTION DE PARTENARIAT ACADÉMIQUE',
+  personne:'morale',options:[],duree:36,
+  champs:[
+   {k:'axes',l:'Axes de coopération',t:'textarea',d:'Accueil de stagiaires ; interventions d’experts de H TECH INNOV ; projets tutorés ; préparation aux certifications professionnelles',req:1},
+   {k:'nb_stagiaires',l:'Stagiaires accueillis par an (indicatif)',t:'number',d:4},
+   {k:'interlocuteur_partenaire',l:'Interlocuteur de l’établissement',t:'text'},
+   {k:'interlocuteur_hti',l:'Interlocuteur de H TECH INNOV',t:'text'}
+  ]},
+certificateur:{groupe:'H TECH Academy',icone:'📜',l:'Centre d’examen / certificateur',titre:'CONVENTION DE PARTENARIAT – CERTIFICATION',
+  personne:'morale',options:['confidentialite_renforcee'],duree:24,
+  champs:[
+   {k:'certifications',l:'Certifications concernées',t:'textarea',req:1},
+   {k:'role',l:'Rôle de H TECH INNOV',t:'select',o:{centre:'Centre d’examen agréé du Partenaire',preparateur:'Organisme de préparation, examens passés auprès du Partenaire'},d:'centre'},
+   {k:'tarif_examen',l:'Tarif par candidat HT',t:'money'},
+   {k:'delai_resultats',l:'Délai de communication des résultats (jours)',t:'number',d:15},
+   {k:'contrat_ref',l:'Référence de l’accord du certificateur',t:'text'}
+  ]},
+financier:{groupe:'Financement et visibilité',icone:'🏦',l:'Partenaire financier',titre:'CONVENTION DE PARTENARIAT FINANCIER',
+  personne:'morale',options:[],duree:12,
+  champs:[
+   {k:'produit',l:'Solution de financement',t:'select',o:{leasing:'Crédit-bail (leasing)',credit:'Crédit d’équipement',location:'Location financière'},d:'leasing',req:1},
+   {k:'offre',l:'Conditions de l’offre aux clients',t:'textarea'},
+   {k:'delai_reponse',l:'Délai de réponse sur un dossier (jours ouvrés)',t:'number',d:5},
+   {k:'remuneration',l:'Rémunération éventuelle de H TECH INNOV',t:'text',d:'aucune'}
+  ]},
+sponsoring:{groupe:'Financement et visibilité',icone:'📣',l:'Sponsoring / partenariat média',titre:'CONTRAT DE SPONSORING ET DE PARTENARIAT MÉDIA',
+  personne:'morale',options:[],duree:3,
+  champs:[
+   {k:'sens',l:'Sens du partenariat',t:'select',o:{hti_sponsor:'H TECH INNOV apporte son soutien',hti_beneficiaire:'H TECH INNOV reçoit le soutien'},d:'hti_sponsor'},
+   {k:'evenement',l:'Événement ou support',t:'text',req:1},
+   {k:'dates',l:'Dates',t:'text',req:1},
+   {k:'apport',l:'Apport (financier ou en nature)',t:'text',req:1},
+   {k:'contreparties',l:'Contreparties de visibilité',t:'textarea',req:1}
+  ]}
+};
+var PART_MODELES_DEFAUT={
+espace:`**Article # – Objet.** H TECH INNOV met à la disposition du Partenaire, dans ses locaux situés {{hti_adresse}}, {{nb_postes}} poste(s) de travail dans {{espaces}}, au profit des personnes désignées à l'article suivant. La présente convention confère un simple droit d'usage, personnel, précaire et non cessible. Elle ne constitue ni un bail, ni une sous-location, et ne confère au Partenaire aucun droit au maintien dans les lieux. H TECH INNOV déclare disposer de l'autorisation nécessaire pour accueillir des tiers dans ses locaux.
+
+**Article # – Personnes autorisées.** Seules les personnes suivantes ont accès aux espaces mis à disposition : {{beneficiaires}}. Toute modification de cette liste est notifiée par écrit et acceptée par H TECH INNOV. H TECH INNOV peut refuser ou suspendre l'accès d'une personne pour un motif légitime, notamment de sécurité ou de comportement.
+
+**Article # – Accès et conditions d'usage.** Les espaces sont accessibles {{horaires}}. Le Partenaire et ses personnels respectent le règlement intérieur, les consignes de sécurité et la tranquillité des lieux, en particulier lors de la présence de clients dans le showroom. Ils ne reçoivent pas leur propre clientèle dans les locaux sans accord préalable, n'effectuent aucune modification des installations et utilisent les équipements communs en bon père de famille.
+
+**Article # – Participation financière.** En contrepartie, le Partenaire verse une {{description_participation}} d'un montant de {{montant_mensuel}} HT par mois ({{montant_mensuel_lettres}}), payable d'avance avant le {{jour_paiement}} de chaque mois, sur facture de H TECH INNOV.[[si:tva=soumis]] Ce montant est majoré de la TVA au taux en vigueur.[[/si]] Elle couvre : {{services_inclus}}. Tout mois commencé est dû. En cas de retard de paiement supérieur à 8 jours après mise en demeure, H TECH INNOV peut suspendre l'accès aux locaux.
+
+[[si:depot_garantie]]**Article # – Dépôt de garantie.** Le Partenaire verse à la signature un dépôt de garantie de {{depot_garantie}}, non productif d'intérêts, restitué dans les 30 jours suivant la fin de la convention, déduction faite des sommes restant dues et des éventuelles réparations.
+
+[[/si]]**Article # – Indépendance des personnels.** Les personnes autorisées restent exclusivement salariées et placées sous l'autorité hiérarchique et disciplinaire du Partenaire, qui assure seul leur rémunération, leurs déclarations sociales et fiscales et leur couverture accident du travail. H TECH INNOV ne leur donne aucune instruction. La présente convention ne constitue en aucun cas une mise à disposition de personnel. Toute collaboration des personnels du Partenaire aux projets de H TECH INNOV fait l'objet d'un contrat ou d'un bon de commande distinct.
+
+**Article # – Assurances et responsabilité.** Le Partenaire souscrit une assurance responsabilité civile couvrant les dommages causés par ses personnels aux locaux, aux biens de H TECH INNOV et aux tiers, et en justifie à la signature. Il assure ses propres équipements. H TECH INNOV n'est pas responsable des vols ou détériorations des biens du Partenaire, sauf faute prouvée.
+
+**Article # – Sécurité de l'information sur site.** Les personnels du Partenaire n'accèdent qu'au réseau invité. Ils ne consultent ni ne reproduisent les documents, écrans, plans ou données des clients de H TECH INNOV dont ils pourraient avoir connaissance sur place.
+
+**Article # – Fin de la convention.** À l'expiration ou à la résiliation de la convention, le Partenaire libère les lieux, reprend ses biens et restitue clés et badges. Un état des lieux contradictoire est établi à l'entrée et à la sortie.
+
+**Annexe – Récapitulatif des conditions**
+
+| Élément | Condition |
+| Postes de travail | {{nb_postes}} |
+| Espaces | {{espaces}} |
+| Horaires | {{horaires}} |
+| Participation mensuelle HT | {{montant_mensuel}} |
+| Échéance de paiement | avant le {{jour_paiement}} de chaque mois |
+| Dépôt de garantie | {{depot_garantie}} |
+| Durée | {{duree_mois}} mois, du {{date_debut}} au {{date_fin}} |`,
+
+consultant:`**Article # – Objet.** Le présent contrat fixe les conditions dans lesquelles le Partenaire, consultant indépendant, intervient pour le compte de H TECH INNOV auprès de ses clients, dans les domaines suivants : {{domaines}}. Il ne garantit aucun volume de missions.
+
+**Article # – Ordres de mission.** Chaque mission fait l'objet d'un ordre de mission ou d'un bon de commande écrit précisant le client, l'objet, les livrables, le nombre de jours et le calendrier. Le Partenaire est libre de l'accepter ou de la refuser. H TECH INNOV reste l'unique interlocuteur contractuel du client.
+
+**Article # – Rémunération.** Les missions sont rémunérées au taux journalier de {{tjm}} HT ({{tjm_lettres}}).[[si:frais=inclus]] Ce taux inclut tous les frais.[[/si]][[si:frais=justificatif]] Les frais de déplacement et d'hébergement préalablement autorisés sont remboursés sur justificatifs.[[/si]] Le Partenaire facture mensuellement sur la base des feuilles de temps validées par H TECH INNOV. Les factures sont payées à {{delai_paiement}} jours de leur réception. Les retenues à la source prévues par la législation fiscale sont appliquées le cas échéant.
+
+**Article # – Exécution.** Le Partenaire exécute les missions selon les règles de l'art et les standards de qualité de H TECH INNOV, utilise ses modèles de livrables et rend compte régulièrement de l'avancement. Il se présente auprès des clients comme intervenant pour le compte de H TECH INNOV.
+
+**Article # – Propriété des livrables.** Les livrables réalisés dans le cadre des missions deviennent la propriété de H TECH INNOV à leur paiement, qui peut les remettre à ses clients. Le Partenaire conserve ses méthodes et savoir-faire antérieurs.`,
+
+freelance:`**Article # – Objet.** H TECH INNOV confie au Partenaire, développeur indépendant, la réalisation des développements suivants : {{perimetre}}. Technologies : {{technos}}.
+
+**Article # – Organisation et recette.** Les développements sont découpés en lots décrits par écrit (spécifications, livrables, délais). Chaque lot est livré dans {{depot}}, accompagné de sa documentation. H TECH INNOV dispose de 10 jours ouvrés pour le recetter. Les anomalies constatées sont corrigées sans frais.
+
+**Article # – Rémunération.** [[si:mode=tjm]]Les prestations sont rémunérées au temps passé, au taux journalier de {{montant}} HT, sur la base de relevés de temps validés.[[/si]][[si:mode=forfait]]Chaque lot est rémunéré au forfait ; le montant de référence est de {{montant}} HT, précisé lot par lot.[[/si]] Les factures sont payées à {{delai_paiement}} jours de leur réception, après recette du lot concerné.
+
+**Article # – Cession des droits.** Le Partenaire cède à H TECH INNOV, à titre exclusif et au fur et à mesure de leur réalisation, l'ensemble des droits patrimoniaux sur les codes sources et objets, la documentation, les maquettes et tous éléments développés : droits de reproduction, de représentation, d'adaptation, de modification, de traduction, de distribution et de commercialisation, sous toutes formes, pour le monde entier et pour toute la durée de protection légale. Le prix de cette cession est inclus dans la rémunération. Le Partenaire garantit être l'auteur des développements et n'y intègre aucun composant tiers sous une licence imposant la publication du code sans accord écrit de H TECH INNOV. Il fournit la liste des composants tiers utilisés et de leurs licences.
+
+**Article # – Garantie.** Le Partenaire corrige gratuitement les anomalies signalées pendant {{garantie_mois}} mois à compter de la recette de chaque lot.
+
+**Article # – Sécurité des accès.** Les accès aux dépôts, serveurs et bases de données sont personnels et révoqués en fin de mission. Le Partenaire ne conserve aucune copie du code ni des données de H TECH INNOV ou de ses clients.`,
+
+soustraitant:`**Article # – Objet.** Le présent contrat-cadre fixe les conditions générales dans lesquelles H TECH INNOV confie au Partenaire les prestations suivantes : {{prestations}}, dans la zone : {{zones}}.
+
+**Article # – Commandes.** Chaque intervention fait l'objet d'un bon de commande de nature « prestation / sous-traitance ». Les conditions de sous-traitance jointes à ce bon de commande (Annexe B, notamment les niveaux de service et les pénalités) s'appliquent à chaque commande. Le présent contrat-cadre prévaut sur toute condition contraire du Partenaire.
+
+**Article # – Tarifs.** {{tarifs}}
+
+**Article # – Réactivité.** Le Partenaire répond à toute demande d'intervention dans un délai de {{delai_reponse}} heures, en indiquant sa disponibilité et l'équipe affectée.
+
+**Article # – Qualification des intervenants.** Le Partenaire n'affecte que des techniciens qualifiés, disposant notamment de : {{habilitations}}. Il communique la liste de ses intervenants et la tient à jour.
+
+**Article # – Évaluation.** H TECH INNOV évalue chaque année la qualité, le respect des délais et des niveaux de service. Cette évaluation conditionne la reconduction du contrat.`,
+
+apporteur:`**Article # – Objet.** Le Partenaire présente à H TECH INNOV des prospects susceptibles de souscrire {{perimetre}}. Sa mission se limite à la mise en relation : il n'a aucun mandat pour négocier, conclure un contrat, engager H TECH INNOV ou encaisser des fonds en son nom.
+
+**Article # – Enregistrement des apports.** Chaque apport est déclaré par écrit (identité du prospect, interlocuteur, besoin). H TECH INNOV confirme ou refuse l'enregistrement sous 5 jours ouvrés. Un apport n'est pas enregistré si le prospect est déjà en relation avec H TECH INNOV ou a été présenté par un tiers au cours des 12 derniers mois.
+
+**Article # – Commission.** Pour tout contrat signé avec un prospect enregistré dans les {{duree_commission_mois}} mois suivant son enregistrement, le Partenaire perçoit une commission de {{commission_pct}} % du montant hors taxes effectivement encaissé par H TECH INNOV. Elle est payée dans les {{delai_paiement}} jours suivant chaque encaissement, sur présentation d'une facture ou d'une note d'honoraires. Aucune commission n'est due sur les sommes impayées, annulées ou remboursées.
+
+**Article # – Loyauté et intégrité.** Le Partenaire ne fait aucune promesse sur les prix, les délais ou les résultats. Il s'interdit de reverser tout ou partie de sa commission à un salarié, dirigeant ou agent public du prospect, ou de lui consentir un avantage quelconque. Tout manquement entraîne la résiliation immédiate et la perte des commissions non payées.
+
+**Article # – Transparence.** H TECH INNOV peut informer le client de l'intervention du Partenaire.`,
+
+fournisseur:`**Article # – Objet.** Le présent contrat-cadre organise l'approvisionnement de H TECH INNOV auprès du Partenaire pour les gammes suivantes : {{produits}}.
+
+**Article # – Commandes.** Les commandes sont passées par bons de commande de H TECH INNOV. Les conditions générales d'achat jointes (Annexe A) s'appliquent, sauf dispositions plus favorables du présent contrat. Le présent contrat prévaut sur les conditions générales de vente du Partenaire.
+
+**Article # – Conditions tarifaires.** Le Partenaire accorde une remise de {{remise_pct}} % sur son tarif public. Les prix ne peuvent être révisés qu'une fois par an, avec un préavis de 60 jours. Les prix en vigueur à la date d'un devis remis par H TECH INNOV à son client sont garantis pendant {{protection_prix}} jours pour les commandes qui s'y rapportent.
+
+**Article # – Délais.** Le délai de livraison standard est de {{delai_livraison}} jours. Le Partenaire informe sans délai H TECH INNOV de toute rupture ou de tout retard prévisible.
+
+**Article # – Support et service après-vente.** Le Partenaire assure : {{support}}.
+
+**Article # – Paiement.** Les factures sont payées à {{delai_paiement}} jours de leur date de réception.`,
+
+revendeur:`**Article # – Objet.** H TECH INNOV autorise le Partenaire à revendre auprès de sa clientèle les produits et services suivants : {{offres}}, sur le territoire suivant : {{territoire}}.
+
+**Article # – Conditions commerciales.** Le Partenaire bénéficie d'une remise de {{remise_pct}} % sur le tarif public de H TECH INNOV. Il fixe librement ses prix de revente. Les factures de H TECH INNOV sont payables à {{delai_paiement}} jours.
+
+**Article # – Engagements du Partenaire.** Le Partenaire promeut les offres avec loyauté, présente fidèlement leurs caractéristiques, dispose d'un personnel formé et transmet à H TECH INNOV les besoins techniques de ses clients. Il ne prend aucun engagement au nom de H TECH INNOV.
+
+**Article # – Engagements de H TECH INNOV.** H TECH INNOV fournit la documentation commerciale et technique, forme les équipes du Partenaire et assure le support technique de second niveau.
+
+[[si:objectif_annuel]]**Article # – Objectif.** Les parties retiennent un objectif annuel de chiffre d'affaires de {{objectif_annuel}} HT. Il fait l'objet d'une revue annuelle. Sa non-atteinte ne constitue pas une faute mais peut conduire à la révision des conditions commerciales.
+
+[[/si]]**Article # – Marques.** H TECH INNOV concède au Partenaire, pour la durée du contrat, un droit non exclusif d'utiliser son nom et son logo pour la seule promotion des offres, dans le respect de sa charte graphique. Ce droit prend fin avec le contrat.`,
+
+constructeur:`**Article # – Objet.** Le présent protocole formalise les engagements réciproques de H TECH INNOV et du Partenaire, constructeur de la marque {{marque}}, dans le cadre du programme « {{programme}} »[[si:contrat_ref]] (référence {{contrat_ref}})[[/si]]. Il complète l'accord du programme partenaire du Partenaire, qui prévaut en cas de contradiction.
+
+**Article # – Statut.** H TECH INNOV est référencée au niveau « {{programme}} »[[si:numero_partenaire]] sous le numéro {{numero_partenaire}}[[/si]].[[si:remise_pct]] Elle bénéficie d'une remise de {{remise_pct}} % dans les conditions du programme.[[/si]]
+
+**Article # – Engagements de H TECH INNOV.** Maintenir des techniciens certifiés sur les produits de la marque ; respecter les règles d'installation et de configuration du constructeur ; enregistrer ses projets selon les procédures du programme ; utiliser la marque conformément à la charte du constructeur.[[si:objectifs]] Objectifs retenus : {{objectifs}}.[[/si]]
+
+**Article # – Engagements du Partenaire.** Dans les conditions de son programme : accès aux formations et certifications, support technique de niveau 2, traitement des retours sous garantie, communication des évolutions de gamme et transmission des demandes de clients finaux de la zone de H TECH INNOV.
+
+**Article # – Revue annuelle.** Les parties se réunissent une fois par an pour faire le point sur les résultats, les certifications et le niveau de partenariat.`,
+
+editeur:`**Article # – Objet.** Le présent protocole formalise le partenariat entre H TECH INNOV et le Partenaire, éditeur des solutions suivantes : {{solutions}}, selon le modèle : [[si:modele=revente]]revente de licences[[/si]][[si:modele=msp]]fourniture de services managés[[/si]][[si:modele=integrateur]]intégration[[/si]]. Il complète l'accord partenaire de l'éditeur[[si:contrat_ref]] (référence {{contrat_ref}})[[/si]], qui prévaut en cas de contradiction.
+
+**Article # – Conditions.** [[si:programme]]H TECH INNOV est référencée au niveau « {{programme}} ». [[/si]][[si:marge_pct]]Elle bénéficie d'une remise ou marge de {{marge_pct}} %. [[/si]]Les licences sont commandées au nom des clients finaux, qui acceptent les conditions d'utilisation de l'éditeur.
+
+**Article # – Renouvellements.** H TECH INNOV suit les dates d'échéance des licences de ses clients et leur propose le renouvellement. Le Partenaire lui communique les échéances au moins 60 jours à l'avance.
+
+**Article # – Support.** H TECH INNOV assure le support de premier niveau de ses clients ; le Partenaire assure le support de second niveau et les correctifs.
+
+**Article # – Revue annuelle.** Les parties se réunissent une fois par an pour faire le point sur les résultats et les certifications.`,
+
+cotraitance:`**Article # – Objet.** Les parties constituent un groupement momentané d'entreprises en vue de répondre à l'appel d'offres « {{marche}} »[[si:reference_ao]] (référence {{reference_ao}})[[/si]] lancé par {{maitre_ouvrage}}, puis, en cas d'attribution, d'exécuter le marché.
+
+**Article # – Forme du groupement.** [[si:forme=conjoint]]Le groupement est conjoint : chaque membre s'engage à exécuter les prestations qui lui reviennent et en est seul responsable.[[/si]][[si:forme=solidaire]]Le groupement est solidaire : chaque membre est engagé pour la totalité du marché vis-à-vis du maître d'ouvrage. Entre les parties, chacune supporte la charge des défaillances qui lui sont imputables.[[/si]]
+
+**Article # – Mandataire.** {{mandataire_nom}} est désigné(e) mandataire du groupement. Il représente le groupement auprès du maître d'ouvrage, coordonne la préparation de l'offre et l'exécution, et transmet les informations aux membres. Il ne peut engager un membre au-delà de sa part sans son accord écrit.
+
+**Article # – Répartition des prestations et des paiements.**
+
+| Membre | Prestations | Part du marché |
+| H TECH INNOV | {{lots_hti}} | {{part_hti}} % |
+| {{partenaire}} | {{lots_partenaire}} | {{part_partenaire}} % |
+
+Chaque membre est payé directement pour sa part, ou, à défaut, le mandataire reverse à chaque membre sa quote-part dans les 8 jours suivant l'encaissement.
+
+**Article # – Frais de réponse.** Chaque partie supporte ses propres frais de préparation de l'offre. Les frais communs sont partagés au prorata des parts.
+
+**Article # – Sort de la convention.** Si le marché n'est pas attribué au groupement, la présente convention devient caduque à la notification du rejet. Dans le cas contraire, elle reste en vigueur jusqu'à l'expiration des garanties du marché, nonobstant la durée indiquée ci-après.`,
+
+marque_blanche:`**Article # – Objet.** {{prestataire}} (le « Prestataire ») réalise pour le compte de {{donneur}} (le « Donneur d'ordre ») les prestations suivantes : {{services}}, destinées aux clients du Donneur d'ordre.
+
+**Article # – Marque blanche.** Le Prestataire intervient exclusivement au nom et sous la marque du Donneur d'ordre. Ses intervenants, documents et rapports ne font apparaître ni son nom ni son logo, sauf accord écrit. Il ne communique pas ses propres tarifs ni coordonnées aux clients finaux.
+
+**Article # – Clientèle finale.** Les clients finaux restent la clientèle exclusive du Donneur d'ordre. Pendant le contrat et 24 mois après son terme, le Prestataire s'interdit de leur proposer, directement ou indirectement, des prestations de même nature.
+
+**Article # – Niveaux de service.** {{niveaux_service}}.
+
+**Article # – Tarifs et paiement.** {{tarifs}}. Les factures sont payées à {{delai_paiement}} jours de leur réception.
+
+**Article # – Responsabilité.** Le Donneur d'ordre reste seul responsable envers ses clients. Le Prestataire le garantit des conséquences de ses propres manquements.`,
+
+formateur:`**Article # – Objet.** Le Partenaire anime, pour H TECH INNOV et notamment H TECH Academy, des actions de formation portant sur : {{thematiques}}. Modalités : {{modalites}}.
+
+**Article # – Ordres de mission.** Chaque session est confirmée par un ordre de mission précisant les dates, le lieu, le programme et l'effectif. H TECH INNOV reste l'organisateur et l'interlocuteur des stagiaires et des clients.
+
+**Article # – Rémunération.** Chaque jour de formation est rémunéré {{tarif_jour}} HT ({{tarif_jour_lettres}}), préparation incluse. Les factures sont payées à {{delai_paiement}} jours de leur réception.
+
+**Article # – Annulation.** Si H TECH INNOV annule une session moins de 7 jours avant son début, la moitié de la première journée est due. Le Partenaire qui ne peut assurer une session prévient au moins 15 jours à l'avance et propose, si possible, un remplaçant agréé par H TECH INNOV.
+
+**Article # – Qualité.** Le Partenaire respecte le programme, fait signer les feuilles d'émargement, administre les évaluations et remet un rapport de fin de session.
+
+**Article # – Supports pédagogiques.** [[si:supports=cession]]Les supports conçus par le Partenaire pour H TECH INNOV lui sont cédés, à titre exclusif, pour toute exploitation pédagogique et commerciale, pour le monde entier et la durée de protection légale ; le prix est inclus dans la rémunération.[[/si]][[si:supports=licence]]Le Partenaire reste propriétaire de ses supports et concède à H TECH INNOV une licence non exclusive de les utiliser et de les reproduire pour ses sessions, pendant le contrat et 12 mois après.[[/si]][[si:supports=hti]]Les supports sont fournis par H TECH INNOV, qui en reste propriétaire ; le Partenaire ne les utilise que pour les sessions de H TECH INNOV.[[/si]]
+
+**Article # – Image.** Le Partenaire autorise H TECH INNOV à utiliser son nom, sa photographie et son parcours pour la promotion des sessions qu'il anime, pendant la durée du contrat.`,
+
+academique:`**Article # – Objet.** La présente convention organise la coopération entre H TECH INNOV et le Partenaire, établissement d'enseignement, autour des axes suivants : {{axes}}.
+
+**Article # – Stages.** H TECH INNOV accueille indicativement {{nb_stagiaires}} stagiaire(s) par an. Chaque stage fait l'objet d'une convention de stage individuelle entre l'établissement, le stagiaire et H TECH INNOV, conforme à la réglementation en vigueur, et d'un tutorat désigné.
+
+**Article # – Interventions.** Les experts de H TECH INNOV peuvent intervenir dans les enseignements du Partenaire. Les modalités et rémunérations éventuelles sont précisées intervention par intervention.
+
+**Article # – Communication.** Chaque partie peut faire état du partenariat et utiliser le logo de l'autre, après validation préalable de chaque support.
+
+**Article # – Suivi.** Le suivi est assuré par {{interlocuteur_partenaire}} pour le Partenaire et {{interlocuteur_hti}} pour H TECH INNOV. Un bilan est réalisé chaque année.
+
+**Article # – Engagements financiers.** La présente convention ne crée aucun engagement financier ; toute action impliquant un financement fait l'objet d'un avenant.`,
+
+certificateur:`**Article # – Objet.** La présente convention organise la coopération entre les parties pour les certifications suivantes : {{certifications}}. [[si:role=centre]]H TECH INNOV est centre d'examen agréé du Partenaire.[[/si]][[si:role=preparateur]]H TECH INNOV prépare ses apprenants aux examens, organisés par le Partenaire.[[/si]][[si:contrat_ref]] Elle complète l'accord du Partenaire (référence {{contrat_ref}}), qui prévaut en cas de contradiction.[[/si]]
+
+**Article # – Engagements de H TECH INNOV.** [[si:role=centre]]Mettre à disposition une salle et un équipement conformes au cahier des charges du Partenaire, assurer la surveillance des sessions et vérifier l'identité des candidats.[[/si]][[si:role=preparateur]]Préparer les apprenants selon le référentiel du Partenaire et l'informer des candidats présentés.[[/si]]
+
+**Article # – Engagements du Partenaire.** Fournir les sujets ou l'accès à la plateforme d'examen, communiquer les résultats dans un délai de {{delai_resultats}} jours et délivrer les certificats aux candidats admis.
+
+**Article # – Tarifs.** [[si:tarif_examen]]Le tarif par candidat est de {{tarif_examen}} HT.[[/si]] Les modalités de facturation et de reversement sont précisées par écrit pour chaque session.
+
+**Article # – Intégrité des examens.** Toute fraude est sanctionnée. Les parties s'informent sans délai de tout incident et conservent les preuves pendant 12 mois.`,
+
+financier:`**Article # – Objet.** Le Partenaire propose aux clients de H TECH INNOV qui le souhaitent une solution de financement de leurs équipements et prestations : [[si:produit=leasing]]crédit-bail (leasing)[[/si]][[si:produit=credit]]crédit d'équipement[[/si]][[si:produit=location]]location financière[[/si]].[[si:offre]] Conditions de l'offre : {{offre}}.[[/si]]
+
+**Article # – Rôle de H TECH INNOV.** H TECH INNOV se limite à informer ses clients de l'existence de l'offre et à transmettre au Partenaire, avec leur accord écrit, leurs demandes de financement. Elle n'intervient ni dans l'analyse, ni dans la décision, ni dans la négociation du financement, qui relèvent exclusivement du Partenaire.
+
+**Article # – Traitement des dossiers.** Le Partenaire répond à chaque demande complète dans un délai de {{delai_reponse}} jours ouvrés.
+
+**Article # – Paiement de H TECH INNOV.** Lorsque le Partenaire acquiert les équipements pour les mettre à disposition du client, il règle H TECH INNOV à réception du procès-verbal de livraison signé par le client.
+
+**Article # – Rémunération.** Rémunération de H TECH INNOV : {{remuneration}}. Toute rémunération est portée à la connaissance du client.`,
+
+sponsoring:`**Article # – Objet.** [[si:sens=hti_sponsor]]H TECH INNOV apporte son soutien au Partenaire[[/si]][[si:sens=hti_beneficiaire]]Le Partenaire apporte son soutien à H TECH INNOV[[/si]] pour : {{evenement}}, prévu(e) {{dates}}.
+
+**Article # – Apport.** L'apport consenti est le suivant : {{apport}}.
+
+**Article # – Contreparties.** En contrepartie, le bénéficiaire du soutien s'engage à assurer : {{contreparties}}.
+
+**Article # – Utilisation des marques.** Chaque partie utilise le nom et le logo de l'autre uniquement pour l'exécution du présent contrat, après validation préalable de chaque support (bon à tirer).
+
+**Article # – Annulation ou report.** En cas d'annulation de l'événement, les apports financiers non utilisés sont restitués. En cas de report, le contrat est maintenu pour la nouvelle date, sauf refus écrit de l'apporteur du soutien.`,
+
+communs:`**Article # – Durée.** {{duree_texte}}
+
+**Article # – Indépendance des parties.** Les parties agissent en professionnels indépendants. Le présent contrat ne crée entre elles ni société, ni mandat général, ni lien de subordination. Chaque partie supporte seule ses obligations fiscales, sociales et réglementaires.
+
+[[si:exclusivite]]**Article # – Exclusivité.** Pendant la durée du contrat, chaque partie s'interdit de conclure, sur le même objet, un accord de même nature avec un concurrent direct de l'autre partie, sauf accord écrit préalable.
+
+[[/si]]**Article # – Confidentialité.** Chaque partie garde strictement confidentielles les informations de toute nature reçues de l'autre partie ou de ses clients (tarifs, offres, données techniques, codes d'accès, informations commerciales). Cette obligation s'applique pendant le contrat et [[si:confidentialite_renforcee]]5 ans[[/si]][[si:!confidentialite_renforcee]]3 ans[[/si]] après son terme.[[si:confidentialite_renforcee]] Elle s'étend aux personnels et sous-traitants de chaque partie, qui en répond. Toute violation constitue une faute grave justifiant la résiliation immédiate, sans préjudice de dommages-intérêts.[[/si]]
+
+[[si:non_sollicitation]]**Article # – Non-sollicitation.** Pendant le contrat et 12 mois après son terme, chaque partie s'interdit de solliciter ou d'embaucher, directement ou indirectement, un salarié de l'autre partie, et le Partenaire s'interdit de proposer directement ses services aux clients de H TECH INNOV qu'il a connus à l'occasion du contrat.
+
+[[/si]][[si:non_concurrence]]**Article # – Non-concurrence.** Pendant le contrat et 12 mois après son terme, le Partenaire s'interdit d'exercer une activité directement concurrente de celle de H TECH INNOV, limitée au périmètre du présent contrat et au territoire de la Côte d'Ivoire.
+
+[[/si]]**Article # – Données personnelles.** Chaque partie traite les données personnelles échangées dans le respect de la loi ivoirienne n° 2013-450 du 19 juin 2013 relative à la protection des données à caractère personnel, uniquement pour l'exécution du contrat, et notifie à l'autre toute violation de données sous 48 heures.
+
+**Article # – Éthique et conformité.** Les parties s'interdisent toute forme de corruption, de trafic d'influence, de travail forcé ou de travail des enfants. Tout manquement autorise l'autre partie à résilier le contrat sans préavis ni indemnité.
+
+**Article # – Noms et marques.** Sauf stipulation contraire du présent contrat, aucune partie n'utilise le nom, le logo ou les marques de l'autre sans son accord écrit préalable.
+
+**Article # – Résiliation.** En cas de manquement grave de l'une des parties, l'autre peut résilier le contrat 15 jours après une mise en demeure restée sans effet, par lettre recommandée ou remise contre décharge.[[si:resiliation_libre]] Chaque partie peut en outre y mettre fin à tout moment, sans motif, moyennant un préavis écrit de {{preavis_jours}} jours.[[/si]] Les sommes dues pour les prestations exécutées restent exigibles.
+
+**Article # – Force majeure.** Aucune partie n'est responsable d'un manquement dû à un cas de force majeure notifié par écrit sous 48 heures. Au-delà de 30 jours, chaque partie peut résilier le contrat sans indemnité.
+
+**Article # – Droit applicable et litiges.** Le contrat est régi par le droit ivoirien et les Actes uniformes de l'OHADA. Les parties recherchent une solution amiable pendant 30 jours ; à défaut, le litige est porté devant le Tribunal de commerce d'Abidjan.
+
+**Article # – Dispositions finales.** Le contrat et ses annexes expriment l'intégralité de l'accord des parties. Toute modification fait l'objet d'un avenant écrit et signé. La nullité d'une clause n'affecte pas les autres. Les parties élisent domicile à leurs adresses respectives indiquées en tête du contrat.`
+};
+
+// ── Moteur : variables, conditions, renumérotation ──
+var _PART_MODELES_CACHE=null;
+function partAjoutMois(iso,m){if(!iso)return'';const d=new Date(iso+'T12:00:00');d.setMonth(d.getMonth()+(parseInt(m)||0));d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}
+function partDateFin(f){return f.date_debut&&f.duree_mois?partAjoutMois(f.date_debut,f.duree_mois):null;}
+function partVrai(v){return !(v==null||v===''||v===false||v===0||v==='0');}
+function partVariables(f){
+  const E=getEntreprise(),T=PART_TYPES[f.type]||{},dn=f.donnees||{},v={};
+  const AC='[à compléter]';
+  (T.champs||[]).forEach(c=>{
+    const raw=dn[c.k];v['_raw_'+c.k]=raw;
+    if(!partVrai(raw)&&c.t!=='number'){v[c.k]=(c.t==='money'?'néant':AC);return;}
+    if(c.t==='money'){v[c.k]=fmtF(numIn(raw))+' FCFA';v[c.k+'_lettres']=montantEnLettres(numIn(raw));}
+    else if(c.t==='pct')v[c.k]=String(raw).replace('.',',');
+    else if(c.t==='date')v[c.k]=fmtD(raw);
+    else if(c.t==='select'){v[c.k]=raw;v[c.k+'_label']=(c.o||{})[raw]||raw;}
+    else if(c.t==='textarea')v[c.k]=String(raw).split(/\n+/).map(s=>s.trim()).filter(Boolean).join(' ; ');
+    else v[c.k]=raw==null||raw===''?AC:String(raw);
+  });
+  const fin=partDateFin(f);
+  Object.assign(v,{
+    hti_nom:E.nom||'H TECH INNOV',hti_adresse:[E.adresse,E.ville].filter(Boolean).join(', ')||AC,
+    partenaire:f.nom||AC,date_debut:f.date_debut?fmtD(f.date_debut):AC,date_fin:fin?fmtD(fin):AC,
+    duree_mois:f.duree_mois||AC,preavis_jours:f.preavis_jours||30,
+    mandataire_nom:dn.mandataire==='partenaire'?(f.nom||'Le Partenaire'):(E.nom||'H TECH INNOV'),
+    prestataire:dn.sens==='partenaire'?(f.nom||'Le Partenaire'):(E.nom||'H TECH INNOV'),
+    donneur:dn.sens==='partenaire'?(E.nom||'H TECH INNOV'):(f.nom||'Le Partenaire')
+  });
+  v.duree_texte=`Le présent contrat prend effet le ${v.date_debut} pour une durée de ${v.duree_mois} mois, soit jusqu'au ${v.date_fin}. `+
+    (f.renouvellement==='tacite'?`Il est ensuite renouvelé par tacite reconduction pour des périodes successives de même durée, sauf dénonciation par l'une des parties, par écrit, au moins ${v.preavis_jours} jours avant l'échéance.`
+      :`Il prend fin de plein droit à son terme, sauf avenant écrit de prolongation.`);
+  return v;
+}
+function partCondition(cle,f,v){
+  let neg=false;if(cle[0]==='!'){neg=true;cle=cle.slice(1);}
+  let res;const m=/^([a-z_0-9]+)=(.+)$/i.exec(cle);
+  const cl=f.clauses||{};
+  if(m)res=String((f.donnees||{})[m[1]]??'')===m[2];
+  else if(cle in PART_OPTIONS)res=!!cl[cle];
+  else res=partVrai((f.donnees||{})[cle]);
+  return neg?!res:res;
+}
+function partRemplir(txt,f){
+  const v=partVariables(f);let t=String(txt||'');
+  for(let i=0;i<5&&/\[\[si:/.test(t);i++)
+    t=t.replace(/\[\[si:([^\]]+)\]\]((?:(?!\[\[si:)[\s\S])*?)\[\[\/si\]\]/g,(_,c,inner)=>partCondition(c.trim(),f,v)?inner:'');
+  t=t.replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/gi,(_,k)=>v[k]!=null&&v[k]!==''?String(v[k]):'[à compléter]');
+  return t.replace(/\n{3,}/g,'\n\n');
+}
+function partManquants(f){
+  const T=PART_TYPES[f.type];if(!T)return['Type de partenariat'];
+  const m=[];if(!f.nom)m.push('Nom du partenaire');if(!f.date_debut)m.push('Date de début');if(!f.duree_mois)m.push('Durée');
+  if(!f.adresse)m.push('Adresse');
+  if(f.nature!=='physique'&&!f.representant)m.push('Représentant');
+  T.champs.forEach(c=>{if(c.req&&!partVrai((f.donnees||{})[c.k]))m.push(c.l);});
+  return m;
+}
+// Modèles en vigueur (table modeles_contrat), repli sur les textes par défaut
+async function partModeles(force){
+  if(_PART_MODELES_CACHE&&!force)return _PART_MODELES_CACHE;
+  const out={};Object.keys(PART_MODELES_DEFAUT).forEach(k=>out[k]={code:k,version:1,contenu:PART_MODELES_DEFAUT[k],date_effet:'2026-10-07',defaut:true});
+  try{const{data,error}=await sb.from('modeles_contrat').select('*').eq('actif',true);
+    if(!error)(data||[]).forEach(r=>{if(out[r.code]&&(out[r.code].defaut||r.version>out[r.code].version))out[r.code]=r;});}catch(e){logErr(e);}
+  _PART_MODELES_CACHE=out;return out;
+}
+async function partModeleVersion(code,version){
+  if(version){try{const{data}=await sb.from('modeles_contrat').select('*').eq('code',code).eq('version',version).maybeSingle();if(data)return data;}catch(e){logErr(e);}
+    if(version===1)return{code,version:1,contenu:PART_MODELES_DEFAUT[code],date_effet:'2026-10-07'};}
+  return (await partModeles())[code];
+}
+
+// ── PDF du contrat (charte des documents H TECH INNOV) ──
+async function partContratPDF(f,opts){
+  opts=opts||{};
+  await ensurePdf();
+  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+  const E=getEntreprise(),T=PART_TYPES[f.type];
+  const NAVY=[10,42,102],BLUE=[21,101,192],GREY=[96,108,130],LIGHT=[244,247,252],LINE=[213,224,240];
+  const W=210,M=14,BAS=270,P=pdfT;
+  const color=(c,s)=>{doc.setTextColor(...c);if(s)doc.setFont('helvetica',s);};
+  const ref=f.reference||'PROJET';
+  const vt=opts.modeleType||await partModeleVersion(f.type,(f.modele_versions||{})[f.type]);
+  const vc=opts.modeleCommuns||await partModeleVersion('communs',(f.modele_versions||{}).communs);
+  const inserts=[];let srcT=null,srcC=null;
+  try{if(vt.format==='pdf')srcT=await mdSourcePdf(vt);if(vc.format==='pdf'&&!srcT)srcC=await mdSourcePdf(vc);}
+  catch(e){logErr(e);toast('⚠️ Modèle PDF introuvable : texte par défaut utilisé',6000);if(vt.format==='pdf')vt={...vt,format:'texte',contenu:PART_MODELES_DEFAUT[f.type]};if(vc.format==='pdf')vc={...vc,format:'texte',contenu:PART_MODELES_DEFAUT.communs};srcT=srcC=null;}
+  const entete=(p1)=>{
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,4,'F');doc.setFillColor(...BLUE);doc.rect(0,4,W,1,'F');
+    if(!p1){doc.setFontSize(9);color(NAVY,'bold');doc.text(P(E.nom),M,12);color(GREY,'normal');doc.text(P('CONTRAT '+ref),W-M,12,{align:'right'});return;}
+    try{if(HTI_LOGO)doc.addImage(HTI_LOGO,'JPEG',M,10,26,20);}catch(e){logErr(e);}
+    const x=M+30;doc.setFontSize(15);color(NAVY,'bold');doc.text(P(E.nom),x,16);
+    doc.setFontSize(8);color(GREY,'normal');
+    [[E.forme,E.rccm?'RCCM '+E.rccm:'',E.dgi?'NCC '+E.dgi:''].filter(Boolean).join('  |  '),[E.adresse,E.ville].filter(Boolean).join(', '),
+     [E.tel,E.tel2].filter(Boolean).join('  /  '),[E.email,E.web].filter(Boolean).join('  |  ')].filter(Boolean).forEach((t,i)=>doc.text(P(t),x,21.5+i*4));
+    doc.setFontSize(22);color(NAVY,'bold');doc.text('CONTRAT',W-M,18,{align:'right'});
+    doc.setDrawColor(...BLUE);doc.setLineWidth(0.8);doc.line(W-M-28,21,W-M,21);
+    let y=26;doc.setFontSize(8.5);
+    [['N°',ref],['Établi le',fmtD(isoJour())],['Modèle','v'+(vt.version||1)+' / communs v'+(vc.version||1)]].forEach(([k,v])=>{color(GREY,'normal');doc.text(P(k),W-M-50,y);color(NAVY,'bold');doc.text(P(v),W-M,y,{align:'right'});y+=4.6;});
+  };
+  if(srcT){
+    entete(false);doc.setFont('helvetica','bold');doc.setFontSize(7.8);doc.setTextColor(...BLUE);
+    doc.text(P(T.titre+' — '+(f.nom||'')+(srcT.count>1?' — page 1/'+srcT.count:'')),M,19);
+    const pages=[1].concat(srcT.count>1?mdReserverPages(doc,srcT.count-1,entete,T.titre+' — '+(f.nom||'')).map(x=>x):[]);
+    inserts.push({bytes:srcT.bytes,pages});
+  }else entete(true);
+  let y=46;
+  const saut=h=>{if(y+h>BAS){doc.addPage();entete(false);y=20;}};
+  if(!srcT){
+  // Titre
+  doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,13,2,2,'FD');
+  doc.setFontSize(12.5);color(NAVY,'bold');
+  const tl=doc.splitTextToSize(P(T.titre),W-2*M-8);doc.text(tl,W/2,y+(tl.length>1?5.3:8.2),{align:'center'});
+  y+=19;
+  // Parties
+  const AC='[à compléter]';
+  const hti=`${E.nom}, ${E.forme||'société'}${E.rccm?', immatriculée au RCCM sous le n° '+E.rccm:''}${E.dgi?', NCC '+E.dgi:''}, dont le siège est situé ${[E.adresse,E.ville].filter(Boolean).join(', ')||AC}, représentée par ${E.responsable||AC}${E.fonction?', '+E.fonction:''}, dûment habilité(e),`;
+  const part=f.nature==='physique'
+    ?`${f.nom||AC}, ${f.forme||'personne physique'}, demeurant ${f.adresse||AC}${f.piece_identite?', titulaire de la pièce d’identité n° '+f.piece_identite:''}${f.ncc?', NCC '+f.ncc:''},`
+    :`${f.nom||AC}, ${f.forme||'société'}${f.rccm?', immatriculée au RCCM sous le n° '+f.rccm:''}${f.ncc?', NCC '+f.ncc:''}, dont le siège est situé ${f.adresse||AC}, représentée par ${f.representant||AC}${f.qualite?', '+f.qualite:''}, dûment habilité(e),`;
+  const bloc=(lbl,txt,fin)=>{
+    const ls=doc.splitTextToSize(P(txt),W-2*M-10);const h=ls.length*4+11;saut(h+6);
+    doc.setFontSize(7.5);color(BLUE,'bold');doc.text(P(lbl),M,y+3);y+=5;
+    doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,h-5,2,2,'FD');
+    doc.setFontSize(8.6);color([30,40,60],'normal');doc.text(ls,M+5,y+5);
+    doc.setFont('helvetica','italic');color(GREY);doc.text(P(fin),M+5,y+5+ls.length*4);y+=h-2;
+  };
+  bloc('ENTRE LES SOUSSIGNÉS',hti,'ci-après dénommée « H TECH INNOV »,');
+  bloc('ET',part,'ci-après dénommé(e) « le Partenaire »,');
+  saut(10);doc.setFontSize(9.5);color(NAVY,'bold');doc.text(P('IL A ÉTÉ CONVENU CE QUI SUIT :'),M,y+4);y+=10;
+  }
+  // Articles
+  if(!srcT){
+  const texte=partRemplir(vt.contenu,f)+(srcC?'':'\n\n'+partRemplir(vc.contenu,f));
+  const blocs=annexeBlocs(texte);
+  // Annexes renvoyées après les signatures
+  const arts=[],anns=[];let enAnn=false;
+  blocs.forEach(b=>{if(b.titre&&/^Annexe/i.test(b.titre))enAnn=true;else if(b.titre&&/^Article/i.test(b.titre))enAnn=false;(enAnn?anns:arts).push(b);});
+  let n=0;
+  const rendre=b=>{
+    if(b.table){
+      saut(24);
+      doc.autoTable({startY:y,head:[b.table[0].map(P)],body:b.table.slice(1).map(r=>r.map(P)),theme:'grid',
+        headStyles:{fillColor:NAVY,textColor:255,fontSize:8,fontStyle:'bold'},styles:{fontSize:8,cellPadding:2,lineColor:LINE,lineWidth:0.15,textColor:[30,40,60]},
+        alternateRowStyles:{fillColor:[249,251,254]},margin:{left:M,right:M,top:20,bottom:30},didDrawPage:(d)=>{if(d.pageNumber>1)entete(false);}});
+      y=doc.lastAutoTable.finalY+4;return;
+    }
+    let titre=b.titre||'';
+    if(/^Article\s*#/i.test(titre)){n++;titre=titre.replace(/^Article\s*#/i,'Article '+n);}
+    const corps=b.texte?doc.splitTextToSize(P(b.texte),W-2*M):[];
+    saut((titre?5:0)+corps.length*3.9+3);
+    if(titre){doc.setFontSize(/^Annexe/i.test(titre)?11:9);color(NAVY,'bold');doc.text(P(titre),M,y+3);y+=/^Annexe/i.test(titre)?8:5;}
+    if(corps.length){doc.setFontSize(8.6);color([40,50,70],'normal');doc.text(corps,M,y+3);y+=corps.length*3.9+3;}
+  };
+  arts.forEach(rendre);
+  if(srcC){
+    saut(14);doc.setFontSize(8.6);color([40,50,70],'normal');
+    doc.text(doc.splitTextToSize(P('Les clauses générales applicables au présent contrat figurent dans le document joint ci-après, qui en fait partie intégrante.'),W-2*M),M,y+3);
+    inserts.push({bytes:srcC.bytes,pages:mdReserverPages(doc,srcC.count,entete,'CLAUSES GÉNÉRALES — document joint')});
+    doc.addPage();entete(false);y=22;
+  }
+  signatures();
+  if(anns.length){doc.addPage();entete(false);y=22;anns.forEach(rendre);}
+  }
+  function signatures(){
+    saut(52);y+=4;
+    doc.setFontSize(8.6);color([40,50,70],'normal');
+    doc.text(P('Fait à '+((E.ville||'Abidjan').split(',')[0])+', le '+(f.date_signature?fmtD(f.date_signature):'____________________')+', en deux (2) exemplaires originaux.'),M,y);y+=6;
+    const sw=86;
+    [[M,'POUR LE PARTENAIRE',f.nature==='physique'?(f.nom||''):(f.representant||''),f.nature==='physique'?'':(f.qualite||'')],[W-M-sw,'POUR '+(E.nom||'H TECH INNOV').toUpperCase(),E.responsable||'',E.fonction||'']].forEach(([x,t,nm,fc],i)=>{
+      doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.roundedRect(x,y,sw,36,2,2,'S');
+      doc.setFontSize(8);color(BLUE,'bold');doc.text(P(t),x+4,y+6);
+      doc.setFontSize(8);color(NAVY,'bold');doc.text(P(nm),x+4,y+11);
+      doc.setFontSize(7.5);color(GREY,'normal');doc.text(P(fc),x+4,y+15);
+      doc.text(P('« Lu et approuvé », signature et cachet'),x+4,y+33);
+      if(i===1){try{if(typeof HTI_STAMP==='string'&&HTI_STAMP.indexOf('data:')===0)doc.addImage(HTI_STAMP,'PNG',x+sw-36,y+6,32,24);}catch(e){logErr(e);}}
+    });
+    y+=40;
+  }
+  // Pied de page
+  const nb=doc.getNumberOfPages();
+  const legal=P([E.nom,E.forme,E.rccm?'RCCM '+E.rccm:'',E.dgi?'NCC '+E.dgi:'',E.ville].filter(Boolean).join('  |  '));
+  const contact=P([E.tel,E.email,E.web].filter(Boolean).join('  |  '));
+  for(let i=1;i<=nb;i++){
+    doc.setPage(i);
+    if(opts.projet||f.statut==='brouillon'){try{doc.setGState(new doc.GState({opacity:0.07}));}catch(e){}
+      doc.setFontSize(70);color(NAVY,'bold');doc.text('PROJET',W/2,175,{align:'center',angle:30});try{doc.setGState(new doc.GState({opacity:1}));}catch(e){}}
+    doc.setFontSize(7.5);color(GREY,'normal');doc.text(P('Paraphes :  ________   ________'),M,278);
+    doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);doc.line(M,282,W-M,282);
+    doc.setFontSize(7);doc.text(legal,W/2,286,{align:'center'});doc.text(contact,W/2,289.5,{align:'center'});
+    doc.text(P('Page '+i+' / '+nb),W-M,289.5,{align:'right'});
+  }
+  if(opts.retour)return doc;
+  const nomF=P('Contrat-'+ref+'-'+(f.nom||'partenaire').replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf';
+  if(inserts.length){try{mdTelecharger(await mdIncruster(doc,inserts),nomF);}catch(e){logErr(e);toast('❌ Incrustation du PDF impossible : '+e.message);return;}}
+  else doc.save(nomF);
+  toast('✅ Contrat PDF téléchargé');
+}
+
+// ── Interface : page Partenariats ──
+var PART_ROWS=[],PART_VUE='liste',PART_EDIT_ID=null;
+function partTypeLabel(t){const T=PART_TYPES[t];return T?T.icone+' '+T.l:t;}
+function partBadge(s){return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;color:#fff;background:${PART_STATUT_COUL[s]||'#7A90A8'}">${esc(PART_STATUTS[s]||s)}</span>`;}
+function partJours(iso){if(!iso)return null;return Math.round((new Date(iso+'T12:00:00')-new Date())/86400000);}
+function partAlertes(r){
+  const a=[],fin=partDateFin(r),j=partJours(fin);
+  if(['actif','signe'].includes(r.statut)&&j!=null&&j<=60)a.push(j<0?`Contrat échu depuis ${-j} j`:`Échéance dans ${j} j (${fmtD(fin)})`);
+  const c=(r.donnees||{}).expiration_certif,jc=partJours(c);
+  if(c&&jc!=null&&jc<=60)a.push(jc<0?'Certification expirée':`Certification à renouveler dans ${jc} j`);
+  if(r.statut==='envoye')a.push('En attente de signature');
+  return a;
+}
+async function partCharger(){
+  try{const{data,error}=await sb.from('partenaires').select('*').order('created_at',{ascending:false});
+    if(error){PART_ROWS=[];return error;}PART_ROWS=data||[];}catch(e){PART_ROWS=[];return e;}
+  return null;
+}
+v4Def('partenariats',{titre:'Partenariats',icone:'🤝',custom:async pg=>{
+  if(PART_VUE==='modeles')return partVueModeles(pg);
+  const err=await partCharger();
+  const rows=PART_ROWS,fType=PART_FILTRE.type||'',fStat=PART_FILTRE.statut||'',q=(PART_FILTRE.q||'').toLowerCase();
+  const vis=rows.filter(r=>(!fType||r.type===fType)&&(!fStat||r.statut===fStat)&&(!q||(r.nom+' '+r.reference).toLowerCase().includes(q)));
+  const alertes=rows.map(r=>({r,a:partAlertes(r)})).filter(x=>x.a.length);
+  const optsType=PART_GROUPES.map(g=>`<optgroup label="${esc(g)}">${Object.entries(PART_TYPES).filter(([,t])=>t.groupe===g).map(([k,t])=>`<option value="${k}" ${k===fType?'selected':''}>${esc(t.l)}</option>`).join('')}</optgroup>`).join('');
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🤝 Partenariats</h1><div class="page-sub">Fiches partenaires et contrats générés automatiquement selon le type de partenariat</div></div>
+    <div class="v4-tools">${estAdmin()?'<button class="btn btn-outline btn-sm" onclick="showPage(\'modeles-documents\')">📚 Modèles & annexes</button>':''}
+    <button class="btn btn-primary btn-sm" onclick="partFiche()">+ Nouveau partenariat</button></div></div>
+  ${err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ La table <code>partenaires</code> n’existe pas encore : exécutez la migration <b>migration-partenariats.sql</b> dans Supabase.</div>':''}
+  <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-icon blue">🤝</div><div class="kpi-label">Partenaires</div><div class="kpi-value">${rows.length}</div></div>
+    <div class="kpi"><div class="kpi-icon green">✅</div><div class="kpi-label">Actifs</div><div class="kpi-value">${rows.filter(r=>['actif','signe'].includes(r.statut)).length}</div></div>
+    <div class="kpi"><div class="kpi-icon amber">✍️</div><div class="kpi-label">À faire signer</div><div class="kpi-value">${rows.filter(r=>r.statut==='envoye').length}</div></div>
+    <div class="kpi"><div class="kpi-icon red">⏰</div><div class="kpi-label">Échéances ≤ 60 j</div><div class="kpi-value">${alertes.filter(x=>x.a.some(t=>!t.startsWith('En attente'))).length}</div></div>
+  </div>
+  ${alertes.length?`<div class="card" style="margin-bottom:14px;border-left:4px solid #D97706"><div class="card-title">⏰ À suivre</div>${alertes.slice(0,8).map(x=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--g100);font-size:12.5px"><span><b>${esc(x.r.nom)}</b> · ${esc(partTypeLabel(x.r.type))}</span><span style="color:#B45309">${esc(x.a.join(' · '))}</span></div>`).join('')}</div>`:''}
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input placeholder="Rechercher un partenaire…" value="${esc(PART_FILTRE.q||'')}" oninput="PART_FILTRE.q=this.value;clearTimeout(window._pq);window._pq=setTimeout(()=>v4Render('partenariats'),300)" style="flex:1;min-width:180px">
+      <select onchange="PART_FILTRE.type=this.value;v4Render('partenariats')"><option value="">Tous les types</option>${optsType}</select>
+      <select onchange="PART_FILTRE.statut=this.value;v4Render('partenariats')"><option value="">Tous les statuts</option>${Object.entries(PART_STATUTS).map(([k,v])=>`<option value="${k}" ${k===fStat?'selected':''}>${esc(v)}</option>`).join('')}</select>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Réf.</th><th>Partenaire</th><th>Période</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
+    ${vis.length?vis.map(r=>{const T=PART_TYPES[r.type]||{};const fin=partDateFin(r);return `<tr>
+      <td><code style="font-size:10px">${esc(r.reference||'—')}</code></td>
+      <td><strong>${esc(r.nom||'—')}</strong><div class="cell-sub">${esc(partTypeLabel(r.type))}</div></td>
+      <td style="font-size:12px">${r.date_debut?fmtD(r.date_debut)+' → '+fmtD(fin):'—'}<div class="cell-sub">${r.duree_mois?r.duree_mois+' mois'+(r.renouvellement==='tacite'?' · tacite reconduction':''):''}</div></td>
+      <td><select onchange="partStatut('${r.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${PART_STATUT_COUL[r.statut]||'#333'};font-weight:600">${Object.entries(PART_STATUTS).map(([k,v])=>`<option value="${k}" ${k===r.statut?'selected':''}>${esc(v)}</option>`).join('')}</select></td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="partFiche('${r.id}')" title="Modifier la fiche">✏️</button>
+        <button class="btn btn-outline btn-sm" onclick="partGenerer('${r.id}')" title="Générer le contrat PDF">📄</button>
+        <button class="btn btn-outline btn-sm" onclick="openDocs('partenariats','${r.id}','${jsq(r.reference||'')}')" title="Contrat signé et pièces jointes">📎</button>
+        ${T.facturable?`<button class="btn btn-outline btn-sm" onclick="partFacturer('${r.id}')" title="Facturer la participation du mois">🧾</button>`:''}
+        <button class="btn btn-outline btn-sm" onclick="partSupprimer('${r.id}')" title="Supprimer">🗑</button></div></td></tr>`;}).join('')
+      :`<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:18px">Aucun partenariat. <button class="btn btn-primary btn-sm" onclick="partFiche()">+ Créer</button></td></tr>`}
+    </tbody></table></div></div>`;
+}});
+var PART_FILTRE={};
+
+// ── Fiche partenaire (création / modification) ──
+function partChampHTML(c,val){
+  const id='pf_'+c.k,v=val??c.d??'',lab=`<label for="${id}">${esc(c.l)}${c.req?' *':''}</label>`;
+  const full=c.t==='textarea'?' full':'';
+  let inp;
+  if(c.t==='textarea')inp=`<textarea id="${id}" rows="3">${esc(v)}</textarea>`;
+  else if(c.t==='select')inp=`<select id="${id}">${Object.entries(c.o).map(([k,l])=>`<option value="${k}" ${String(v)===k?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  else{const ty={number:'number',money:'number',pct:'number',date:'date'}[c.t]||'text';
+    inp=`<input id="${id}" type="${ty}" ${c.t==='pct'?'step="0.5" min="0" max="100"':c.t==='money'?'step="1000" min="0"':''} value="${esc(v)}">`+(c.t==='money'?'<div class="cell-sub">FCFA hors taxes</div>':'');}
+  return `<div class="form-field${full}">${lab}${inp}</div>`;
+}
+function partRenduSpecifique(type,donnees,clauses,nouveau){
+  const T=PART_TYPES[type],box=document.getElementById('pfSpecifique');if(!box||!T)return;
+  box.innerHTML=`<div class="v4-h3" style="margin-top:6px">${T.icone} ${esc(T.l)}${T.suivi?' <span class="cell-sub" style="margin:0">— le contrat du programme constructeur/éditeur prévaut ; cette fiche sert au suivi</span>':''}</div>
+    <div class="form-grid">${T.champs.map(c=>partChampHTML(c,(donnees||{})[c.k])).join('')}</div>
+    <div class="v4-h3" style="margin-top:12px">Clauses optionnelles</div>
+    <div style="display:flex;flex-direction:column;gap:5px">${Object.entries(PART_OPTIONS).map(([k,l])=>{const on=clauses?!!clauses[k]:T.options.includes(k);
+      return `<label style="display:flex;gap:7px;align-items:center;font-size:13px"><input type="checkbox" id="pfo_${k}" ${on?'checked':''}> ${esc(l)}</label>`;}).join('')}</div>`;
+  if(nouveau){const d=document.getElementById('pfDuree');if(d)d.value=T.duree||12;const n=document.getElementById('pfNature');if(n){n.value=T.personne;partNature();}}
+}
+function partNature(){const ph=gv('pfNature')==='physique';
+  document.querySelectorAll('.pf-morale').forEach(e=>e.style.display=ph?'none':'');document.querySelectorAll('.pf-physique').forEach(e=>e.style.display=ph?'':'none');}
+function partFiche(id){
+  const r=id?PART_ROWS.find(x=>x.id===id):null;PART_EDIT_ID=id||null;
+  const f=r||{type:'espace',nature:'morale',renouvellement:'aucun',preavis_jours:30,date_debut:isoJour()};
+  const optsType=PART_GROUPES.map(g=>`<optgroup label="${esc(g)}">${Object.entries(PART_TYPES).filter(([,t])=>t.groupe===g).map(([k,t])=>`<option value="${k}" ${k===f.type?'selected':''}>${t.icone} ${esc(t.l)}</option>`).join('')}</optgroup>`).join('');
+  const inp=(id,l,v,cls,ty)=>`<div class="form-field ${cls||''}"><label for="${id}">${l}</label><input id="${id}" type="${ty||'text'}" value="${esc(v??'')}"></div>`;
+  document.getElementById('modalBox').style.width='min(880px,96vw)';
+  document.getElementById('modalTitle').textContent=r?'✏️ Fiche partenaire '+(r.reference||''):'🤝 Nouveau partenariat';
+  document.getElementById('modalBody').innerHTML=`
+   <div class="form-grid">
+     <div class="form-field full"><label for="pfType">Type de partenariat *</label><select id="pfType" onchange="partRenduSpecifique(this.value,null,null,true)" ${r&&r.statut!=='brouillon'?'disabled title="Type figé une fois le contrat envoyé"':''}>${optsType}</select></div>
+   </div>
+   <div class="v4-h3" style="margin-top:10px">Identité du partenaire</div>
+   <div class="form-grid">
+     <div class="form-field"><label for="pfNature">Nature</label><select id="pfNature" onchange="partNature()"><option value="morale" ${f.nature!=='physique'?'selected':''}>Personne morale (société, association…)</option><option value="physique" ${f.nature==='physique'?'selected':''}>Personne physique (indépendant)</option></select></div>
+     ${inp('pfNom','Nom ou raison sociale *',f.nom)}
+     ${inp('pfForme','Forme juridique / statut',f.forme)}
+     ${inp('pfRccm','RCCM',f.rccm,'pf-morale')}
+     ${inp('pfPiece','Pièce d’identité (n°)',f.piece_identite,'pf-physique')}
+     ${inp('pfNcc','NCC (compte contribuable)',f.ncc)}
+     ${inp('pfAdresse','Adresse *',f.adresse,'full')}
+     ${inp('pfRep','Représentant légal *',f.representant,'pf-morale')}
+     ${inp('pfQualite','Qualité du représentant',f.qualite,'pf-morale')}
+     ${inp('pfTel','Téléphone',f.telephone)}
+     ${inp('pfEmail','Email',f.email,'','email')}
+   </div>
+   <div class="v4-h3" style="margin-top:10px">Durée du contrat</div>
+   <div class="form-grid">
+     ${inp('pfDebut','Date de début *',f.date_debut,'','date')}
+     <div class="form-field"><label for="pfDuree">Durée (mois) *</label><input id="pfDuree" type="number" min="1" value="${esc(f.duree_mois??(PART_TYPES[f.type]||{}).duree??12)}"></div>
+     <div class="form-field"><label for="pfRenouv">Renouvellement</label><select id="pfRenouv"><option value="aucun" ${f.renouvellement!=='tacite'?'selected':''}>Aucun (fin au terme)</option><option value="tacite" ${f.renouvellement==='tacite'?'selected':''}>Tacite reconduction</option></select></div>
+     <div class="form-field"><label for="pfPreavis">Préavis (jours)</label><input id="pfPreavis" type="number" min="0" value="${esc(f.preavis_jours??30)}"></div>
+     ${inp('pfSignature','Date de signature (si connue)',f.date_signature,'','date')}
+   </div>
+   <div id="pfSpecifique"></div>
+   <div class="form-grid" style="margin-top:10px"><div class="form-field full"><label for="pfNotes">Notes internes (non imprimées)</label><textarea id="pfNotes" rows="2">${esc(f.notes||'')}</textarea></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="partApercuFiche()">👁 Aperçu du contrat</button><button class="btn btn-primary" onclick="partSauver()">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+  partRenduSpecifique(f.type,f.donnees,f.clauses,false);partNature();
+}
+function partLireFiche(){
+  const type=gv('pfType'),T=PART_TYPES[type],donnees={},clauses={};
+  T.champs.forEach(c=>{let v=gv('pf_'+c.k);if(['number','money','pct'].includes(c.t))v=v===''||v==null?null:numIn(v);else v=(v||'').trim();donnees[c.k]=v;});
+  Object.keys(PART_OPTIONS).forEach(k=>clauses[k]=!!document.getElementById('pfo_'+k)?.checked);
+  const ph=gv('pfNature')==='physique';
+  return{type,nature:ph?'physique':'morale',nom:g('pfNom')||'',forme:g('pfForme')||'',rccm:ph?'':(g('pfRccm')||''),piece_identite:ph?(g('pfPiece')||''):'',
+    ncc:g('pfNcc')||'',adresse:g('pfAdresse')||'',representant:ph?'':(g('pfRep')||''),qualite:ph?'':(g('pfQualite')||''),telephone:g('pfTel')||'',email:g('pfEmail')||'',
+    date_debut:gv('pfDebut')||null,duree_mois:parseInt(gv('pfDuree'))||null,renouvellement:gv('pfRenouv')||'aucun',preavis_jours:parseInt(gv('pfPreavis'))||30,
+    date_signature:gv('pfSignature')||null,notes:g('pfNotes')||'',donnees,clauses};
+}
+async function partNextRef(){
+  const an=new Date().getFullYear(),base='PART-'+an+'-';let max=0;
+  try{const{data}=await sb.from('partenaires').select('reference').ilike('reference',base+'%');(data||[]).forEach(r=>{const m=/-(\d{4})$/.exec(r.reference||'');if(m)max=Math.max(max,parseInt(m[1],10));});}catch(e){logErr(e);}
+  return base+String(max+1).padStart(4,'0');
+}
+async function partSauver(){
+  const p=partLireFiche();
+  if(!p.nom){toast('❌ Nom du partenaire requis');return;}
+  if(!p.date_debut||!p.duree_mois){toast('❌ Date de début et durée requises');return;}
+  let res;
+  if(PART_EDIT_ID){const r=PART_ROWS.find(x=>x.id===PART_EDIT_ID);if(r&&r.statut!=='brouillon')p.type=r.type;p.updated_at=new Date().toISOString();res=await dbSave('partenaires',p,PART_EDIT_ID);}
+  else{p.reference=await partNextRef();p.statut='brouillon';p.created_by=uid();res=await dbSave('partenaires',p);}
+  if(res.error){toast('❌ '+res.error.message);return;}
+  try{logAudit(PART_EDIT_ID?'modification':'creation','partenaires',PART_EDIT_ID||p.reference,{type:p.type});}catch(e){}
+  const m=partManquants(p);
+  toast('✅ Fiche enregistrée'+(m.length?' — à compléter avant contrat : '+m.slice(0,3).join(', ')+(m.length>3?'…':''):''),m.length?7000:3000);
+  closeModal();v4Render('partenariats');
+}
+async function partApercuFiche(){const p=partLireFiche();p.reference=(PART_ROWS.find(x=>x.id===PART_EDIT_ID)||{}).reference||'PROJET';p.statut='brouillon';await partContratPDF(p,{projet:true});}
+async function partGenerer(id){
+  const r=PART_ROWS.find(x=>x.id===id);if(!r)return;
+  const m=partManquants(r);
+  if(m.length&&!confirm('Informations manquantes :\n• '+m.join('\n• ')+'\n\nElles apparaîtront comme « [à compléter] ». Générer quand même ?'))return;
+  // Brouillon : modèles en vigueur, figés sur la fiche. Contrat envoyé ou signé : versions figées conservées.
+  if(r.statut==='brouillon'||!r.modele_versions){const mod=await partModeles(true);
+    r.modele_versions={[r.type]:mod[r.type].version||1,communs:mod.communs.version||1};
+    await dbSave('partenaires',{modele_versions:r.modele_versions},id);}
+  await partContratPDF(r);
+}
+async function partStatut(id,s){
+  const r=PART_ROWS.find(x=>x.id===id);const patch={statut:s};
+  if(s==='signe'&&r&&!r.date_signature)patch.date_signature=isoJour();
+  const{error}=await dbSave('partenaires',patch,id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('statut','partenaires',id,patch);}catch(e){}
+  toast('Statut : '+PART_STATUTS[s]+(s==='signe'?' — pensez à joindre le contrat signé (📎)':''),s==='signe'?6000:2500);v4Render('partenariats');
+}
+async function partSupprimer(id){
+  const r=PART_ROWS.find(x=>x.id===id);if(!r)return;
+  if(r.statut!=='brouillon'&&!estAdmin()){toast('❌ Seul un administrateur peut supprimer un contrat envoyé ou signé');return;}
+  if(!confirm('Supprimer la fiche '+(r.reference||'')+' — '+r.nom+' ?'))return;
+  const{error}=await sb.from('partenaires').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('suppression','partenaires',id,{reference:r.reference});}catch(e){}
+  toast('Fiche supprimée');v4Render('partenariats');
+}
+// Facture mensuelle de participation (mise à disposition d'espace)
+async function partFacturer(id){
+  const r=PART_ROWS.find(x=>x.id===id);if(!r)return;const dn=r.donnees||{},E=getEntreprise();
+  if(!['actif','signe'].includes(r.statut)){toast('❌ Le contrat doit être signé ou actif pour être facturé');return;}
+  const mt=numIn(dn.montant_mensuel);if(!mt){toast('❌ Montant mensuel non renseigné');return;}
+  const def=isoJour().slice(0,7);
+  const mois=prompt('Mois à facturer (AAAA-MM) :',def);if(!mois||!/^\d{4}-\d{2}$/.test(mois))return;
+  const fact=r.facturation||{};
+  if(fact[mois]&&!confirm('Le mois '+mois+' a déjà été facturé ('+fact[mois]+'). Facturer à nouveau ?'))return;
+  const lib=new Date(mois+'-01T12:00:00').toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const exo=dn.tva==='exonere',taux=exo?0:numIn(E.tva||18),tva=r0(mt*taux/100);
+  if(!confirm(`Émettre la facture de ${lib} pour ${r.nom} :\n${fmtF(mt)} FCFA HT${exo?' (exonéré de TVA)':' + TVA '+taux+' %'} = ${fmtF(mt+tva)} FCFA TTC ?`))return;
+  const ech=mois+'-'+String(Math.min(28,parseInt(dn.jour_paiement)||5)).padStart(2,'0');
+  const p={reference:await nextNumero('FAC'),titre:'Participation aux charges — '+lib,client_nom:r.nom,
+    lignes:[{ref:'',designation:'Participation mensuelle au loyer et aux charges',description:'Mise à disposition d’espace de travail — période : '+lib+' — convention '+(r.reference||''),qte:1,unite:'mois',pu:mt,remise:0}],
+    exonere_tva:exo,sous_total:mt,total_brut:mt,remise_pct:0,remise_montant:0,tva_pct:taux,tva_montant:tva,total_ttc:mt+tva,
+    date_document:isoJour(),date_echeance:ech,conditions_paiement:'Payable avant le '+fmtD(ech),notes:'Convention '+(r.reference||''),statut:'emise',created_by:uid()};
+  const{error}=await dbSave('factures',p);if(error){toast('❌ '+error.message);return;}
+  fact[mois]=p.reference;await dbSave('partenaires',{facturation:fact},id);
+  try{logAudit('facturation_partenariat','factures',p.reference,{partenaire:r.reference,mois});}catch(e){}
+  toast('✅ Facture '+p.reference+' émise ('+lib+') — retrouvez-la dans Finance & Facturation',6000);v4Render('partenariats');
+}
+
+// ── Modèles de contrats (administrateur) ──
+async function partVueModeles(pg){
+  if(!estAdmin()){PART_VUE='liste';return v4Render('partenariats');}
+  const mod=await partModeles(true);const code=PART_FILTRE.modele||'espace',m=mod[code];
+  let hist=[];try{const r=await sb.from('modeles_contrat').select('code,version,date_effet,actif,created_at').eq('code',code).order('version',{ascending:false});hist=r.data||[];}catch(e){}
+  const opts=`<option value="communs" ${code==='communs'?'selected':''}>⚙️ Clauses communes (tous les contrats)</option>`+PART_GROUPES.map(g=>`<optgroup label="${esc(g)}">${Object.entries(PART_TYPES).filter(([,t])=>t.groupe===g).map(([k,t])=>`<option value="${k}" ${k===code?'selected':''}>${t.icone} ${esc(t.l)}</option>`).join('')}</optgroup>`).join('');
+  const T=PART_TYPES[code];
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">📑 Modèles de contrats de partenariat</h1><div class="page-sub">Chaque publication crée une nouvelle version ; les contrats déjà envoyés gardent la leur.</div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="PART_VUE='liste';v4Render('partenariats')">← Retour aux partenaires</button></div></div>
+  <div class="card">
+    <div class="form-grid"><div class="form-field"><label for="pmCode">Modèle</label><select id="pmCode" onchange="PART_FILTRE.modele=this.value;v4Render('partenariats')">${opts}</select></div>
+    <div class="form-field"><label>Version en vigueur</label><div style="padding:8px 0;font-weight:600;color:var(--navy)">v${m.version||1} du ${fmtD(m.date_effet)}${m.defaut?' (texte par défaut)':''}</div></div></div>
+    <div class="cell-sub" style="margin:6px 0 4px">Un article par paragraphe : <code>**Article # – Titre.** texte</code> (le # est numéroté automatiquement). Variables : <code>{{nom_du_champ}}</code>${T?' — disponibles : '+T.champs.map(c=>'<code>{{'+c.k+'}}</code>').join(' '):' — <code>{{duree_texte}}</code> <code>{{preavis_jours}}</code> <code>{{partenaire}}</code>'}. Conditions : <code>[[si:champ]]…[[/si]]</code>, <code>[[si:champ=valeur]]…[[/si]]</code>. Tableau : lignes commençant par <code>|</code>.</div>
+    <textarea id="pmTexte" style="width:100%;min-height:420px;font-family:monospace;font-size:12px;line-height:1.45">${esc(m.contenu)}</textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button class="btn btn-outline btn-sm" onclick="partModeleReinit('${code}')">↺ Texte par défaut</button>
+      <button class="btn btn-outline btn-sm" onclick="partModeleApercu('${code}')">👁 Aperçu PDF</button>
+      <button class="btn btn-primary btn-sm" onclick="partModelePublier('${code}')">💾 Publier une nouvelle version</button></div>
+  </div>
+  <div class="card" style="margin-top:14px"><h3 class="v4-h3">Historique</h3><div class="table-wrap"><table><thead><tr><th>Version</th><th>Date d'effet</th><th>Statut</th><th>Publiée le</th></tr></thead><tbody>
+  ${hist.map(h=>`<tr><td>v${h.version}</td><td>${fmtD(h.date_effet)}</td><td>${h.actif?'<b style="color:#3F8A1E">En vigueur</b>':'Archivée'}</td><td>${fmtD(h.created_at)}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:var(--g400);padding:12px">Version 1 par défaut — aucune version publiée.</td></tr>'}
+  </tbody></table></div></div>`;
+}
+function partModeleReinit(code){if(confirm('Remplacer le texte de l’éditeur par le texte par défaut ? (rien n’est publié tant que vous ne cliquez pas sur Publier)'))document.getElementById('pmTexte').value=PART_MODELES_DEFAUT[code];}
+async function partModeleApercu(code){
+  const type=code==='communs'?'espace':code,mod=await partModeles();
+  const exemple={type,reference:'APERÇU',nom:'[Partenaire]',nature:PART_TYPES[type].personne,date_debut:isoJour(),duree_mois:PART_TYPES[type].duree,preavis_jours:30,donnees:{},clauses:{}};
+  PART_TYPES[type].options.forEach(k=>exemple.clauses[k]=true);
+  const txt=gv('pmTexte');
+  await partContratPDF(exemple,{projet:true,modeleType:code==='communs'?mod[type]:{version:'aperçu',contenu:txt},modeleCommuns:code==='communs'?{version:'aperçu',contenu:txt}:mod.communs});
+}
+async function partModelePublier(code){
+  const txt=gv('pmTexte')||'';if(txt.trim().length<80){toast('❌ Texte trop court');return;}
+  const cur=(await partModeles(true))[code];if(cur.contenu===txt){toast('Aucune modification à publier');return;}
+  let nv=1;try{const{data}=await sb.from('modeles_contrat').select('version').eq('code',code).order('version',{ascending:false}).limit(1);nv=(data?.[0]?.version||0)+1;}catch(e){logErr(e);}
+  if(nv===1){await sb.from('modeles_contrat').insert({code,version:1,contenu:PART_MODELES_DEFAUT[code],date_effet:'2026-10-07',actif:false,created_by:uid()});nv=2;}
+  if(!confirm('Publier la version '+nv+' de ce modèle ? Elle s’appliquera aux nouveaux contrats et aux brouillons.'))return;
+  const{error}=await sb.from('modeles_contrat').insert({code,version:nv,contenu:txt,date_effet:isoJour(),actif:true,created_by:uid()});
+  if(error){toast('❌ '+error.message);return;}
+  await sb.from('modeles_contrat').update({actif:false}).eq('code',code).neq('version',nv);
+  try{logAudit('publication_modele','modeles_contrat',code,{version:nv});}catch(e){}
+  _PART_MODELES_CACHE=null;toast('✅ Modèle publié — version '+nv);v4Render('partenariats');
+}
+(function(){
+  try{
+    ['superadmin','admin','directeur','responsable'].forEach(r=>{const nav=NAV[r];if(!nav||nav.some(x=>x.id==='partenariats'))return;const k=nav.findIndex(x=>x.id==='crm');nav.splice(k<0?nav.length:k+1,0,{id:'partenariats',i:'🤝',l:'Partenariats'});});
+    PAGE_LABELS['partenariats']='Partenariats';
+  }catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-partenariats')){const d=document.createElement('div');d.className='page';d.id='page-partenariats';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+// MODÈLES & ANNEXES — import direct d'un Word ou d'un PDF par type de document
+// Word (.docx) : converti en texte ERP (charte, variables, renumérotation conservées)
+// PDF : joint tel quel, incrusté dans des pages à la charte (en-tête, pagination, paraphes)
+// ══════════════════════════════════════════════════════════════════════
+var MD_DOCS=null;
+function mdListe(){
+  if(MD_DOCS)return MD_DOCS;
+  MD_DOCS=[
+    {code:'A',table:'conditions_achat',groupe:'Bons de commande',l:'Annexe A — Conditions générales d’achat',usage:'BC de fourniture et mixtes'},
+    {code:'B',table:'conditions_achat',groupe:'Bons de commande',l:'Annexe B — Conditions de sous-traitance (SLA)',usage:'BC de prestation et mixtes'},
+    {code:'communs',table:'modeles_contrat',groupe:'Contrats de partenariat',l:'Clauses communes',usage:'Tous les contrats de partenariat'}
+  ].concat(Object.entries(PART_TYPES).map(([k,t])=>({code:k,table:'modeles_contrat',groupe:'Contrats de partenariat',l:t.icone+' '+t.l,usage:t.titre})));
+  return MD_DOCS;
+}
+function mdDefaut(e){return e.table==='conditions_achat'?{...ANNEXES_DEFAUT[e.code],format:'texte'}:{code:e.code,version:1,contenu:PART_MODELES_DEFAUT[e.code],date_effet:'2026-10-07',format:'texte',defaut:true};}
+async function mdCourant(e){
+  return e.table==='conditions_achat'?(await annexesEnVigueur(true))[e.code]:(await partModeles(true))[e.code];
+}
+function mdFormatLabel(m){return m&&m.format==='pdf'?'📎 PDF joint'+(m.fichier_nom?' ('+m.fichier_nom+')':''):(m&&m.fichier_nom?'📝 Word importé ('+m.fichier_nom+')':'✏️ Texte ERP');}
+async function mdUrl(path){try{const{data}=sb.storage.from('documents').getPublicUrl(path);return data?.publicUrl||'';}catch(e){return '';}}
+async function mdOctets(path){
+  try{const{data,error}=await sb.storage.from('documents').download(path);if(!error&&data)return new Uint8Array(await data.arrayBuffer());}catch(e){logErr(e);}
+  const u=await mdUrl(path);const r=await fetch(u);if(!r.ok)throw new Error('Fichier du modèle introuvable');return new Uint8Array(await r.arrayBuffer());
+}
+async function pdfLibCharger(){if(!window.PDFLib)await loadScript('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js');if(!window.PDFLib)throw new Error('Bibliothèque PDF indisponible');}
+async function mammothCharger(){if(!window.mammoth)await loadScript('https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js');if(!window.mammoth)throw new Error('Lecteur Word indisponible');}
+
+// Prépare un modèle au format PDF : octets + nombre de pages
+async function mdSourcePdf(m){
+  await pdfLibCharger();const bytes=await mdOctets(m.fichier_path);
+  const src=await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});return{bytes,count:src.getPageCount()};
+}
+// Ajoute des pages réservées (en-tête et pied de l'ERP) qui recevront les pages du PDF importé
+function mdReserverPages(doc,n,entete,legende){
+  const pages=[];
+  for(let i=0;i<n;i++){doc.addPage();entete(false);pages.push(doc.getNumberOfPages());
+    doc.setFont('helvetica','bold');doc.setFontSize(7.8);doc.setTextColor(21,101,192);doc.text(pdfT(legende+(n>1?' — page '+(i+1)+'/'+n:'')),14,19);}
+  return pages;
+}
+// Incruste les pages des PDF importés dans les pages réservées, puis renvoie le PDF final
+async function mdIncruster(doc,inserts){
+  await pdfLibCharger();
+  const out=await PDFLib.PDFDocument.load(doc.output('arraybuffer'));
+  const mm=2.8346,X=14*mm,W=182*mm,TOP=21*mm,BOT=24*mm;
+  for(const ins of inserts){
+    const idx=[...Array(ins.pages.length).keys()];
+    const emb=await out.embedPdf(ins.bytes,idx);
+    emb.forEach((ep,i)=>{
+      const pg=out.getPage(ins.pages[i]-1),H=pg.getHeight(),hMax=H-TOP-BOT;
+      const s=Math.min(W/ep.width,hMax/ep.height),w=ep.width*s,h=ep.height*s;
+      pg.drawRectangle({x:X+(W-w)/2-0.5,y:H-TOP-h-0.5,width:w+1,height:h+1,borderColor:PDFLib.rgb(0.835,0.878,0.94),borderWidth:0.6});
+      pg.drawPage(ep,{x:X+(W-w)/2,y:H-TOP-h,width:w,height:h});
+    });
+  }
+  return await out.save();
+}
+function mdTelecharger(bytes,nom){
+  const b=new Blob([bytes],{type:'application/pdf'}),u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u;a.download=nom;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);
+}
+// Conversion d'un Word (HTML mammoth) vers le format des modèles
+function mdHtmlVersModele(html,contrat){
+  const dom=new DOMParser().parseFromString('<div>'+html+'</div>','text/html').body.firstChild,out=[];
+  const net=s=>String(s||'').replace(/\s+/g,' ').trim();
+  const titreArt=t=>contrat?t.replace(/^(article|art\.)\s*(\d+|[ivxlc]+|premier|1er)\b\s*[:.\-–—]?\s*/i,'Article # – '):t;
+  dom.childNodes.forEach(n=>{
+    if(n.nodeType!==1)return;const tag=n.tagName.toLowerCase();
+    if(tag==='table'){const rows=[...n.querySelectorAll('tr')].map(tr=>'| '+[...tr.children].map(td=>net(td.textContent).replace(/\|/g,'/')).join(' | ')+' |');if(rows.length)out.push(rows.join('\n'));return;}
+    if(tag==='ul'||tag==='ol'){[...n.querySelectorAll('li')].forEach(li=>{const t=net(li.textContent);if(t)out.push('– '+t);});return;}
+    const txt=net(n.textContent);if(!txt)return;
+    if(/^h[1-6]$/.test(tag)){out.push('**'+titreArt(txt).replace(/\*\*/g,'')+'**');return;}
+    const b=n.firstElementChild,debut=net(n.textContent.slice(0,40));
+    if(b&&/^(strong|b)$/i.test(b.tagName)&&debut.startsWith(net(b.textContent).slice(0,20))&&net(b.textContent)){
+      const bt=net(b.textContent),reste=net(txt.slice(bt.length));out.push('**'+titreArt(bt)+'**'+(reste?' '+reste:''));return;}
+    if(contrat&&/^(article|art\.)\s*(\d+|[ivxlc]+|premier|1er)\b/i.test(txt)&&txt.length<120){out.push('**'+titreArt(txt)+'**');return;}
+    out.push(txt);
+  });
+  // Un titre seul suivi d'un paragraphe : fusion « **Titre** texte »
+  const fus=[];for(let i=0;i<out.length;i++){const a=out[i],b=out[i+1];
+    if(/^\*\*[^*]+\*\*$/.test(a)&&b&&!b.startsWith('**')&&!b.startsWith('|')&&!/^Annexe/i.test(a.replace(/\*/g,''))){fus.push(a+' '+b);i++;}else fus.push(a);}
+  return fus.join('\n\n');
+}
+
+// Publication d'une nouvelle version (texte ou PDF)
+async function mdPublier(e,v){
+  let nv=1;
+  try{const{data}=await sb.from(e.table).select('version').eq('code',e.code).order('version',{ascending:false}).limit(1);nv=(data?.[0]?.version||0)+1;}catch(x){logErr(x);}
+  if(nv===1){const d=mdDefaut(e);const row={code:e.code,version:1,contenu:d.contenu,date_effet:d.date_effet,actif:false,created_by:uid()};if(e.table==='conditions_achat')row.titre=d.titre;
+    const r=await sb.from(e.table).insert(row);if(r.error){toast('❌ '+r.error.message);return false;}nv=2;}
+  const row={code:e.code,version:nv,contenu:v.contenu,date_effet:isoJour(),actif:true,created_by:uid(),format:v.format||'texte',fichier_path:v.fichier_path||null,fichier_nom:v.fichier_nom||null};
+  if(e.table==='conditions_achat')row.titre=v.titre||(await mdCourant(e)).titre;
+  const r=await dbSave(e.table,row);if(r.error){toast('❌ '+r.error.message);return false;}
+  await sb.from(e.table).update({actif:false}).eq('code',e.code).neq('version',nv);
+  try{logAudit('publication_modele',e.table,e.code,{version:nv,format:row.format});}catch(x){}
+  _ANNEXES_CACHE=null;_PART_MODELES_CACHE=null;
+  toast('✅ '+e.l.replace(/^\S+\s/,'')+' — version '+nv+' en vigueur',5000);return true;
+}
+
+v4Def('modeles-documents',{titre:'Modèles & annexes',icone:'📚',custom:async pg=>{
+  if(!estAdmin()){pg.innerHTML='<div class="card" style="padding:20px">Accès réservé aux administrateurs.</div>';return;}
+  const docs=mdListe(),annexes=await annexesEnVigueur(true),contrats=await partModeles(true);
+  const cur=e=>e.table==='conditions_achat'?annexes[e.code]:contrats[e.code];
+  const lignes=g=>docs.filter(e=>e.groupe===g).map(e=>{const m=cur(e)||{};return `<tr>
+    <td><strong>${esc(e.l)}</strong><div class="cell-sub">${esc(e.usage)}</div></td>
+    <td style="font-size:12px">v${m.version||1}<div class="cell-sub">${fmtD(m.date_effet)}${m.defaut||!m.id?' · par défaut':''}</div></td>
+    <td style="font-size:12px">${esc(mdFormatLabel(m))}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="mdChoisirFichier('${e.code}')" title="Importer un Word (.docx) ou un PDF">⬆ Importer</button>
+      <button class="btn btn-outline btn-sm" onclick="mdEditer('${e.code}')" title="Modifier le texte">✏️</button>
+      <button class="btn btn-outline btn-sm" onclick="mdApercu('${e.code}')" title="Aperçu">👁</button>
+      ${m.id?`<button class="btn btn-outline btn-sm" onclick="mdDefautPublier('${e.code}')" title="Revenir au texte par défaut">↺</button>`:''}</div></td></tr>`;}).join('');
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">📚 Modèles & annexes</h1>
+    <div class="page-sub">Importez votre propre version de chaque document : elle s’applique aussitôt aux nouveaux bons de commande et contrats. Les documents déjà envoyés gardent leur version.</div></div></div>
+  <div class="card" style="margin-bottom:14px;font-size:12.5px;line-height:1.55">
+    <b>📝 Word (.docx) — recommandé :</b> le texte est repris dans la charte H TECH INNOV et les informations de la fiche sont remplies automatiquement. Dans Word, mettez les titres d’articles en gras (« Article 1 – Objet. ») ; vous pouvez écrire des variables comme <code>{{partenaire}}</code>, <code>{{date_debut}}</code>, <code>{{montant_mensuel}}</code>.<br>
+    <b>📎 PDF :</b> le document est joint tel quel, avec l’en-tête, la pagination et les paraphes de l’ERP ; les informations de la fiche n’y sont pas reportées.
+  </div>
+  <input type="file" id="mdFichier" accept=".docx,.pdf,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" onchange="mdFichierChoisi(this)">
+  ${['Bons de commande','Contrats de partenariat'].map(g=>`<div class="card" style="margin-bottom:14px"><div class="card-title">${g==='Bons de commande'?'🛒':'🤝'} ${g}</div>
+    <div class="table-wrap"><table><thead><tr><th>Document</th><th>Version</th><th>Format</th><th>Actions</th></tr></thead><tbody>${lignes(g)}</tbody></table></div></div>`).join('')}`;
+}});
+var MD_CIBLE=null;
+function mdEntree(code){return mdListe().find(e=>e.code===code);}
+function mdChoisirFichier(code){MD_CIBLE=code;const i=document.getElementById('mdFichier');i.value='';i.click();}
+async function mdFichierChoisi(inp){
+  const file=inp.files?.[0],e=mdEntree(MD_CIBLE);if(!file||!e)return;
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  try{
+    if(ext==='pdf'){
+      await pdfLibCharger();const bytes=new Uint8Array(await file.arrayBuffer());
+      let n=0;try{n=(await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true})).getPageCount();}catch(x){toast('❌ PDF illisible ou protégé');return;}
+      if(!confirm(`Joindre « ${file.name} » (${n} page${n>1?'s':''}) comme nouvelle version de :\n${e.l.replace(/^\S+\s/,'')} ?\n\nLe PDF sera joint tel quel : les informations de la fiche ne seront pas reportées dedans.`))return;
+      const chemin='modeles/'+e.code+'/'+Date.now()+'-'+file.name.replace(/[^A-Za-z0-9._-]+/g,'_');
+      toast('⏳ Envoi du fichier…');
+      const up=await sb.storage.from('documents').upload(chemin,file,{contentType:'application/pdf'});
+      if(up.error){toast('❌ '+up.error.message+' — vérifiez le bucket « documents »');return;}
+      if(await mdPublier(e,{format:'pdf',contenu:'Document PDF importé : '+file.name,fichier_path:chemin,fichier_nom:file.name}))v4Render('modeles-documents');
+      return;
+    }
+    let texte='';
+    if(ext==='docx'){await mammothCharger();const r=await mammoth.convertToHtml({arrayBuffer:await file.arrayBuffer()});texte=mdHtmlVersModele(r.value,e.table==='modeles_contrat');}
+    else if(ext==='txt'||ext==='md')texte=await file.text();
+    else{toast('❌ Format non pris en charge : utilisez un Word (.docx) ou un PDF');return;}
+    if(texte.trim().length<50){toast('❌ Document vide ou illisible');return;}
+    mdEditer(e.code,texte,file.name);
+  }catch(x){logErr(x);toast('❌ '+x.message);}
+}
+async function mdEditer(code,texte,fichier){
+  const e=mdEntree(code),m=await mdCourant(e)||{};
+  const t=texte??(m.format==='pdf'?mdDefaut(e).contenu:m.contenu);
+  document.getElementById('modalBox').style.width='min(980px,96vw)';
+  document.getElementById('modalTitle').textContent=(fichier?'📝 Import de « '+fichier+' » — ':'✏️ ')+e.l.replace(/^\S+\s/,'');
+  document.getElementById('modalBody').innerHTML=`
+    ${fichier?`<div class="card" style="border-left:4px solid #3F8A1E;margin-bottom:10px;font-size:12.5px">Texte extrait du Word. Vérifiez les titres d’articles (en <code>**gras**</code>) puis publiez : la nouvelle version s’applique immédiatement.</div>`:''}
+    ${e.table==='conditions_achat'?`<div class="form-field" style="margin-bottom:8px"><label for="mdTitre">Titre de l’annexe</label><input id="mdTitre" value="${esc(m.titre||mdDefaut(e).titre)}"></div>`:''}
+    <div class="cell-sub" style="margin-bottom:6px">Un article par paragraphe : <code>**Article # – Titre.** texte</code>${e.table==='modeles_contrat'?' (# numéroté automatiquement)':''} · tableau : lignes commençant par <code>|</code>${e.table==='modeles_contrat'&&PART_TYPES[code]?' · variables : '+PART_TYPES[code].champs.map(c=>'<code>{{'+c.k+'}}</code>').join(' ')+' <code>{{partenaire}}</code> <code>{{date_debut}}</code> <code>{{date_fin}}</code>':''}</div>
+    <textarea id="mdTexte" style="width:100%;min-height:52vh;font-family:monospace;font-size:12px;line-height:1.45">${esc(t)}</textarea>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="mdApercu('${code}',true)">👁 Aperçu</button><button class="btn btn-primary" onclick="mdPublierEditeur('${code}','${jsq(fichier||'')}')">✅ Publier cette version</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function mdPublierEditeur(code,fichier){
+  const e=mdEntree(code),txt=gv('mdTexte')||'';if(txt.trim().length<50){toast('❌ Texte trop court');return;}
+  if(await mdPublier(e,{format:'texte',contenu:txt,titre:g('mdTitre')||undefined,fichier_nom:fichier||null})){closeModal();v4Render('modeles-documents');}
+}
+async function mdDefautPublier(code){
+  const e=mdEntree(code);if(!confirm('Remettre en vigueur le texte par défaut de « '+e.l.replace(/^\S+\s/,'')+' » ? (nouvelle version)'))return;
+  const d=mdDefaut(e);if(await mdPublier(e,{format:'texte',contenu:d.contenu,titre:d.titre}))v4Render('modeles-documents');
+}
+async function mdApercu(code,depuisEditeur){
+  const e=mdEntree(code);let m=await mdCourant(e);
+  if(depuisEditeur)m={...m,format:'texte',contenu:gv('mdTexte'),titre:g('mdTitre')||m.titre,version:'aperçu'};
+  if(m.format==='pdf'){const u=await mdUrl(m.fichier_path);if(u)window.open(u,'_blank');else toast('❌ Fichier introuvable');return;}
+  if(e.table==='conditions_achat'){
+    await ensurePdf();const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+    const ent=()=>{doc.setFillColor(10,42,102);doc.rect(0,0,210,4,'F');doc.setFillColor(21,101,192);doc.rect(0,4,210,1,'F');doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(10,42,102);doc.text(pdfT(getEntreprise().nom||'H TECH INNOV'),14,12);};
+    bcDessinerAnnexes(doc,[{...m,code}],'BC-XXXX (aperçu)',ent);doc.deletePage(1);doc.save('Apercu-Annexe-'+code+'.pdf');return;
+  }
+  const type=code==='communs'?'espace':code,mod=await partModeles();
+  const ex={type,reference:'APERÇU',nom:'[Partenaire]',nature:PART_TYPES[type].personne,date_debut:isoJour(),duree_mois:PART_TYPES[type].duree,preavis_jours:30,donnees:{},clauses:{}};
+  PART_TYPES[type].options.forEach(k=>ex.clauses[k]=true);
+  await partContratPDF(ex,{projet:true,modeleType:code==='communs'?mod[type]:m,modeleCommuns:code==='communs'?m:mod.communs});
+}
+(function(){
+  try{
+    ['superadmin','admin'].forEach(r=>{const nav=NAV[r];if(!nav)return;
+      const k=nav.findIndex(x=>x.id==='conditions-achat');
+      if(k>=0)nav.splice(k,1,{id:'modeles-documents',i:'📚',l:'Modèles & annexes'});
+      else if(!nav.some(x=>x.id==='modeles-documents')){const a=nav.findIndex(x=>x.id==='admin');nav.splice(a<0?nav.length:a+1,0,{id:'modeles-documents',i:'📚',l:'Modèles & annexes'});}});
+    PAGE_LABELS['modeles-documents']='Modèles & annexes';
+  }catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-modeles-documents')){const d=document.createElement('div');d.className='page';d.id='page-modeles-documents';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
+})();
+
 </script>
 
 <div id="modal-bulletin-paie" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;padding:16px">
