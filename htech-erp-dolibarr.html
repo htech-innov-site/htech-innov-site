@@ -483,6 +483,15 @@ label.grille-sel select{font:inherit;font-size:12px;border:1px solid var(--g200)
 .site-txt-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .site-txt-act .cell-sub{flex:1}
 .multi-choix{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;max-height:220px;overflow-y:auto;border:1px solid var(--g200);border-radius:8px;padding:8px}
+
+/* ══ Import de catalogue ══ */
+.imp-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.imp-table td{vertical-align:top}
+.imp-in{width:100%;min-width:90px;padding:6px 8px;border:1px solid var(--g200);border-radius:7px;font:inherit;font-size:13px}
+.imp-desc{margin-top:4px;font-size:12px;color:var(--g600);min-height:44px;resize:vertical}
+.imp-photo{display:block;width:64px;height:54px;cursor:pointer}
+.imp-photo img{width:64px;height:54px;object-fit:contain;background:#fff;border:1px solid var(--g200);border-radius:8px}
+.imp-photo .vig-vide{height:54px}
 </style>
 </head>
 <body>
@@ -12206,6 +12215,7 @@ async function v4Render(id){
   for(const s of (def.sources||[]))await v4Src(s);
   let q=sb.from(def.table).select('*').order(def.ordre||'created_at',{ascending:!!def.asc}).limit(1000);
   if(def.filtreUser&&!estAdmin())q=q.eq(def.filtreUser,CU?.id);
+  if(def.where)Object.entries(def.where).forEach(([k,v])=>{q=q.eq(k,v);});
   const{data,error}=await q;
   if(error){document.getElementById('v4tb-'+id).innerHTML=`<tr><td colspan="${def.colonnes.length+1}" class="empty-cell">Module non initialisé : lancez <b>04_modules_v4.sql</b> dans Supabase.<br><small>${esc(error.message)}</small></td></tr>`;return;}
   V4_ROWS[id]=data||[];
@@ -12301,7 +12311,7 @@ async function v4Sauver(id,rowId){
     p[c.k]=v;
   }
   if(def.avant){const ok=await def.avant(p,row);if(ok===false)return;}
-  if(!row){p.created_by=uid();if(def.prefixe)p.reference=await nextNumero(def.prefixe);}
+  if(!row){p.created_by=uid();if(def.prefixe)p.reference=await nextNumero(def.prefixe);if(def.where)Object.assign(p,def.where);}
   const{error}=await dbSave(def.table,p,row?.id);
   if(error){toast('❌ '+error.message);return;}
   logAudit(row?'modification':'creation',def.table,row?.id||p.reference||'',{module:id});
@@ -12677,7 +12687,7 @@ async function iaEnvoyer(){
   document.getElementById('iaQ').value='';iaAjouter(q,'moi');const att=iaAjouter('…','bot');
   try{
     const{data,error}=await sb.functions.invoke('hti-assistant',{body:{mode:'chat',question:q,historique:IA_HIST.slice(-8),contexte:await iaContexte()}});
-    if(error)throw error;
+    if(error)throw error;if(data?.error)throw new Error(data.error);
     att.innerHTML=mdLite(data?.reponse||'Pas de réponse.');IA_HIST.push({role:'user',content:q},{role:'assistant',content:data?.reponse||''});
   }catch(e){att.innerHTML=esc('L’assistant n’est pas encore activé : déployez la fonction « hti-assistant » (voir DEPLOIEMENT.md). Détail : '+(e.message||e));}
 }
@@ -12687,7 +12697,7 @@ async function iaLireFacture(){
   const b64=await new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=ko;r.readAsDataURL(f);});
   try{
     const{data,error}=await sb.functions.invoke('hti-assistant',{body:{mode:'ocr',fichier:b64,type:f.type}});
-    if(error)throw error;const x=data?.facture||{};
+    if(error)throw error;if(data?.error)throw new Error(data.error);const x=data?.facture||{};
     out.innerHTML=`<table><tbody>${[['Fournisseur',x.fournisseur],['N° facture',x.numero],['Date',x.date],['Total HT',x.total_ht!=null?money(x.total_ht):''],['TVA',x.tva!=null?money(x.tva):''],['Total TTC',x.total_ttc!=null?money(x.total_ttc):'']].map(([k,v])=>`<tr><td class="cell-sub">${esc(k)}</td><td><strong>${esc(v||'—')}</strong></td></tr>`).join('')}</tbody></table>
     ${(x.lignes||[]).length?`<div class="cell-sub" style="margin-top:6px">${(x.lignes||[]).map(l=>esc(l.designation+' — '+l.qte+' × '+money(l.pu))).join('<br>')}</div>`:''}`;
   }catch(e){out.textContent='Fonction IA non déployée ou erreur : '+(e.message||e);}
@@ -13158,6 +13168,7 @@ async function rattacherClient(pid){
 // ERP v6 — Catalogue articles (prix d'achat fournisseur, images, descriptions)
 // ══════════════════════════════════════════════════════════════════════
 v4Def('catalogue',{table:'produits',titre:'Catalogue articles',icone:'🗂️',sousTitre:'Articles fournisseurs avec visuel et description en français — le prix affiché ici est le coût d’achat (interne)',
+  outils:[{l:'📥 Importer un catalogue fournisseur',fn:"showPage('import-catalogue')"}],
   nouveau:'Nouvel article',large:1,ordre:'designation',asc:true,recherche:['reference','designation','categorie','marque','description','fournisseur','catalogue'],
   filtres:[{k:'catalogue',l:'Tous les catalogues',val:r=>nomCatalogue(r)},{k:'categorie',l:'Toutes les catégories'}],
   statuts:{actif:['Actif','badge-green'],inactif:['Inactif','badge-gray']},
@@ -13212,7 +13223,7 @@ var ACAD_PROFILS={organisation:'Organisation',particulier:'Particulier',etudiant
 var ACAD_FORMATIONS=[];
 async function acadFormations(force){
   if(ACAD_FORMATIONS.length&&!force)return ACAD_FORMATIONS;
-  const{data}=await sb.from('produits').select('id,reference,designation,tarifs,type_article').eq('type_article','formation').order('designation');
+  const{data}=await sb.from('produits').select('id,reference,designation,tarifs,type_article,visible_site,statut').eq('type_article','formation').order('designation');
   ACAD_FORMATIONS=data||[];return ACAD_FORMATIONS;
 }
 function acadTitre(ref){return ACAD_FORMATIONS.find(f=>f.reference===ref)?.designation||ref;}
@@ -13230,7 +13241,10 @@ v4Def('academy-demandes',{table:'academy_demandes',titre:'Demandes de formation'
   colonnes:[{l:'Reçue',f:r=>esc(fmtD(r.created_at))},
     {l:'Personne',f:r=>`<div class="cell-main">${esc([r.prenom,r.nom].filter(Boolean).join(' '))}</div><div class="cell-sub">${esc([r.organisation,r.telephone,r.email].filter(Boolean).join(' · '))}</div>`},
     {l:'Profil',f:r=>esc(ACAD_PROFILS[r.profil]||'—')+(r.participants>1?`<div class="cell-sub">${esc(r.participants)} participants</div>`:'')},
-    {l:'Formations',f:r=>(r.formations||[]).map(x=>`<div class="cell-sub" style="color:var(--text)">${esc(x==='AUTRE'?'Autre besoin':acadTitre(x))}</div>`).join('')+`<div class="cell-sub">${esc([r.format,r.financement].filter(Boolean).join(' · '))}</div>`},
+    {l:'Formations',f:r=>(r.formations||[]).filter(x=>x!=='AUTRE').map(x=>`<div class="cell-sub" style="color:var(--text)">${esc(acadTitre(x))}</div>`).join('')
+      +(r.formations_autres||[]).map(x=>`<div class="cell-sub" style="color:var(--text)">✍ ${esc(x)} <span class="badge badge-amber">hors catalogue</span> <button class="btn btn-outline btn-sm" style="padding:0 6px;min-height:22px" onclick="acadCreerFormation('${jsq(x)}')" title="Ajouter cette formation au catalogue">+ catalogue</button></div>`).join('')
+      +((r.formations||[]).includes('AUTRE')?'<div class="cell-sub">Autre besoin, à préciser</div>':'')
+      +`<div class="cell-sub">${esc([r.format,r.financement].filter(Boolean).join(' · '))}</div>`},
     {l:'Statut',f:r=>v4Statut(V4['academy-demandes'],r)}],
   actions:r=>`<a class="btn btn-outline btn-sm" href="https://wa.me/${esc(String(r.telephone||'').replace(/\D/g,'').replace(/^0/,'225'))}?text=${encodeURIComponent('Bonjour '+(r.prenom||'')+', H TECH ACADEMY suite à votre demande de formation.')}" target="_blank" rel="noopener" title="Contacter sur WhatsApp">WhatsApp</a>
     <button class="btn btn-outline btn-sm" onclick="academyDevis('${r.id}')">Devis</button>
@@ -13254,10 +13268,13 @@ async function academyDevis(id){
     await renderProduitOptions();
     const set=(k,v)=>{const el=document.getElementById(k);if(el&&v!=null)el.value=v;};
     const refs=(r.formations||[]).filter(x=>x!=='AUTRE');
-    set('docTitre','Formation — '+(refs.map(acadTitre).join(', ')||'H TECH ACADEMY'));
+    set('docTitre','Formation — '+([...refs.map(acadTitre),...(r.formations_autres||[])].join(', ')||'H TECH ACADEMY'));
     set('docTiers',r.organisation||[r.prenom,r.nom].filter(Boolean).join(' '));docClientChoisi();
     set('docFinanceur',r.profil||'organisation');
     LIGNES=[];refs.forEach(ref=>{const p=PRODUITS_CACHE.find(x=>x.reference===ref);if(p){catAjouter(p.id);const l=LIGNES[LIGNES.length-1];if(l&&r.participants>1&&l.unite==='participant')l.qte=r.participants;}});
+    // formations saisies librement : une ligne à chiffrer par formation (prix à renseigner)
+    (r.formations_autres||[]).forEach(t=>{const p=PRODUITS_CACHE.find(x=>x.type_article==='formation'&&String(x.designation).toLowerCase()===String(t).toLowerCase());
+      if(p){catAjouter(p.id);}else LIGNES.push({ref:'',designation:'Formation sur mesure — '+t,description:'Programme adapté à votre besoin. Contenu, durée et dates précisés après cadrage.',qte:r.participants||1,unite:'participant',pu:0,remise:0,cout:0,coef:1});});
     if(!LIGNES.length)addLigne();
     if(r.profil==='organisation'&&r.participants>=3){const cb=document.querySelector('#docRemisesGrille input[data-r="10"]');if(cb){cb.checked=true;remisesGrille();}}
     set('docNotes','Demande H TECH ACADEMY du '+fmtD(r.created_at)+' — format : '+(r.format||'à définir')+'. Frais d’examen non inclus, payés directement à l’organisme certificateur.');
@@ -13278,7 +13295,8 @@ async function academyInscrire(demandeId){
     <div class="form-field"><label for="aiNom">Nom *</label><input id="aiNom" value="${esc(r.nom||'')}"></div>
     <div class="form-field"><label for="aiEmail">Email (identifiant de connexion) *</label><input id="aiEmail" type="email" value="${esc(r.email||'')}"></div>
     <div class="form-field"><label for="aiTel">Téléphone</label><input id="aiTel" value="${esc(r.telephone||'')}"></div>
-    <div class="form-field full"><label for="aiForm">Formation *</label><select id="aiForm" onchange="acadSessionsSel()">${forms.map(f=>`<option value="${esc(f.reference)}" ${f.reference===ref0?'selected':''}>${esc(f.designation)}</option>`).join('')}</select></div>
+    <div class="form-field full"><label for="aiForm">Formation *</label><div style="display:flex;gap:8px"><select id="aiForm" onchange="acadSessionsSel()" style="flex:1">${forms.map(f=>`<option value="${esc(f.reference)}" ${f.reference===ref0?'selected':''}>${esc(f.designation)}${f.visible_site===false?' (hors site)':''}</option>`).join('')}</select>
+      <button type="button" class="btn btn-outline btn-sm" onclick="closeModal();acadCreerFormation('${jsq((r.formations_autres||[])[0]||'')}')">+ Nouvelle formation</button></div>${(r.formations_autres||[]).length?`<div class="cell-sub">Demandée hors catalogue : ${esc(r.formations_autres.join(', '))}. Créez-la d’abord si besoin.</div>`:''}</div>
     <div class="form-field"><label for="aiSes">Session</label><select id="aiSes"></select></div>
     <div class="form-field"><label for="aiFin">Financeur</label><select id="aiFin">${Object.entries(ACAD_PROFILS).map(([k,v])=>`<option value="${k}" ${k===r.profil?'selected':''}>${esc(v)}</option>`).join('')}</select></div>
     <div class="form-field full"><label for="aiExp">Expert associé *</label><select id="aiExp"><option value="">—</option>${experts.map(p=>`<option value="${esc(p.v)}">${esc(p.l)}</option>`).join('')}</select></div>
@@ -13386,6 +13404,44 @@ async function academyEcrire(id,type){
   toast('✅ Enregistré');academySuivi(id,type==='msg'?'messages':type==='note'?'notes':'examens');
 }
 
+// ── Formations : catalogue de l'Academy, y compris vos formations sur mesure ──
+v4Def('academy-formations',{table:'produits',where:{type_article:'formation'},titre:'Formations',icone:'📚',
+  sousTitre:'Catalogue de H TECH ACADEMY : formations de la grille et formations créées par vous (sur mesure, hors grille). Décochez « Publiée sur le site » pour une formation privée.',
+  nouveau:'Nouvelle formation',large:1,ordre:'designation',asc:true,recherche:['designation','reference','categorie','description'],
+  champs:[{k:'designation',l:'Intitulé de la formation',req:1},{k:'reference',l:'Référence (laissée vide = générée automatiquement)',ph:'HTI-FO-EXCEL'},
+    {k:'categorie',l:'Domaine',t:'select',o:['Formations inter-entreprises','Formation intra-entreprise','Formation sur mesure','Gestion de projet','Agilité','Durabilité et ESG','Gouvernance et PMO','Bureautique et outils','Management et leadership','Sécurité électronique','Cybersécurité','Autre'],def:'Formation sur mesure'},
+    {k:'duree_txt',l:'Durée (ex. 2 jours, 14 heures)'},
+    {k:'description',l:'Description (objectifs, public, contenu)',t:'textarea',rows:4},
+    {k:'prix_org',l:'Prix par participant — organisation (FCFA HT)',t:'money'},{k:'prix_part',l:'Prix par participant — particulier (FCFA HT, vide = non proposé)',t:'money'},
+    {k:'prix_etud',l:'Prix par participant — étudiant / demandeur d’emploi (vide = non proposé)',t:'money'},
+    {k:'image_data',l:'Image de la formation',t:'img',col:'image_data',taille:640},
+    {k:'visible_site',l:'Publiée sur le site H TECH ACADEMY',t:'check',def:true},
+    {k:'statut',l:'Statut',t:'select',o:[['actif','Active'],['inactif','Archivée']],def:'actif'}],
+  onForm:row=>{const t=row?.tarifs||{},set=(k,v)=>{const e=document.getElementById('v4f-'+k);if(e&&v!=null&&v!=='')e.value=v;};
+    set('prix_org',t.organisation);set('prix_part',t.particulier);set('prix_etud',t.etudiant);
+    const m=/Durée\s*:\s*([^.]+)\./.exec(row?.description||'');if(m){set('duree_txt',m[1]);const d=document.getElementById('v4f-description');if(d)d.value=(row.description||'').replace(/\s*Durée\s*:\s*[^.]+\./,'').trim();}},
+  avant:(p,row)=>{
+    const n=v=>{const x=numIn(v);return x>0?x:null;};
+    const groupe=row&&row.mode_tarif==='categorie'&&!n(p.prix_org); // formation tarifée au groupe (ex. intra) : tarifs conservés
+    if(!groupe&&!n(p.prix_org)){toast('❌ Indiquez au moins le prix organisation');return false;}
+    if(!groupe){p.tarifs={organisation:n(p.prix_org),particulier:n(p.prix_part),etudiant:n(p.prix_etud)};p.mode_tarif='financeur';p.prix_ht=n(p.prix_org);p.unite='participant';}
+    p.prix_achat=0;p.type_article='formation';p.catalogue=p.catalogue||'Formations H TECH ACADEMY';p.fournisseur=p.fournisseur||'H TECH INNOV';
+    const d=String(p.duree_txt||'').trim();p.description=String(p.description||'').replace(/\s*Durée\s*:\s*[^.]+\./,'').trim()+(d?' Durée : '+d.replace(/\.$/,'')+'.':'');
+    delete p.prix_org;delete p.prix_part;delete p.prix_etud;delete p.duree_txt;
+    if(!row&&!String(p.reference||'').trim())p.reference='HTI-FO-'+String(p.designation).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,24)+'-'+rndToken(3).toUpperCase();
+    ACAD_FORMATIONS=[];
+  },
+  colonnes:[{l:'',f:r=>vignette(r.image_data||'','cat-thumb')},
+    {l:'Formation',f:r=>`<div class="cell-main">${esc(r.designation)}</div><div class="cell-sub">${esc(r.reference||'')} · ${esc(r.categorie||'')}</div>`},
+    {l:'Prix par participant',f:r=>{const t=r.tarifs||{},f=v=>v==null?'—':fmtF(Array.isArray(v)?v[0]:v);return t.organisation!==undefined?`<div class="cell-sub">Org. ${f(t.organisation)} · Part. ${f(t.particulier)} · Étud. ${f(t.etudiant)}</div>`:`<div class="cell-sub">Groupe ${f(t.A)}</div>`;}},
+    {l:'Site',f:r=>r.statut==='inactif'?badge('Archivée','badge-gray'):r.visible_site===false?badge('Hors site','badge-amber'):badge('Publiée','badge-green')}],
+  kpis:rows=>[{l:'Formations',v:String(rows.length)},{l:'Publiées sur le site',v:String(rows.filter(r=>r.visible_site!==false&&r.statut!=='inactif').length),c:'var(--accent-dark)'},
+    {l:'Hors site (privées)',v:String(rows.filter(r=>r.visible_site===false).length)}]});
+async function acadCreerFormation(nom){
+  await showPage('academy-formations');
+  setTimeout(()=>v4Form('academy-formations',null,nom?{designation:nom,categorie:'Formation sur mesure'}:null),400);
+}
+
 // ── Sessions publiées sur le site ──
 v4Def('academy-sessions',{table:'academy_sessions',titre:'Sessions de formation',icone:'📅',sousTitre:'Les sessions publiques apparaissent sur le site H TECH ACADEMY',
   nouveau:'Nouvelle session',ordre:'date_debut',recherche:['titre','formation_ref','lieu','format'],
@@ -13476,14 +13532,14 @@ async function acadSuppr(table,id){if(!confirm('Supprimer définitivement ?'))re
     const ses=V4['academy-sessions'];const _of=v4Form;
     v4Form=async function(id,rowId,preset){if(id==='academy-sessions'){await acadFormations();ses.champs[0].o=ACAD_FORMATIONS.map(f=>[f.reference,f.designation]);}return _of(id,rowId,preset);};
     const A='H TECH Academy';
-    const bloc=[{s:A},{id:'academy-demandes',i:'📥',l:'Demandes de formation'},{id:'academy-inscriptions',i:'🎓',l:'Apprenants'},{id:'mes-apprenants',i:'🧑‍🏫',l:'Mes apprenants'},
+    const bloc=[{s:A},{id:'academy-demandes',i:'📥',l:'Demandes de formation'},{id:'academy-formations',i:'📚',l:'Formations'},{id:'academy-inscriptions',i:'🎓',l:'Apprenants'},{id:'mes-apprenants',i:'🧑‍🏫',l:'Mes apprenants'},
       {id:'academy-contenus',i:'🎬',l:'Contenus de cours'},{id:'academy-sessions',i:'📅',l:'Sessions'}];
     ['superadmin','admin'].forEach(r=>{const nav=NAV[r];if(!nav)return;const k=nav.findIndex(x=>x.s==='Communication');nav.splice(k<0?nav.length:k,0,...bloc);});
     ['responsable','collaborateur'].forEach(r=>{if(NAV[r])NAV[r].push({s:A},{id:'mes-apprenants',i:'🧑‍🏫',l:'Mes apprenants'});});
     if(NAV.formateur)NAV.formateur.push({s:A},{id:'mes-apprenants',i:'🧑‍🏫',l:'Mes apprenants'},{id:'academy-contenus',i:'🎬',l:'Contenus de cours'},{id:'academy-sessions',i:'📅',l:'Sessions'});
-    Object.assign(PAGE_LABELS,{'academy-demandes':'Demandes de formation','academy-inscriptions':'Apprenants','mes-apprenants':'Mes apprenants','academy-contenus':'Contenus de cours','academy-sessions':'Sessions'});
+    Object.assign(PAGE_LABELS,{'academy-formations':'Formations','academy-demandes':'Demandes de formation','academy-inscriptions':'Apprenants','mes-apprenants':'Mes apprenants','academy-contenus':'Contenus de cours','academy-sessions':'Sessions'});
   }catch(e){logErr(e);}
-  const creer=()=>{const ref=document.getElementById('page-dashboard');if(!ref)return;['academy-demandes','academy-inscriptions','mes-apprenants','academy-contenus','academy-sessions'].forEach(id=>{if(!document.getElementById('page-'+id)){const d=document.createElement('div');d.className='page';d.id='page-'+id;ref.parentNode.appendChild(d);}});};
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(!ref)return;['academy-demandes','academy-formations','academy-inscriptions','mes-apprenants','academy-contenus','academy-sessions'].forEach(id=>{if(!document.getElementById('page-'+id)){const d=document.createElement('div');d.className='page';d.id='page-'+id;ref.parentNode.appendChild(d);}});};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
 
@@ -13567,7 +13623,7 @@ v4Def('site-contenus',{titre:'Textes du site',icone:'✏️',custom:async pg=>{
   SITE_VALS=Object.fromEntries((data||[]).map(r=>[r.cle,r]));
   const groupes=[...new Set(SITE_TEXTES.map(t=>t.s))];
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">✏️ Textes du site</h1><div class="page-sub">Modifiez les textes affichés sur htechinnov.com et H TECH ACADEMY. Laissez un champ vide pour garder le texte d’origine. Chaque modification est historisée.</div></div>
-    <div class="v4-tools"><a class="btn btn-outline btn-sm" href="https://www.htechinnov.com/" target="_blank" rel="noopener">Voir le site ↗</a><a class="btn btn-outline btn-sm" href="${esc(typeof ACADEMY_URL!=='undefined'?ACADEMY_URL:'https://www.htechinnov.com/academy/')}" target="_blank" rel="noopener">Voir l’Academy ↗</a></div></div>
+    <div class="v4-tools"><a class="btn btn-primary btn-sm" href="https://www.htechinnov.com/?edition=1" target="_blank" rel="noopener">✏️ Modifier le site en direct</a><a class="btn btn-primary btn-sm" href="https://www.htechinnov.com/academy/?edition=1" target="_blank" rel="noopener">✏️ Modifier l’Academy en direct</a></div></div>
     ${groupes.map(gr=>`<div class="card" style="margin-bottom:14px"><h3 class="v4-h3">${esc(gr)}</h3>${SITE_TEXTES.filter(t=>t.s===gr).map(t=>{const r=SITE_VALS[t.k];const v=r?.valeur||'';
       return `<div class="site-txt"><label for="st-${esc(t.k)}">${esc(t.l)}</label>
       ${t.long?`<textarea id="st-${esc(t.k)}" rows="${t.rows||3}" placeholder="${esc(t.ph||'Texte d’origine')}">${esc(v)}</textarea>`:`<input id="st-${esc(t.k)}" value="${esc(v)}" placeholder="${esc(t.ph||'Texte d’origine')}"/>`}
@@ -13609,6 +13665,236 @@ async function siteTexteRestaurer(k,i){
     const _f=v4Form;v4Form=async function(id,a,b){if(id==='site-formateurs'&&typeof acadFormations==='function')await acadFormations();return _f(id,a,b);};
   }catch(e){logErr(e);}
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(!ref)return;['site-contenus','site-partenaires','site-formateurs'].forEach(id=>{if(!document.getElementById('page-'+id)){const d=document.createElement('div');d.className='page';d.id='page-'+id;ref.parentNode.appendChild(d);}});};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+// ERP v12 — IMPORT AUTOMATIQUE DE CATALOGUES FOURNISSEURS
+// PDF (lu par l'IA, page par page, images extraites du PDF), Excel ou CSV (colonnes
+// reconnues automatiquement). Aperçu modifiable, puis import au format du catalogue :
+// référence, désignation et description en français, catégorie, coût d'achat, image.
+// ══════════════════════════════════════════════════════════════════════
+var IMP={articles:[],existants:{},fichier:null,type:'',lignesXls:null,entetes:[],arret:false};
+var IMP_TAUX={FCFA:1,EUR:655.957,USD:600};
+function impEl(id){return document.getElementById(id);}
+v4Def('import-catalogue',{titre:'Importer un catalogue',icone:'📥',custom:async pg=>{
+  const{data:cats}=await sb.from('produits').select('catalogue,fournisseur').limit(5000);
+  const noms=[...new Set((cats||[]).map(c=>c.catalogue||c.fournisseur).filter(Boolean))].sort();
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">📥 Importer un catalogue fournisseur</h1><div class="page-sub">Liste de prix PDF, Excel ou CSV : les articles sont créés au même format que le catalogue Beyond (référence, désignation et description en français, catégorie, coût d’achat, image)</div></div></div>
+  <div class="card imp-etape"><h3 class="v4-h3">1. Le fichier</h3>
+    <div class="form-grid">
+      <div class="form-field full"><label for="impF">Fichier du fournisseur (PDF, Excel .xlsx/.xls ou CSV)</label><input type="file" id="impF" accept=".pdf,.xlsx,.xls,.csv,application/pdf" onchange="impFichier(this)"></div>
+      <div class="form-field"><label for="impCat">Nom du catalogue *</label><input id="impCat" list="impCats" placeholder="Ex. Beyond (grossiste), Hikvision Distribution…"><datalist id="impCats">${noms.map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
+      <div class="form-field"><label for="impFour">Fournisseur (si différent)</label><input id="impFour" placeholder="Par défaut : le nom du catalogue"></div>
+      <div class="form-field"><label for="impDev">Devise des prix du fichier</label><select id="impDev" onchange="impEl('impTaux').value=IMP_TAUX[this.value]||1">${Object.keys(IMP_TAUX).map(d=>`<option>${d}</option>`).join('')}</select></div>
+      <div class="form-field"><label for="impTaux">Taux de conversion en FCFA</label><input id="impTaux" type="number" step="any" value="1"></div>
+      <div class="form-field full"><p class="cell-sub" style="margin:0">Les prix importés sont enregistrés comme <b>coûts d’achat</b> : le prix de vente se calcule au chiffrage avec le coefficient, comme pour Beyond.</p></div>
+    </div>
+    <div id="impOptions"></div>
+    <div class="imp-actions"><button class="btn btn-primary" id="impGo" onclick="impAnalyser()" disabled>Analyser le fichier</button><span id="impEtat" class="cell-sub" aria-live="polite"></span></div>
+    <div class="acad-bar" id="impBarre" hidden style="margin-top:10px"><i style="width:0%"></i></div>
+  </div>
+  <div id="impApercu"></div>`;
+}});
+function impFichier(inp){
+  const f=inp.files?.[0];IMP.fichier=f||null;IMP.articles=[];impEl('impApercu').innerHTML='';
+  const o=impEl('impOptions');o.innerHTML='';impEl('impGo').disabled=!f;
+  if(!f)return;
+  const ext=f.name.split('.').pop().toLowerCase();IMP.type=ext==='pdf'?'pdf':(['xlsx','xls','csv'].includes(ext)?'tableur':'');
+  if(!IMP.type){toast('❌ Format non reconnu : PDF, Excel ou CSV');impEl('impGo').disabled=true;return;}
+  if(!impEl('impCat').value)impEl('impCat').value=f.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').replace(/\b(grille|tarif|tarifaire|prix|liste|catalogue|price|list)\b/gi,'').trim();
+  if(IMP.type==='pdf')o.innerHTML=`<div class="form-grid"><div class="form-field"><label for="impP1">Pages : de</label><input id="impP1" type="number" min="1" value="1"></div><div class="form-field"><label for="impP2">à (vide = jusqu’à la fin)</label><input id="impP2" type="number" min="1"></div>
+    <div class="form-field full"><p class="cell-sub" style="margin:0">Chaque page est lue par l’intelligence artificielle (références, prix, catégories, traduction en français), et les photos sont extraites du PDF. Comptez 20 à 40 secondes par page.</p></div></div>`;
+  else impPreparerTableur(f);
+}
+
+// ── Excel / CSV : colonnes reconnues automatiquement ──
+var IMP_COLS=[['reference','Référence',/^(r[ée]f|code|sku|article|part|model|mod[eè]le|product.?code)/i],['designation','Désignation',/(d[ée]signation|libell|nom|name|produit|product|item|title|titre)/i],
+  ['description','Description',/(desc|d[ée]tail|caract|spec|feature)/i],['prix','Prix',/(prix|price|tarif|co[uû]t|cost|pu\b|p\.u|montant|amount|unit)/i],['categorie','Catégorie',/(cat[ée]g|famille|family|gamme|section|type|groupe|group)/i],['image','Lien de l’image (facultatif)',/(image|photo|picture|img|visuel|url)/i]];
+async function impPreparerTableur(f){
+  await ensureXlsx();
+  const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true}).filter(r=>r.some(c=>String(c).trim()));
+  let h=rows.findIndex(r=>r.filter(c=>String(c).trim()).length>=2);if(h<0)h=0;
+  IMP.entetes=rows[h].map((c,i)=>String(c).trim()||('Colonne '+(i+1)));IMP.lignesXls=rows.slice(h+1);
+  const devine=re=>{const i=IMP.entetes.findIndex(e=>re.test(e));return i;};
+  const choix=IMP_COLS.map(([k,l,re])=>{const i=devine(re);return `<div class="form-field"><label for="impC-${k}">${l}</label><select id="impC-${k}"><option value="-1">— Aucune —</option>${IMP.entetes.map((e,j)=>`<option value="${j}" ${j===i?'selected':''}>${esc(e)}</option>`).join('')}</select></div>`;}).join('');
+  impEl('impOptions').innerHTML=`<h3 class="v4-h3" style="margin-top:14px">Colonnes reconnues (${IMP.lignesXls.length} lignes)</h3><div class="form-grid">${choix}</div>
+    <label class="dt-check"><input type="checkbox" id="impTrad" checked> Traduire et reformuler désignations et descriptions en français (intelligence artificielle)</label>`;
+}
+function impNum(v){if(typeof v==='number')return v;const s=String(v||'').replace(/[^\d,.\-]/g,'');if(!s)return null;const n=s.includes(',')&&s.lastIndexOf(',')>s.lastIndexOf('.')?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');const x=parseFloat(n);return isNaN(x)?null:x;}
+
+async function impAnalyser(){
+  const cat=(impEl('impCat').value||'').trim();if(!cat){toast('❌ Indiquez le nom du catalogue');impEl('impCat').focus();return;}
+  IMP.articles=[];IMP.arret=false;impEl('impGo').disabled=true;
+  const{data:ex}=await sb.from('produits').select('id,reference,designation,prix_achat,prix_ht,image_data').limit(10000);
+  IMP.existants=Object.fromEntries((ex||[]).filter(p=>p.reference).map(p=>[String(p.reference).trim().toUpperCase(),p]));
+  try{ if(IMP.type==='pdf')await impLirePdf(); else await impLireTableur(); }
+  catch(e){toast('❌ '+(e.message||e),9000);logErr(e);}
+  impEl('impGo').disabled=false;impApercu();
+}
+function impProgres(n,t,txt){const b=impEl('impBarre');b.hidden=false;b.querySelector('i').style.width=Math.round(100*n/Math.max(1,t))+'%';impEl('impEtat').textContent=txt||'';}
+async function impLireTableur(){
+  const col=k=>parseInt(impEl('impC-'+k)?.value);const taux=numIn(impEl('impTaux').value)||1;
+  const v=(r,k)=>{const i=col(k);return i>=0?r[i]:'';};
+  let arts=IMP.lignesXls.map(r=>({reference:String(v(r,'reference')).trim(),designation:String(v(r,'designation')).trim(),description:String(v(r,'description')).trim(),
+    categorie:String(v(r,'categorie')).trim(),prix:impNum(v(r,'prix')),image_url:String(v(r,'image')).trim()})).filter(a=>a.reference||a.designation);
+  arts.forEach(a=>{if(a.prix!=null)a.prix=Math.round(a.prix*taux);});
+  if(impEl('impTrad')?.checked&&arts.length){
+    for(let i=0;i<arts.length;i+=40){
+      if(IMP.arret)break;impProgres(i,arts.length,`Traduction en français… ${i}/${arts.length}`);
+      const lot=arts.slice(i,i+40);
+      const{data,error}=await sb.functions.invoke('hti-assistant',{body:{mode:'traduction',articles:lot.map(a=>({designation:a.designation,description:a.description,categorie:a.categorie}))}});
+      if(error||data?.error){toast('⚠ Traduction indisponible ('+(data?.error||error.message)+') : textes d’origine conservés',8000);break;}
+      (data.articles||[]).forEach((t,j)=>{if(lot[j]&&t){lot[j].designation=t.designation||lot[j].designation;lot[j].description=t.description||lot[j].description;lot[j].categorie=t.categorie||lot[j].categorie;}});
+    }
+  }
+  // images par lien (si le site du fournisseur l'autorise)
+  const avecImg=arts.filter(a=>/^https?:\/\//i.test(a.image_url));
+  for(let i=0;i<avecImg.length;i++){impProgres(i,avecImg.length,`Images ${i+1}/${avecImg.length}…`);try{avecImg[i].image=await impImageUrl(avecImg[i].image_url);}catch(e){}}
+  IMP.articles=arts;impProgres(1,1,`${arts.length} articles lus`);
+}
+async function impImageUrl(u){
+  const r=await fetch(u);if(!r.ok)throw new Error(r.status);const b=await r.blob();
+  const im=await createImageBitmap(b);return impVignetteDepuis(im,0,0,im.width,im.height);
+}
+function impVignetteDepuis(src,sx,sy,sw,sh,taille){
+  const T=taille||200,k=Math.min(1,T/Math.max(sw,sh)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(sw*k));c.height=Math.max(1,Math.round(sh*k));
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(src,sx,sy,sw,sh,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.8);
+}
+// Recadre une zone en retirant les bords blancs
+function impRogner(canvas,x0,y0,x1,y1){
+  x0=Math.max(0,Math.floor(x0));y0=Math.max(0,Math.floor(y0));x1=Math.min(canvas.width,Math.ceil(x1));y1=Math.min(canvas.height,Math.ceil(y1));
+  const w=x1-x0,h=y1-y0;if(w<8||h<8)return null;
+  const d=canvas.getContext('2d').getImageData(x0,y0,w,h).data;let mx=w,my=h,Mx=-1,My=-1;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;if(d[i]<235||d[i+1]<235||d[i+2]<235){if(x<mx)mx=x;if(y<my)my=y;if(x>Mx)Mx=x;if(y>My)My=y;}}
+  if(Mx<0||(Mx-mx)<6||(My-my)<6)return null;
+  return impVignetteDepuis(canvas,x0+mx,y0+my,Mx-mx+1,My-my+1);
+}
+
+// ── PDF : chaque page est lue par l'IA, les photos sont extraites du PDF ──
+async function impPdfJs(){
+  if(window.pdfjsLib)return window.pdfjsLib;
+  await new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=ok;s.onerror=()=>ko(new Error('Lecteur PDF indisponible'));document.head.appendChild(s);});
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';return window.pdfjsLib;
+}
+// Positions des images d'une page (en pixels de la page rendue)
+async function impImagesPage(page,viewport,pdfjs){
+  const ops=await page.getOperatorList(),O=pdfjs.OPS,boites=[];let ctm=[1,0,0,1,0,0];const pile=[];
+  const mul=(m,n)=>[m[0]*n[0]+m[2]*n[1],m[1]*n[0]+m[3]*n[1],m[0]*n[2]+m[2]*n[3],m[1]*n[2]+m[3]*n[3],m[0]*n[4]+m[2]*n[5]+m[4],m[1]*n[4]+m[3]*n[5]+m[5]];
+  for(let i=0;i<ops.fnArray.length;i++){
+    const fn=ops.fnArray[i],a=ops.argsArray[i];
+    if(fn===O.save)pile.push(ctm.slice());else if(fn===O.restore)ctm=pile.pop()||[1,0,0,1,0,0];
+    else if(fn===O.transform)ctm=mul(ctm,a);
+    else if(fn===O.paintImageXObject||fn===O.paintInlineImageXObject||fn===O.paintImageMaskXObject||fn===O.paintJpegXObject){
+      const m=mul(viewport.transform,ctm),pts=[[0,0],[1,0],[0,1],[1,1]].map(([x,y])=>[m[0]*x+m[2]*y+m[4],m[1]*x+m[3]*y+m[5]]);
+      const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);const b={x0:Math.min(...xs),y0:Math.min(...ys),x1:Math.max(...xs),y1:Math.max(...ys)};
+      if((b.x1-b.x0)>12&&(b.y1-b.y0)>12&&(b.x1-b.x0)<viewport.width*0.9&&(b.y1-b.y0)<viewport.height*0.9)boites.push(b);
+    }
+  }
+  return boites;
+}
+async function impLirePdf(){
+  const pdfjs=await impPdfJs();const doc=await pdfjs.getDocument({data:await IMP.fichier.arrayBuffer()}).promise;
+  const p1=Math.max(1,parseInt(impEl('impP1').value)||1),p2=Math.min(doc.numPages,parseInt(impEl('impP2').value)||doc.numPages);
+  const taux=numIn(impEl('impTaux').value)||1,devise=impEl('impDev').value,four=(impEl('impFour').value||impEl('impCat').value).trim();
+  let section='',erreurs=0;
+  for(let n=p1;n<=p2;n++){
+    if(IMP.arret)break;impProgres(n-p1,p2-p1+1,`Lecture de la page ${n}/${p2}… (${IMP.articles.length} articles trouvés)`);
+    const page=await doc.getPage(n),vp=page.getViewport({scale:2});
+    const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+    // image envoyée à l'IA : largeur 1500 px maximum
+    const k=Math.min(1,1500/cv.width),ia=document.createElement('canvas');ia.width=Math.round(cv.width*k);ia.height=Math.round(cv.height*k);ia.getContext('2d').drawImage(cv,0,0,ia.width,ia.height);
+    const b64=ia.toDataURL('image/jpeg',0.82).split(',')[1];
+    let arts=[];
+    try{
+      const{data,error}=await sb.functions.invoke('hti-assistant',{body:{mode:'catalogue_page',image:b64,type:'image/jpeg',fournisseur:four,devise,section}});
+      if(error)throw error;if(data?.error)throw new Error(data.error);arts=data.articles||[];
+    }catch(e){erreurs++;toast(`⚠ Page ${n} non lue : ${e.message||e}`,7000);if(erreurs>=2&&!IMP.articles.length)throw new Error('Lecture impossible : vérifiez que la fonction « hti-assistant » est déployée avec le secret ANTHROPIC_API_KEY.');continue;}
+    const boites=await impImagesPage(page,vp,pdfjs),prises=new Set();
+    arts.forEach(a=>{
+      if(a.categorie)section=a.categorie;
+      const y=Math.max(0,Math.min(1,Number(a.y)||0))*vp.height;let img=null;
+      // 1. photo du PDF la plus proche de la ligne (ou recouvrant le cadre indiqué par l'IA)
+      const ib=Array.isArray(a.image_box)&&a.image_box.length===4?{x0:a.image_box[0]*vp.width,y0:a.image_box[1]*vp.height,x1:a.image_box[2]*vp.width,y1:a.image_box[3]*vp.height}:null;
+      let best=-1,score=1e9;
+      boites.forEach((b,i)=>{const cy=(b.y0+b.y1)/2;let s=Math.abs(cy-(ib?(ib.y0+ib.y1)/2:y));
+        if(ib){const ov=Math.max(0,Math.min(b.x1,ib.x1)-Math.max(b.x0,ib.x0))*Math.max(0,Math.min(b.y1,ib.y1)-Math.max(b.y0,ib.y0));if(ov>0)s-=1000;}
+        if(prises.has(i))s+=vp.height*0.02;
+        if(s<score&&(Math.abs(cy-y)<vp.height*0.08||ib)){score=s;best=i;}});
+      if(best>=0){const b=boites[best];prises.add(best);img=impRogner(cv,b.x0,b.y0,b.x1,b.y1);}
+      // 2. sinon, découpe du cadre indiqué par l'IA (PDF scanné)
+      if(!img&&ib)img=impRogner(cv,ib.x0,ib.y0,ib.x1,ib.y1);
+      IMP.articles.push({reference:String(a.reference||'').trim(),designation:String(a.designation||'').trim(),description:String(a.description||'').trim(),
+        categorie:String(a.categorie||section||'').trim(),prix:a.prix!=null&&!isNaN(Number(a.prix))?Math.round(Number(a.prix)*taux):null,image:img,page:n});
+    });
+  }
+  impProgres(1,1,`${IMP.articles.length} articles lus${erreurs?` (${erreurs} page(s) en erreur)`:''}`);
+}
+
+// ── Aperçu modifiable ──
+function impStatut(a,i){
+  const r=String(a.reference||'').trim().toUpperCase();
+  if(!r)return['Sans référence','badge-amber'];
+  if(IMP.articles.findIndex(x=>String(x.reference||'').trim().toUpperCase()===r)!==i)return['Doublon dans le fichier','badge-red'];
+  const e=IMP.existants[r];if(!e)return['Nouveau','badge-green'];
+  const ancien=numIn(e.prix_achat||e.prix_ht);
+  return[ancien&&a.prix!=null&&ancien!==a.prix?`Mise à jour : ${fmtF(ancien)} → ${fmtF(a.prix)}`:'Déjà au catalogue','badge-blue'];
+}
+function impApercu(){
+  const z=impEl('impApercu');if(!z)return;const A=IMP.articles;
+  if(!A.length){z.innerHTML=IMP.fichier?'<div class="card empty-cell">Aucun article trouvé dans ce fichier.</div>':'';return;}
+  A.forEach((a,i)=>{if(a.ok===undefined){const st=impStatut(a,i)[0];a.ok=st!=='Doublon dans le fichier'&&st!=='Déjà au catalogue'&&!!(a.designation||a.reference);}});
+  const nb=k=>A.filter((a,i)=>impStatut(a,i)[0].startsWith(k)).length;
+  z.innerHTML=`<div class="card"><div class="v4-head" style="margin-bottom:8px"><div><h3 class="v4-h3" style="margin:0">2. Vérifier avant l’import (${A.length} articles)</h3>
+    <div class="cell-sub">${nb('Nouveau')} nouveaux · ${nb('Mise à jour')} prix modifiés · ${nb('Déjà')} inchangés · ${nb('Doublon')} doublons · ${nb('Sans')} sans référence · ${A.filter(a=>a.image).length} avec photo. Cliquez sur une cellule pour corriger, sur une photo pour la remplacer.</div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="IMP.articles.forEach(a=>a.ok=true);impApercu()">Tout cocher</button><button class="btn btn-outline btn-sm" onclick="IMP.articles.forEach(a=>a.ok=false);impApercu()">Tout décocher</button>
+    <button class="btn btn-primary btn-sm" onclick="impImporter()">3. Importer la sélection (<span id="impNb">${A.filter(a=>a.ok).length}</span>)</button></div></div>
+    <div class="table-wrap imp-table"><table><thead><tr><th></th><th>Photo</th><th>Référence</th><th>Désignation et description (français)</th><th>Catégorie</th><th class="num">Coût d’achat (FCFA)</th><th>Statut</th></tr></thead><tbody>
+    ${A.map((a,i)=>{const st=impStatut(a,i);return `<tr class="${a.ok?'':'row-muted'}">
+      <td><input type="checkbox" aria-label="Importer cet article" ${a.ok?'checked':''} onchange="IMP.articles[${i}].ok=this.checked;this.closest('tr').classList.toggle('row-muted',!this.checked);impEl('impNb').textContent=IMP.articles.filter(x=>x.ok).length"></td>
+      <td><label class="imp-photo" title="Remplacer la photo">${a.image?`<img src="${esc(a.image)}" alt="">`:'<span class="vig-vide">Ajouter</span>'}<input type="file" accept="image/*" hidden onchange="impPhoto(${i},this)"></label></td>
+      <td><input class="imp-in" value="${esc(a.reference)}" onchange="IMP.articles[${i}].reference=this.value.trim();impApercu()"></td>
+      <td><input class="imp-in" value="${esc(a.designation)}" onchange="IMP.articles[${i}].designation=this.value"><textarea class="imp-in imp-desc" rows="2" onchange="IMP.articles[${i}].description=this.value">${esc(a.description)}</textarea></td>
+      <td><input class="imp-in" value="${esc(a.categorie)}" onchange="IMP.articles[${i}].categorie=this.value"></td>
+      <td><input class="imp-in num" type="number" value="${a.prix==null?'':esc(a.prix)}" onchange="IMP.articles[${i}].prix=this.value===''?null:Math.round(numIn(this.value));impApercu()"></td>
+      <td>${badge(st[0],st[1])}${a.page?`<div class="cell-sub">page ${esc(a.page)}</div>`:''}</td></tr>`;}).join('')}</tbody></table></div></div>`;
+}
+async function impPhoto(i,inp){const f=inp.files?.[0];if(!f)return;try{IMP.articles[i].image=await vignetteDepuisFichier(f,200);impApercu();}catch(e){toast('❌ Image illisible');}}
+async function impImporter(){
+  const sel=IMP.articles.filter(a=>a.ok);if(!sel.length){toast('Aucun article sélectionné');return;}
+  const cat=(impEl('impCat').value||'').trim(),four=(impEl('impFour').value||cat).trim();
+  if(!confirm(`Importer ${sel.length} article(s) dans le catalogue « ${cat} » ?`))return;
+  let crees=0,maj=0,err=0,n=0;const code=cat.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'').slice(0,6)||'IMP';
+  const nouveaux=[];
+  for(const a of sel){
+    n++;impProgres(n,sel.length,`Import ${n}/${sel.length}…`);
+    const ref=String(a.reference||'').trim()||(code+'-'+rndToken(6).toUpperCase());
+    const d={designation:(a.designation||ref).slice(0,300),description:a.description||null,categorie:a.categorie||null,prix_achat:a.prix??0,catalogue:cat,fournisseur:four,
+      type_article:'materiel',mode_tarif:'cout_coef',statut:'actif'};
+    if(a.image)d.image_data=a.image;
+    const e=IMP.existants[ref.toUpperCase()];
+    if(e){const r=await sb.from('produits').update(d).eq('id',e.id);if(r.error){err++;logErr(r.error);}else maj++;}
+    else nouveaux.push({...d,reference:ref,prix_ht:a.prix??0,unite:'u'});
+  }
+  for(let i=0;i<nouveaux.length;i+=25){
+    const lot=nouveaux.slice(i,i+25);const r=await sb.from('produits').insert(lot);
+    if(r.error){ // repli ligne par ligne pour isoler l'article fautif
+      for(const x of lot){const q=await sb.from('produits').insert(x);if(q.error){err++;logErr(q.error);}else crees++;}
+    }else crees+=lot.length;
+  }
+  logAudit('import_catalogue','produits',cat,{crees,maj,err});
+  impProgres(1,1,`Terminé : ${crees} créés, ${maj} mis à jour${err?`, ${err} en erreur`:''}`);
+  toast(`✅ Catalogue « ${cat} » : ${crees} articles créés, ${maj} mis à jour${err?` · ${err} en erreur`:''}`,8000);
+  PRODUITS_CACHE=[];IMP.articles=[];impApercu();
+}
+
+(function(){
+  try{
+    ['superadmin','admin','responsable'].forEach(r=>{const nav=NAV[r];if(!nav)return;const k=nav.findIndex(x=>x.id==='catalogue');nav.splice(k<0?nav.length:k+1,0,{id:'import-catalogue',i:'📥',l:'Importer un catalogue'});});
+    PAGE_LABELS['import-catalogue']='Importer un catalogue';
+  }catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-import-catalogue')){const d=document.createElement('div');d.className='page';d.id='page-import-catalogue';ref.parentNode.appendChild(d);}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
 </script>
