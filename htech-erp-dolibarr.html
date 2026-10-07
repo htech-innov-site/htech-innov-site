@@ -2386,7 +2386,7 @@ function htiAsset(f){return new URL('assets/'+f,location.href).href;}
 var _htiAssetsP=null,_HTI_ASSETS_MANQUANTS=[];
 // Lit un fichier image et renvoie un data URL dont le type est déduit des octets (jamais de « octet-stream »)
 async function htiImageData(url){
-  const r=await fetch(url,{cache:'force-cache'});
+  const r=await fetch(url,{cache:'no-cache'}); // revalide toujours : une ancienne erreur 404 n'est jamais réutilisée
   if(!r.ok)throw new Error('HTTP '+r.status+' '+url);
   const buf=new Uint8Array(await r.arrayBuffer());
   let mime=null;
@@ -2401,10 +2401,16 @@ function htiAssetsReady(){
   _htiAssetsP=Promise.all(Object.keys(_HTI_ASSET_NAMES).map(function(f){
     var name=_HTI_ASSET_NAMES[f],cur=window[name];
     if(typeof cur==='string'&&/^data:image\/(png|jpeg);base64,/.test(cur))return null;
-    return htiImageData(htiAsset(f)).then(function(d){window[name]=d;})
+    // plusieurs emplacements possibles : à côté de l'ERP, puis sur le site principal
+    var urls=[htiAsset(f),'https://www.htechinnov.com/assets/'+f,'https://htechinnov.com/assets/'+f];
+    var essai=function(i){return htiImageData(urls[i]).catch(function(e){if(i+1<urls.length)return essai(i+1);throw e;});};
+    return essai(0).then(function(d){window[name]=d;})
       .catch(function(e){window[name]='';_HTI_ASSETS_MANQUANTS.push(f);logErr(e);}); // jamais une URL brute dans un PDF
   })).then(function(){
-    if(_HTI_ASSETS_MANQUANTS.length)toast('⚠ Logo ou cachet introuvable ('+_HTI_ASSETS_MANQUANTS.join(', ')+') : déposez le dossier « assets » à côté du fichier HTML. Les PDF sont générés sans.',6000);
+    if(_HTI_ASSETS_MANQUANTS.length){
+      toast('⚠ Logo ou cachet introuvable ('+_HTI_ASSETS_MANQUANTS.join(', ')+'). Ajoutez-les dans Administration › Sociétés du groupe, ou vérifiez le dossier « assets ». Les PDF sont générés sans.',8000);
+      _HTI_ASSETS_MANQUANTS=[];_htiAssetsP=null; // nouvel essai au prochain PDF
+    }
   }).catch(logErr);
   return _htiAssetsP;
 }
@@ -12996,12 +13002,13 @@ async function chargerSocietes(){
   await socVisuels();socSelecteur();
 }
 async function socVisuels(){
-  if(_HTI_LOGO_BASE===null){await htiAssetsReady();_HTI_LOGO_BASE=HTI_LOGO;_HTI_STAMP_BASE=HTI_STAMP;}
+  if(!_HTI_LOGO_BASE){await htiAssetsReady();_HTI_LOGO_BASE=HTI_LOGO;_HTI_STAMP_BASE=HTI_STAMP;}
   const img=async u=>{try{const m=/\/object\/public\/documents\/([^?#]+)/.exec(u||'');let url=u;
       if(m){const r=await sb.storage.from('documents').createSignedUrl(decodeURIComponent(m[1]),600);url=r.data?.signedUrl;}
       if(!url)return null;const b=await (await fetch(url)).blob();return await new Promise(ok=>{const fr=new FileReader();fr.onload=()=>ok(fr.result);fr.readAsDataURL(b);});}catch(e){logErr(e);return null;}};
-  if(SOC_ACTIVE&&!SOC_ACTIVE.par_defaut){HTI_LOGO=(await img(SOC_ACTIVE.logo_url))||'';HTI_STAMP=(await img(SOC_ACTIVE.cachet_url))||'';}
-  else{HTI_LOGO=_HTI_LOGO_BASE;HTI_STAMP=_HTI_STAMP_BASE;}
+  const ok=v=>typeof v==='string'&&/^data:image\/(png|jpeg);base64,/.test(v);
+  if(SOC_ACTIVE&&!SOC_ACTIVE.par_defaut){HTI_LOGO=ok(SOC_ACTIVE.logo_data)?SOC_ACTIVE.logo_data:((await img(SOC_ACTIVE.logo_url))||'');HTI_STAMP=ok(SOC_ACTIVE.cachet_data)?SOC_ACTIVE.cachet_data:((await img(SOC_ACTIVE.cachet_url))||'');}
+  else{HTI_LOGO=ok(SOC_ACTIVE?.logo_data)?SOC_ACTIVE.logo_data:(HTI_LOGO&&ok(HTI_LOGO)?HTI_LOGO:_HTI_LOGO_BASE);HTI_STAMP=ok(SOC_ACTIVE?.cachet_data)?SOC_ACTIVE.cachet_data:(HTI_STAMP&&ok(HTI_STAMP)?HTI_STAMP:_HTI_STAMP_BASE);}
 }
 function socSelecteur(){
   document.getElementById('socSwitch')?.remove();
@@ -13025,7 +13032,7 @@ v4Def('societes',{table:'societes',titre:'Sociétés du groupe',icone:'🏢',sou
     {k:'adresse',l:'Adresse'},{k:'ville',l:'Ville',def:'Abidjan, Côte d\u2019Ivoire'},{k:'tel',l:'Téléphone'},{k:'email',l:'Email'},{k:'web',l:'Site web'},
     {k:'responsable',l:'Signataire'},{k:'fonction',l:'Fonction du signataire'},{k:'banque',l:'Banque'},{k:'rib',l:'RIB / IBAN'},
     {k:'orange',l:'Orange Money'},{k:'mtn',l:'MTN MoMo'},{k:'wave',l:'Wave'},{k:'tva',l:'TVA par défaut %',t:'number',def:18},{k:'delai',l:'Délai de paiement (jours)',t:'number',def:30},
-    {k:'mentions',l:'Mentions légales (pied de page)',t:'textarea',rows:2},{k:'logo_url',l:'Logo (JPG)',t:'file'},{k:'cachet_url',l:'Cachet (PNG)',t:'file'},
+    {k:'mentions',l:'Mentions légales (pied de page)',t:'textarea',rows:2},{k:'logo_data',l:'Logo (utilisé sur les devis, factures et PDF)',t:'img',col:'logo_data',taille:500},{k:'cachet_data',l:'Cachet / signature (PNG ou JPG)',t:'img',col:'cachet_data',taille:420},
     {k:'membres_tous',l:'Accessible à toute l\u2019équipe',t:'check',def:true},{k:'actif',l:'Active',t:'check',def:true}],
   avant:p=>{p.code=String(p.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);if(!p.code){toast('❌ Code requis (lettres et chiffres)');return false;}},
   colonnes:[{l:'Société',f:r=>`<div class="cell-main">${esc(r.nom)}</div><div class="cell-sub">${esc([r.forme,r.rccm?'RCCM '+r.rccm:'',r.ncc?'NCC '+r.ncc:''].filter(Boolean).join(' · '))}</div>`},
