@@ -11370,6 +11370,7 @@ function buildLignesDoc(doc){
     <div class="form-field"><label>${esc(cfg.tiers)} *</label>${tiersField}<div class="doc-client-card" id="docClientCard"></div></div>
     <div class="form-field"><label>Date du document</label><input type="date" id="docDate" value="${isoJour()}" onchange="docMajValidite()"/></div>
     ${dateFin}
+    ${isDev?`<div class="form-field"><label for="docTypeDevis">Nature du devis *</label><select id="docTypeDevis" onchange="devisMajAideType()">${Object.entries(DEVIS_TYPES).map(([k,v])=>`<option value="${k}" ${k==='prestation'?'selected':''}>${esc(v)}</option>`).join('')}</select><div class="doc-hint" id="docTypeDevisAide">CGV prestations et installation jointes</div></div>`:''}
     ${isBC?`<div class="form-field"><label for="docTypeBC">Nature de la commande *</label><select id="docTypeBC" onchange="bcMajAideType()">${Object.entries(BC_TYPES).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}</select><div class="doc-hint" id="docTypeBCAide">Annexe A jointe : conditions générales d\u2019achat</div></div>`:''}
   </div>
 
@@ -11708,6 +11709,7 @@ async function sauverDevis(){
   const d=getDocData();if(!docValider(d,'devis'))return;
   const p=docPayload(d);
   p.reference=await nextNumero('DEV');p.validite_jours=parseInt(gv('docValidite'))||30;p.acompte_pct=d.acompte_pct;
+  p.type_devis=devisTypeNorm(gv('docTypeDevis'));p.annexes=await devisAnnexesFigees(p.type_devis);
   p.statut='brouillon';p.created_by=uid();
   const{error}=await dbSave('devis',p);
   if(error){toast('❌ '+error.message);return;}
@@ -11753,7 +11755,7 @@ async function editDocLignes(docType,id){
     if(d.conditions_paiement)set('docConditions',d.conditions_paiement);
     const exo=document.getElementById('docExo');if(exo)exo.checked=!!d.exonere_tva;
     if(docType==='facture'){set('docEcheance',d.date_echeance||'');set('docAcompteVerse',d.acompte_verse||0);}
-    if(docType==='devis'){set('docValidite',d.validite_jours||30);set('docAcompte',d.acompte_pct||0);}
+    if(docType==='devis'){set('docValidite',d.validite_jours||30);set('docAcompte',d.acompte_pct||0);set('docTypeDevis',devisTypeNorm(d.type_devis));devisMajAideType();}
     await renderProduitOptions();
     LIGNES.forEach(l=>{if(l.mode==='grille'){const p=PRODUITS_CACHE.find(x=>String(x.id)===String(l.produit_id)||x.reference===l.ref);if(p&&p.tarifs){l.tarifs=p.tarifs;l.tarifMode=p.mode_tarif;}}});
     renderLignes();docClientChoisi();recalcDoc();
@@ -11763,7 +11765,8 @@ async function updateDocLignes(docType){
   const d=getDocData();if(!docValider(d,docType))return;
   const p=docPayload(d);
   if(docType==='facture'){p.date_echeance=gv('docEcheance')||null;p.acompte_verse=d.acompte_verse||0;}
-  else{p.validite_jours=parseInt(gv('docValidite'))||30;p.acompte_pct=d.acompte_pct;}
+  else{p.validite_jours=parseInt(gv('docValidite'))||30;p.acompte_pct=d.acompte_pct;
+    p.type_devis=devisTypeNorm(gv('docTypeDevis'));p.annexes=await devisAnnexesFigees(p.type_devis,DOC_SRC?.annexes);}
   const{error}=await dbSave(DOC_CONFIG[docType].table,p,EDIT_DOC_ID);
   if(error){toast('❌ '+error.message);return;}
   await sauverChiffrage(docType,EDIT_DOC_ID,d.chiffrage);
@@ -11776,6 +11779,8 @@ async function docApercu(docType){
   const data={...docPayload(d),reference:DOC_SRC?.reference||'APERÇU',created_at:DOC_SRC?.created_at||new Date().toISOString(),
     statut:DOC_SRC?.statut||'brouillon',validite_jours:parseInt(gv('docValidite'))||30,acompte_pct:d.acompte_pct,
     acompte_verse:d.acompte_verse,date_echeance:gv('docEcheance')||null};
+  if(docType==='devis'){data.type_devis=devisTypeNorm(gv('docTypeDevis'));data._annexes=await docChargerAnnexes(DEVIS_TYPE_ANNEXES[data.type_devis],DOC_SRC?.annexes,true);}
+  if(docType==='facture'&&DOC_SRC){data.devis_reference=DOC_SRC.devis_reference;data.devis_id=DOC_SRC.devis_id;}
   docPDF(data,docType==='facture'?'FACTURE':'DEVIS',docType==='facture'?'Facture':'Devis',await tiersDuDoc(data));
 }
 async function tiersDuDoc(d){
@@ -11811,6 +11816,7 @@ async function dupliquerDoc(docType,id){
   ['id','created_at','updated_at','date_paiement','devis_id','devis_reference'].forEach(k=>delete p[k]);
   p.reference=await nextNumero(cfg.prefixe);p.statut=docType==='facture'?'emise':'brouillon';p.date_document=isoJour();p.created_by=uid();
   if(docType==='facture'){p.date_echeance=ajoutJours(null,getEntreprise().delai||30);p.acompte_verse=0;}
+  if(docType==='devis'){p.type_devis=devisTypeNorm(p.type_devis);p.annexes=await devisAnnexesFigees(p.type_devis);}
   const{error}=await dbSave(cfg.table,p);
   if(error){toast('❌ '+error.message);return;}
   if(docType!=='commande')await copierChiffrage(docType,id,docType,await idParReference(cfg.table,p.reference));
@@ -11901,7 +11907,7 @@ async function loadFinance(){
       if((st==='brouillon'||st==='envoye')&&new Date(fin)<new Date(isoJour()))st='expire';
       const[sl,sc]=sd[st]||[st,'badge-gray'];
       return `<tr>
-      <td><code class="ref">${esc(d.reference||'—')}</code></td>
+      <td><code class="ref">${esc(d.reference||'—')}</code>${devisTypeTag(d.type_devis)}</td>
       <td><div class="cell-main">${esc(d.titre||'—')}</div><div class="cell-sub">${esc(d.client_nom||'')}</div></td>
       <td class="num"><strong>${esc(money(d.total_ttc||0))}</strong></td>
       <td>${esc(fmtD(fin))}</td>
@@ -11932,6 +11938,7 @@ async function devisPDF(id){
   try{
     const{data:d}=await sb.from('devis').select('*').eq('id',id).single();
     if(!d){toast('❌ Devis introuvable');return;}
+    d._annexes=await docChargerAnnexes(DEVIS_TYPE_ANNEXES[devisTypeNorm(d.type_devis)],d.annexes,true);
     docPDF(d,'DEVIS','Devis',await tiersDuDoc(d));
   }catch(e){toast('❌ '+e.message);}
 }
@@ -12001,6 +12008,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
     if(isAv&&d.facture_origine)infos.push(['Facture d\'origine',d.facture_origine]);
     if(isBC&&d.date_echeance)infos.push(['Livraison prévue',fmtD(d.date_echeance)]);
     if(isBC&&d.type_commande)infos.push(['Nature',{fourniture:'Fourniture',prestation:'Sous-traitance',mixte:'Mixte',autre:'Autre'}[d.type_commande]||'']);
+    if(isDev&&d.type_devis)infos.push(['Nature',{materiel:'Matériel',prestation:'Prestation',mixte:'Mixte',formation:'Formation'}[d.type_devis]||'']);
     let y=26;
     doc.setFontSize(8.5);
     infos.forEach(([k,v])=>{color(GREY,'normal');doc.text(T(k),W-M-50,y);color(NAVY,'bold');doc.text(T(v),W-M,y,{align:'right'});y+=4.6;});
@@ -12148,9 +12156,15 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   });
 
   // Renvoi aux annexes contractuelles (bons de commande)
-  if(isBC&&Array.isArray(d._annexes)&&d._annexes.length){
-    const noms=d._annexes.map(a=>a.titre+' (Annexe '+a.code+', '+annexeLabel(a)+')').join(' et ');
-    const txt='La présente commande est soumise aux '+noms+', annexée'+(d._annexes.length>1?'s':'')+' au présent bon de commande et dont le fournisseur reconnaît avoir pris connaissance. Elles prévalent sur ses propres conditions générales. Toute exécution de la commande vaut acceptation.';
+  if(isFac&&!isAv&&d.devis_reference&&!d._sansMentionCGV){
+    const tl0=doc.splitTextToSize(T('Vente soumise aux conditions générales de vente annexées au devis '+d.devis_reference+' et acceptées par le client.'),W-2*M);
+    place(tl0.length*3.8+4);doc.setFontSize(7.8);color(GREY,'italic');doc.text(tl0,M,y+3);y+=tl0.length*3.8+4;
+  }
+  if((isBC||isDev)&&Array.isArray(d._annexes)&&d._annexes.length){
+    const noms=d._annexes.map(a=>a.titre+' (Annexe '+(a.numero||a.code)+', '+annexeLabel(a)+')').join(' et ');
+    const txt=isDev
+      ?'Le présent devis est soumis aux '+noms+', annexée'+(d._annexes.length>1?'s':'')+' au présent devis. En le signant avec la mention « Bon pour accord », le client déclare en avoir pris connaissance et les accepter. Elles prévalent sur ses conditions générales d’achat.'
+      :'La présente commande est soumise aux '+noms+', annexée'+(d._annexes.length>1?'s':'')+' au présent bon de commande et dont le fournisseur reconnaît avoir pris connaissance. Elles prévalent sur ses propres conditions générales. Toute exécution de la commande vaut acceptation.';
     const tl=doc.splitTextToSize(T(txt),W-2*M-8);
     place(tl.length*3.8+8);
     doc.setFillColor(...LIGHT);doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);
@@ -12180,8 +12194,8 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
 
   // Annexes contractuelles du bon de commande
   let pagesAnnexes=[];
-  if(isBC&&Array.isArray(d._annexes)&&d._annexes.length){
-    try{pagesAnnexes=bcDessinerAnnexes(doc,d._annexes,d.reference||'',entete);}catch(e){logErr(e);toast('⚠️ Annexes non imprimées : '+e.message);}
+  if((isBC||isDev)&&Array.isArray(d._annexes)&&d._annexes.length){
+    try{pagesAnnexes=bcDessinerAnnexes(doc,d._annexes,d.reference||'',entete,isDev?'client':'fournisseur');}catch(e){logErr(e);toast('⚠️ Annexes non imprimées : '+e.message);}
   }
   // Pied de page sur toutes les pages
   const nb=doc.getNumberOfPages();
@@ -12200,9 +12214,9 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
     doc.text(contact,W/2,289.5,{align:'center'});
     if(E.mentions)doc.text(doc.splitTextToSize(T(E.mentions),W-2*M-20)[0],W/2,293,{align:'center'});
     doc.text(T('Page '+i+' / '+nb),W-M,289.5,{align:'right'});
-    if(pagesAnnexes.includes(i)){doc.setFontSize(7.5);color(NAVY,'bold');doc.text(T('Paraphe du fournisseur : ________'),W-M,279,{align:'right'});}
+    if(pagesAnnexes.includes(i)){doc.setFontSize(7.5);color(NAVY,'bold');doc.text(T('Paraphe du '+(isDev?'client':'fournisseur')+' : ________'),W-M,279,{align:'right'});}
   }
-  const insBC=isBC&&Array.isArray(d._annexes)?d._annexes.filter(a=>a._src&&a._pages).map(a=>({bytes:a._src.bytes,pages:a._pages})):[];
+  const insBC=(isBC||isDev)&&Array.isArray(d._annexes)?d._annexes.filter(a=>a._src&&a._pages).map(a=>({bytes:a._src.bytes,pages:a._pages})):[];
   if(insBC.length){try{mdTelecharger(await mdIncruster(doc,insBC),T(prefixFichier+'-'+(d.reference||'document'))+'.pdf');}catch(e){logErr(e);toast('❌ Annexe PDF : '+e.message);return;}}
   else doc.save(T(prefixFichier+'-'+(d.reference||'document'))+'.pdf');
   toast('✅ '+(isDev?'Devis':isAv?'Avoir':isFac?'Facture':'Bon de commande')+' PDF téléchargé');
@@ -14022,6 +14036,110 @@ Pour les prestations à livrable (installation, étude, mission), le délai est 
 **B15 – Éthique, droit applicable et litiges.** Le Sous-traitant s'interdit toute pratique de corruption, de travail forcé ou de travail des enfants. Force majeure : dispositions de l'article A13. Droit ivoirien et Actes uniformes OHADA ; après tentative de règlement amiable de 30 jours, compétence exclusive du Tribunal de commerce d'Abidjan.`}
 };
 
+// ── Conditions générales de vente jointes aux devis (H TECH INNOV vendeur) ──
+// V : vente de matériel · P : prestations et installation · F : formations H TECH Academy
+Object.assign(ANNEXES_DEFAUT,{
+V:{code:'V',version:1,date_effet:'2026-10-07',titre:"Conditions générales de vente de matériel",contenu:
+`**1 – Champ d'application et acceptation.** Les présentes conditions s'appliquent à toute vente de matériel, d'équipements et de licences par H TECH INNOV (le « Vendeur »). La commande est ferme à réception du devis signé avec la mention « Bon pour accord » et de l'acompte prévu. Elles prévalent sur les conditions générales d'achat du client, sauf dérogation écrite acceptée par le Vendeur.
+
+**2 – Validité de l'offre et prix.** L'offre est valable pendant la durée indiquée sur le devis, à défaut 30 jours. Les prix sont exprimés en francs CFA (XOF), hors taxes, majorés de la TVA au taux en vigueur. Au-delà de la durée de validité, les prix peuvent être révisés, notamment en cas de variation des tarifs des fabricants, des taux de change ou des droits de douane.
+
+**3 – Acompte.** Sauf mention contraire sur le devis, un acompte de 50 % du montant TTC est exigible à la commande. Les délais courent à compter de l'encaissement de l'acompte et de la réception de toutes les informations nécessaires.
+
+**4 – Livraison.** Les délais de livraison sont indicatifs, sauf engagement écrit du Vendeur. Un retard du fabricant, du transporteur ou des formalités douanières est signalé au client sans délai et ne peut justifier ni annulation ni pénalité, sauf accord écrit. Le client vérifie le matériel à la livraison et signale toute avarie ou manquant visible sous 48 heures, par écrit.
+
+**5 – Transfert des risques et réserve de propriété.** Les risques sont transférés au client à la livraison. Le Vendeur conserve la propriété du matériel jusqu'au paiement intégral du prix en principal et accessoires. Jusqu'à cette date, le client ne peut ni revendre le matériel ni le donner en garantie. En cas de défaut de paiement, le Vendeur peut reprendre le matériel aux frais du client, les acomptes versés restant acquis à hauteur du préjudice subi.
+
+**6 – Garantie.** Le matériel bénéficie de la garantie du fabricant, dans les conditions et pour la durée fixées par celui-ci, que le Vendeur répercute au client. La garantie couvre la réparation ou le remplacement des pièces reconnues défectueuses par le fabricant. Sont exclus : les dommages dus à une surtension, à la foudre, à l'humidité, à une mauvaise utilisation, à une installation ou une intervention par un tiers, ou à l'usure normale.
+
+**7 – Paiement.** Le solde est payable à la livraison, sauf échéancier indiqué sur le devis. Tout retard de paiement entraîne de plein droit une pénalité de 1 % du montant TTC impayé par mois de retard, tout mois commencé étant dû, et autorise le Vendeur à suspendre les livraisons et interventions en cours. Les frais de recouvrement sont à la charge du client.
+
+**8 – Logiciels et licences.** Les logiciels et licences restent la propriété de leurs éditeurs. Le client en accepte les conditions d'utilisation et bénéficie d'un droit d'usage dans les limites fixées par l'éditeur.
+
+**9 – Annulation.** Toute annulation par le client après acceptation du devis doit être écrite. L'acompte reste acquis au Vendeur. Le matériel commandé spécialement pour le client reste dû en totalité.
+
+**10 – Responsabilité.** La responsabilité du Vendeur est limitée au montant hors taxes du devis concerné. Elle ne couvre pas les préjudices indirects, tels que les pertes d'exploitation, de données ou de chiffre d'affaires.
+
+**11 – Confidentialité et données personnelles.** Chaque partie garde confidentielles les informations reçues de l'autre. Les données personnelles sont traitées conformément à la loi ivoirienne n° 2013-450 du 19 juin 2013.
+
+**12 – Force majeure.** Aucune partie n'est responsable d'un manquement dû à un cas de force majeure. Au-delà de 30 jours, chaque partie peut résilier la commande pour la partie non exécutée.
+
+**13 – Droit applicable et litiges.** Droit ivoirien et Actes uniformes OHADA. Après tentative de règlement amiable de 30 jours, compétence exclusive du Tribunal de commerce d'Abidjan.`},
+P:{code:'P',version:1,date_effet:'2026-10-07',titre:"Conditions générales de vente de prestations et d'installation",contenu:
+`**1 – Champ d'application et acceptation.** Les présentes conditions s'appliquent aux prestations de H TECH INNOV (le « Prestataire ») : installation, intégration, configuration, maintenance, conseil, développement et accompagnement. La commande est ferme à réception du devis signé avec la mention « Bon pour accord » et de l'acompte prévu. Elles prévalent sur les conditions générales d'achat du client, sauf dérogation écrite.
+
+**2 – Prix et travaux supplémentaires.** Les prix sont exprimés en francs CFA (XOF), hors taxes, majorés de la TVA. Le devis décrit précisément les prestations incluses. Toute prestation non prévue, ou rendue nécessaire par une situation du site différente de celle décrite, fait l'objet d'un devis complémentaire accepté avant exécution.
+
+**3 – Acompte et démarrage.** Sauf mention contraire sur le devis, un acompte de 50 % du montant TTC est exigible à la commande. Le planning est fixé à compter de l'encaissement de l'acompte.
+
+**4 – Obligations du client.** Le client donne accès au site aux dates convenues, fournit l'alimentation électrique, les points réseau, les autorisations nécessaires (bailleur, copropriété, administration) et un interlocuteur disponible. Sauf mention sur le devis, le génie civil, les travaux d'électricité courant fort et les fournitures du client ne sont pas inclus. Tout déplacement rendu inutile ou toute attente imputable au client est facturé au tarif en vigueur.
+
+**5 – Délais.** Les délais sont indicatifs, sauf engagement écrit. Ils sont prolongés de plein droit en cas de retard du client dans ses obligations, de modification de la commande, d'intempéries ou d'indisponibilité du matériel chez le fabricant.
+
+**6 – Réception.** À la fin des travaux, les parties signent un procès-verbal de réception, avec ou sans réserves. À défaut de réserves écrites dans les 8 jours suivant la fin des travaux, ou dès la mise en service par le client, la prestation est réputée réceptionnée sans réserve. Des réserves mineures n'empêchent pas la réception ; elles sont levées dans un délai raisonnable. Le solde est exigible à la réception.
+
+**7 – Garantie de bonne exécution.** Le Prestataire garantit ses travaux pendant 12 mois à compter de la réception et reprend gratuitement toute malfaçon qui lui est imputable. Le matériel fourni bénéficie de la garantie du fabricant. Sont exclus : surtensions, foudre, mauvaise utilisation, défaut d'entretien, modification ou intervention d'un tiers.
+
+**8 – Sécurité électronique et cybersécurité : obligation de moyens.** Les systèmes de vidéosurveillance, de contrôle d'accès, d'alarme et de cybersécurité réduisent les risques sans pouvoir les supprimer. Le Prestataire est tenu d'une obligation de moyens. Il n'est pas responsable d'une intrusion, d'un vol, d'une cyberattaque ou d'une perte de données, sauf faute prouvée de sa part. Le client reste responsable de la confidentialité de ses mots de passe, de ses sauvegardes et des mises à jour, sauf contrat de maintenance les confiant au Prestataire.
+
+**9 – Vidéosurveillance et données personnelles.** Le client, responsable du traitement, accomplit les formalités requises auprès de l'ARTCI et informe les personnes filmées, avec l'accompagnement du Prestataire s'il le souhaite. Les données sont traitées conformément à la loi ivoirienne n° 2013-450 du 19 juin 2013.
+
+**10 – Propriété intellectuelle.** Le Prestataire conserve la propriété de ses outils, méthodes, scripts et savoir-faire. Après paiement intégral, le client bénéficie d'un droit d'utilisation des livrables, configurations et développements spécifiques pour ses propres besoins. Les logiciels tiers restent soumis aux licences de leurs éditeurs.
+
+**11 – Paiement et retard.** Les factures sont payables aux échéances indiquées sur le devis ou la facture. Tout retard entraîne de plein droit une pénalité de 1 % du montant TTC impayé par mois de retard, tout mois commencé étant dû, et autorise le Prestataire à suspendre ses interventions, y compris la maintenance et le support. Le matériel fourni reste la propriété du Prestataire jusqu'au paiement intégral.
+
+**12 – Annulation et suspension.** Toute annulation par le client après acceptation doit être écrite. L'acompte reste acquis ; les prestations réalisées et le matériel commandé spécialement restent dus. Une suspension du chantier de plus de 30 jours du fait du client autorise la facturation des travaux exécutés.
+
+**13 – Responsabilité.** La responsabilité du Prestataire est limitée au montant hors taxes du devis concerné et ne couvre pas les préjudices indirects (pertes d'exploitation, de données, de chiffre d'affaires, atteinte à l'image).
+
+**14 – Confidentialité.** Chaque partie garde confidentielles les informations reçues de l'autre, notamment les plans, codes d'accès et configurations, pendant la mission et 3 ans après.
+
+**15 – Force majeure, droit applicable et litiges.** Aucune partie n'est responsable d'un manquement dû à un cas de force majeure. Droit ivoirien et Actes uniformes OHADA. Après tentative de règlement amiable de 30 jours, compétence exclusive du Tribunal de commerce d'Abidjan.`},
+F:{code:'F',version:1,date_effet:'2026-10-07',titre:"Conditions générales de vente des formations H TECH Academy",contenu:
+`**1 – Objet et acceptation.** Les présentes conditions s'appliquent aux formations proposées par H TECH INNOV et H TECH Academy, en inter-entreprises, en intra-entreprise ou à distance. L'inscription est ferme à réception du devis signé avec la mention « Bon pour accord » ou du bulletin d'inscription, et du paiement prévu.
+
+**2 – Prix.** Les prix sont exprimés en francs CFA (XOF), hors taxes, par participant ou par session selon le devis. Ils comprennent l'animation et les supports pédagogiques. Les frais de déplacement et d'hébergement des participants, et les frais d'examen de certification, sont en sus sauf mention contraire.
+
+**3 – Paiement et prise en charge.** Sauf mention contraire, le prix est payable avant le début de la session. Lorsque la formation est prise en charge par un organisme financeur, le client effectue les démarches nécessaires ; il reste redevable des sommes non prises en charge ou non payées par cet organisme.
+
+**4 – Annulation ou report par le client.** Toute annulation doit être écrite. Plus de 15 jours avant la session : sans frais. Entre 15 et 7 jours : 30 % du prix restent dus. Moins de 7 jours avant la session, ou absence : 100 % du prix restent dus. Le client peut remplacer un participant par un autre sans frais, jusqu'à la veille de la session.
+
+**5 – Annulation ou report par H TECH INNOV.** H TECH INNOV peut reporter ou annuler une session, notamment en cas d'effectif insuffisant ou de force majeure, en prévenant le client au plus tôt. Les sommes versées sont alors reportées sur une autre session ou remboursées, sans autre indemnité.
+
+**6 – Attestations et certifications.** Une attestation de formation est remise à chaque participant ayant suivi au moins 80 % de la session. Les certifications sont soumises aux règles des organismes certificateurs ; leur obtention dépend des résultats du candidat et ne peut être garantie.
+
+**7 – Obligations des participants.** Les participants respectent le règlement intérieur du lieu de formation, les horaires, et signent les feuilles d'émargement. H TECH INNOV peut exclure un participant dont le comportement perturbe la session, sans remboursement.
+
+**8 – Propriété des supports.** Les supports remis sont réservés à l'usage personnel des participants. Toute reproduction, diffusion ou utilisation commerciale est interdite sans accord écrit de H TECH INNOV.
+
+**9 – Image et données personnelles.** Les photographies ou vidéos des sessions ne sont utilisées pour la communication de H TECH INNOV qu'avec l'accord des participants concernés. Les données personnelles sont traitées conformément à la loi ivoirienne n° 2013-450 du 19 juin 2013, pour la gestion des formations et la délivrance des attestations.
+
+**10 – Droit applicable et litiges.** Droit ivoirien et Actes uniformes OHADA. Après tentative de règlement amiable de 30 jours, compétence exclusive du Tribunal de commerce d'Abidjan.`}
+});
+var DEVIS_TYPES={materiel:'Vente de matériel',prestation:'Prestation / installation',mixte:'Mixte (matériel + installation)',formation:'Formation (H TECH Academy)'};
+var DEVIS_TYPE_ANNEXES={materiel:['V'],prestation:['P'],mixte:['V','P'],formation:['F']};
+function devisTypeNorm(t){return DEVIS_TYPE_ANNEXES[t]?t:'prestation';}
+function devisMajAideType(){
+  const t=devisTypeNorm(gv('docTypeDevis')),el=document.getElementById('docTypeDevisAide');if(!el)return;
+  el.textContent={materiel:'CGV matériel jointes',prestation:'CGV prestations et installation jointes',mixte:'CGV matériel + prestations jointes',formation:'CGV formations jointes'}[t];
+}
+async function devisAnnexesFigees(type,existantes){
+  const cur=await annexesEnVigueur(true),out={};
+  DEVIS_TYPE_ANNEXES[devisTypeNorm(type)].forEach(k=>{out[k]=(existantes&&existantes[k])||cur[k].version||1;});
+  return out;
+}
+// Charge les annexes figées (texte ou PDF importé) pour un document ; numérotées 1, 2… pour le client
+async function docChargerAnnexes(codes,figees,numeroter){
+  const out=[];
+  for(let i=0;i<codes.length;i++){const k=codes[i];let a={...(await annexeVersion(k,(figees||{})[k])),code:k};
+    if(numeroter)a.numero=String(i+1);
+    if(a.format==='pdf'){try{a._src=await mdSourcePdf(a);}catch(e){logErr(e);toast('⚠️ Annexe '+(a.numero||k)+' (PDF) introuvable : texte par défaut utilisé',6000);a={...ANNEXES_DEFAUT[k],code:k,numero:a.numero};}}
+    out.push(a);}
+  return out;
+}
+function devisTypeTag(t){t=devisTypeNorm(t);const c={materiel:'#1565C0',prestation:'#D97706',mixte:'#7C3AED',formation:'#0891B2'}[t];
+  return `<div style="font-size:9.5px;font-weight:600;color:${c}">${esc(DEVIS_TYPES[t])}</div>`;}
+
 function bcTypeNorm(t){return BC_TYPE_ANNEXES[t]?t:'fourniture';}
 function bcTypeTag(t){t=bcTypeNorm(t);const c={fourniture:'#1565C0',prestation:'#D97706',mixte:'#7C3AED',autre:'#7A90A8'}[t];
   return `<div style="font-size:9.5px;font-weight:600;color:${c}">${{fourniture:'Fourniture · Annexe A',prestation:'Sous-traitance · Annexe B',mixte:'Mixte · Annexes A+B',autre:'Autre · sans annexe'}[t]}</div>`;}
@@ -14030,7 +14148,7 @@ function annexeLabel(a){return 'version '+(a.version||1)+' du '+fmtD(a.date_effe
 // Versions en vigueur (dernière version active de chaque code), repli sur les textes par défaut
 async function annexesEnVigueur(force){
   if(_ANNEXES_CACHE&&!force)return _ANNEXES_CACHE;
-  const out={A:{...ANNEXES_DEFAUT.A},B:{...ANNEXES_DEFAUT.B}};
+  const out={};Object.keys(ANNEXES_DEFAUT).forEach(k=>out[k]={...ANNEXES_DEFAUT[k]});
   try{
     const{data,error}=await sb.from('conditions_achat').select('*').eq('actif',true).order('version',{ascending:false});
     if(!error)(data||[]).forEach(r=>{if(out[r.code]&&(!out[r.code].id||r.version>out[r.code].version))out[r.code]=r;});
@@ -14072,19 +14190,20 @@ function annexeBlocs(txt){
 }
 
 // Dessine les annexes à la suite d'un PDF jsPDF ; renvoie les numéros de pages créées
-function bcDessinerAnnexes(doc,annexes,ref,entete){
+function bcDessinerAnnexes(doc,annexes,ref,entete,partie){
+  partie=partie||'fournisseur';
   const W=210,M=14,BAS=272,NAVY=[10,42,102],BLUE=[21,101,192],GREY=[96,108,130],LINE=[213,224,240];
   const T=pdfT,pages=[];
   annexes.forEach(a=>{
-    if(a.format==='pdf'&&a._src){a._pages=mdReserverPages(doc,a._src.count,entete,'ANNEXE '+a.code+' - '+String(a.titre||'').toUpperCase()+' - version '+(a.version||1)+' - document joint');pages.push(...a._pages);return;}
+    if(a.format==='pdf'&&a._src){a._pages=mdReserverPages(doc,a._src.count,entete,'ANNEXE '+(a.numero||a.code)+' - '+String(a.titre||'').toUpperCase()+' - version '+(a.version||1)+' - document joint');pages.push(...a._pages);return;}
     doc.addPage();entete(false);pages.push(doc.getNumberOfPages());
     let y=22;
     const saut=h=>{if(y+h>BAS){doc.addPage();entete(false);pages.push(doc.getNumberOfPages());y=22;}};
     doc.setFillColor(...BLUE);doc.rect(M,y,3,11,'F');
     doc.setFont('helvetica','bold');doc.setFontSize(12.5);doc.setTextColor(...NAVY);
-    doc.text(T('ANNEXE '+a.code+' - '+String(a.titre||'').toUpperCase()),M+6,y+5);
+    doc.text(T('ANNEXE '+(a.numero||a.code)+' - '+String(a.titre||'').toUpperCase()),M+6,y+5);
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GREY);
-    doc.text(T('Version '+(a.version||1)+' du '+fmtD(a.date_effet)+' - annexée au bon de commande '+ref+' dont elle fait partie intégrante.'),M+6,y+10);
+    doc.text(T('Version '+(a.version||1)+' du '+fmtD(a.date_effet)+' - annexée au '+(partie==='client'?'devis ':'bon de commande ')+ref+' dont elle fait partie intégrante.'),M+6,y+10);
     y+=17;
     annexeBlocs(a.contenu).forEach(b=>{
       if(b.table){
@@ -14104,7 +14223,7 @@ function bcDessinerAnnexes(doc,annexes,ref,entete){
     });
     saut(12);y+=3;
     doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...BLUE);
-    doc.text(T('Lu et accepté - Paraphe et cachet du fournisseur : ______________________'),M,y);
+    doc.text(T('Lu et accepté - Paraphe et cachet du '+partie+' : ______________________'),M,y);
   });
   return pages;
 }
@@ -15036,6 +15155,9 @@ var MD_DOCS=null;
 function mdListe(){
   if(MD_DOCS)return MD_DOCS;
   MD_DOCS=[
+    {code:'V',table:'conditions_achat',groupe:'Devis',l:'CGV — Vente de matériel',usage:'Devis de matériel et mixtes'},
+    {code:'P',table:'conditions_achat',groupe:'Devis',l:'CGV — Prestations et installation',usage:'Devis de prestation et mixtes'},
+    {code:'F',table:'conditions_achat',groupe:'Devis',l:'CGV — Formations H TECH Academy',usage:'Devis de formation'},
     {code:'A',table:'conditions_achat',groupe:'Bons de commande',l:'Annexe A — Conditions générales d’achat',usage:'BC de fourniture et mixtes'},
     {code:'B',table:'conditions_achat',groupe:'Bons de commande',l:'Annexe B — Conditions de sous-traitance (SLA)',usage:'BC de prestation et mixtes'},
     {code:'communs',table:'modeles_contrat',groupe:'Contrats de partenariat',l:'Clauses communes',usage:'Tous les contrats de partenariat'}
@@ -15146,7 +15268,7 @@ v4Def('modeles-documents',{titre:'Modèles & annexes',icone:'📚',custom:async 
     <b>📎 PDF :</b> le document est joint tel quel, avec l’en-tête, la pagination et les paraphes de l’ERP ; les informations de la fiche n’y sont pas reportées.
   </div>
   <input type="file" id="mdFichier" accept=".docx,.pdf,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" onchange="mdFichierChoisi(this)">
-  ${['Bons de commande','Contrats de partenariat'].map(g=>`<div class="card" style="margin-bottom:14px"><div class="card-title">${g==='Bons de commande'?'🛒':'🤝'} ${g}</div>
+  ${['Devis','Bons de commande','Contrats de partenariat'].map(g=>`<div class="card" style="margin-bottom:14px"><div class="card-title">${{'Devis':'🧾 Devis — conditions générales de vente','Bons de commande':'🛒 Bons de commande — conditions d’achat','Contrats de partenariat':'🤝 Contrats de partenariat'}[g]}</div>
     <div class="table-wrap"><table><thead><tr><th>Document</th><th>Version</th><th>Format</th><th>Actions</th></tr></thead><tbody>${lignes(g)}</tbody></table></div></div>`).join('')}`;
 }});
 var MD_CIBLE=null;
