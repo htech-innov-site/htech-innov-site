@@ -3469,7 +3469,7 @@ async function loadAchats(){
     const ft=document.getElementById('fournisseursTable');
     if(ft)ft.innerHTML=fourn?.length?fourn.map(x=>`<tr><td><strong>${editCell('fournisseurs',x.id,'nom',x.nom)}</strong></td><td>${editCell('fournisseurs',x.id,'categorie',x.categorie)}</td><td>${editCell('fournisseurs',x.id,'email',x.email)}</td><td>${editCell('fournisseurs',x.id,'telephone',x.telephone)}</td><td>${editSelect('fournisseurs',x.id,'statut',x.statut||'actif',['actif','inactif','bloque'])}</td><td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="fournisseurPDF('${x.id}')" title="Imprimer la fiche">📄</button><button class="btn btn-outline btn-sm" onclick="openDocs('achats','${x.id}','${jsq(x.nom||"")}')" title="Pièces jointes">📎</button><button class="btn btn-outline btn-sm" onclick="delFournisseur('${x.id}')">🗑</button></div></td></tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:14px">Aucun fournisseur. <button class="btn btn-primary btn-sm" onclick="openModal(\'fournisseur\')">+ Ajouter</button></td></tr>';
     const ct=document.getElementById('commandesTable');
-    if(ct)ct.innerHTML=cmds?.length?cmds.map(x=>`<tr><td><code style="font-size:10px">${esc(x.reference||'—')}</code></td><td>${esc(x.fournisseur_nom||'—')}</td><td>${(x.montant_ttc||0).toLocaleString('fr')} FCFA</td><td>${editSelect('bons_commande',x.id,'statut',x.statut||'brouillon',['brouillon','envoye','confirme','recu','annule'])}</td><td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="editCommande('${x.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="commandePDF('${x.id}')" title="Imprimer le bon de commande">📄</button><button class="btn btn-outline btn-sm" onclick="openDocs('achats','${x.id}','${jsq(x.reference||"")}')" title="Pièces jointes">📎</button><button class="btn btn-outline btn-sm" onclick="delCommande('${x.id}')">🗑</button></div></td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:14px">Aucune commande.</td></tr>';
+    if(ct)ct.innerHTML=cmds?.length?cmds.map(x=>`<tr><td><code style="font-size:10px">${esc(x.reference||'—')}</code>${bcTypeTag(x.type_commande)}</td><td>${esc(x.fournisseur_nom||'—')}</td><td>${(x.montant_ttc||0).toLocaleString('fr')} FCFA</td><td>${editSelect('bons_commande',x.id,'statut',x.statut||'brouillon',['brouillon','envoye','confirme','recu','annule'])}</td><td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="editCommande('${x.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="commandePDF('${x.id}')" title="Imprimer le bon de commande">📄</button><button class="btn btn-outline btn-sm" onclick="openDocs('achats','${x.id}','${jsq(x.reference||"")}')" title="Pièces jointes">📎</button><button class="btn btn-outline btn-sm" onclick="delCommande('${x.id}')">🗑</button></div></td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:14px">Aucune commande.</td></tr>';
   }catch(e){console.error('achats',e);}
 }
 async function loadStock(){
@@ -4869,7 +4869,8 @@ async function sauverCommande(){
   const fournNom=sel?.selectedOptions?.[0]?.textContent||'';
   if(!fournId){toast('❌ Fournisseur requis');return;}
   if(!d.lignes.length){toast('❌ Ajoutez au moins un article');return;}
-  await dbInsert('bons_commande',{
+  const typeBC=bcTypeNorm(gv('docTypeBC'));
+  const{error}=await dbSave('bons_commande',{
     reference:await nextNumero('BC'),
     fournisseur_id:fournId,
     fournisseur_nom:fournNom,
@@ -4878,9 +4879,12 @@ async function sauverCommande(){
     date_livraison_prevue:gv('docLivraison')||null,
     titre:d.titre||'',
     notes:d.notes||'',
+    type_commande:typeBC,annexes:await bcAnnexesFigees(typeBC),
     statut:'brouillon',
     created_by:uid()
-  },()=>{toast('✅ Bon de commande créé — '+d.total_ttc.toLocaleString('fr')+' FCFA TTC');closeModal();loadAchats();});
+  });
+  if(error){console.error('bons_commande',error);toast('❌ Erreur : '+error.message);return;}
+  toast('✅ Bon de commande créé — '+fmtF(d.total_ttc)+' FCFA TTC');closeModal();loadAchats();
 }
 // Remplit la liste déroulante des fournisseurs dans le bon de commande
 async function chargerFournisseursSelect(selectedId){
@@ -4906,8 +4910,10 @@ async function commandePDF(id){
       created_at:c.created_at,date_echeance:c.date_livraison_prevue,
       lignes:c.lignes,exonere_tva:c.exonere_tva,
       sous_total:c.montant_ht,tva_pct:c.tva_pct,tva_montant:c.tva_montant,total_ttc:c.montant_ttc,
-      notes:c.notes,statut:c.statut
+      notes:c.notes,statut:c.statut,type_commande:bcTypeNorm(c.type_commande)
     };
+    const figees=c.annexes||{};
+    docData._annexes=await Promise.all(BC_TYPE_ANNEXES[docData.type_commande].map(async k=>({...(await annexeVersion(k,figees[k])),code:k})));
     docPDF(docData,'BON DE COMMANDE','BonCommande',fourn);
   }catch(e){toast('❌ '+e.message);}
 }
@@ -4927,6 +4933,7 @@ async function editCommande(id){
     if(document.getElementById('docTitre'))document.getElementById('docTitre').value=c.titre||'';
     if(document.getElementById('docLivraison'))document.getElementById('docLivraison').value=c.date_livraison_prevue||'';
     if(document.getElementById('docExo'))document.getElementById('docExo').checked=c.exonere_tva||false;
+    if(document.getElementById('docTypeBC')){document.getElementById('docTypeBC').value=bcTypeNorm(c.type_commande);bcMajAideType();}
     await chargerFournisseursSelect(c.fournisseur_id);
     recalcDoc();
   },60);
@@ -4937,12 +4944,15 @@ async function updateCommande(id){
   const fournId=sel?.value||'';
   const fournNom=sel?.selectedOptions?.[0]?.textContent||'';
   if(!fournId){toast('❌ Fournisseur requis');return;}
-  const{error}=await sb.from('bons_commande').update({
+  const typeBC=bcTypeNorm(gv('docTypeBC'));
+  let anc=null;try{const r=await sb.from('bons_commande').select('annexes').eq('id',id).single();anc=r.data?.annexes||null;}catch(e){}
+  const{error}=await dbSave('bons_commande',{
     fournisseur_id:fournId,fournisseur_nom:fournNom,
     lignes:d.lignes,exonere_tva:d.exonere,titre:d.titre||'',
     montant_ht:d.sous_total,tva_pct:d.tva_pct,tva_montant:d.tva_montant,montant_ttc:d.total_ttc,
-    date_livraison_prevue:gv('docLivraison')||null,notes:d.notes||''
-  }).eq('id',id);
+    date_livraison_prevue:gv('docLivraison')||null,notes:d.notes||'',
+    type_commande:typeBC,annexes:await bcAnnexesFigees(typeBC,anc)
+  },id);
   if(error){toast('❌ '+error.message);return;}
   toast('✅ Bon de commande mis à jour');closeModal();loadAchats();
 }
@@ -11358,6 +11368,7 @@ function buildLignesDoc(doc){
     <div class="form-field"><label>${esc(cfg.tiers)} *</label>${tiersField}<div class="doc-client-card" id="docClientCard"></div></div>
     <div class="form-field"><label>Date du document</label><input type="date" id="docDate" value="${isoJour()}" onchange="docMajValidite()"/></div>
     ${dateFin}
+    ${isBC?`<div class="form-field"><label for="docTypeBC">Nature de la commande *</label><select id="docTypeBC" onchange="bcMajAideType()">${Object.entries(BC_TYPES).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join('')}</select><div class="doc-hint" id="docTypeBCAide">Annexe A jointe : conditions générales d\u2019achat</div></div>`:''}
   </div>
 
   <div class="doc-lines">
@@ -11987,6 +11998,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
     if(isFac&&d.devis_reference&&!isAv)infos.push(['Réf. devis',d.devis_reference]);
     if(isAv&&d.facture_origine)infos.push(['Facture d\'origine',d.facture_origine]);
     if(isBC&&d.date_echeance)infos.push(['Livraison prévue',fmtD(d.date_echeance)]);
+    if(isBC&&d.type_commande)infos.push(['Nature',{fourniture:'Fourniture',prestation:'Sous-traitance',mixte:'Mixte',autre:'Autre'}[d.type_commande]||'']);
     let y=26;
     doc.setFontSize(8.5);
     infos.forEach(([k,v])=>{color(GREY,'normal');doc.text(T(k),W-M-50,y);color(NAVY,'bold');doc.text(T(v),W-M,y,{align:'right'});y+=4.6;});
@@ -12133,9 +12145,25 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
     y+=lines.length*4+3;
   });
 
+  // Renvoi aux annexes contractuelles (bons de commande)
+  if(isBC&&Array.isArray(d._annexes)&&d._annexes.length){
+    const noms=d._annexes.map(a=>a.titre+' (Annexe '+a.code+', '+annexeLabel(a)+')').join(' et ');
+    const txt='La présente commande est soumise aux '+noms+', annexée'+(d._annexes.length>1?'s':'')+' au présent bon de commande et dont le fournisseur reconnaît avoir pris connaissance. Elles prévalent sur ses propres conditions générales. Toute exécution de la commande vaut acceptation.';
+    const tl=doc.splitTextToSize(T(txt),W-2*M-8);
+    place(tl.length*3.8+8);
+    doc.setFillColor(...LIGHT);doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);
+    doc.roundedRect(M,y,W-2*M,tl.length*3.8+5,1.5,1.5,'FD');
+    doc.setFontSize(8);color([40,50,70],'normal');doc.text(tl,M+4,y+4.6);
+    y+=tl.length*3.8+8;
+  }
   // Signatures
   place(38);y+=4;
   const sw=82;
+  if(isBC){
+    doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.roundedRect(M,y,sw,32,2,2,'S');
+    doc.setFontSize(8);color(BLUE,'bold');doc.text('BON POUR ACCORD DU FOURNISSEUR',M+4,y+6);
+    doc.setFontSize(7.5);color(GREY,'normal');doc.text(T('Date, nom, signature et cachet, précédés de la mention "Bon pour accord"'),M+4,y+11,{maxWidth:sw-8});
+  }
   if(isDev){
     doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.roundedRect(M,y,sw,32,2,2,'S');
     doc.setFontSize(8);color(BLUE,'bold');doc.text('BON POUR ACCORD DU CLIENT',M+4,y+6);
@@ -12148,6 +12176,11 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   color(GREY,'normal');doc.setFontSize(7.5);doc.text(T(E.fonction||''),sx+4,y+15);
   try{if(typeof HTI_STAMP==='string'&&HTI_STAMP.indexOf('data:')===0)doc.addImage(HTI_STAMP,'PNG',sx+sw-36,y+5,32,24);}catch(e){logErr(e);}
 
+  // Annexes contractuelles du bon de commande
+  let pagesAnnexes=[];
+  if(isBC&&Array.isArray(d._annexes)&&d._annexes.length){
+    try{pagesAnnexes=bcDessinerAnnexes(doc,d._annexes,d.reference||'',entete);}catch(e){logErr(e);toast('⚠️ Annexes non imprimées : '+e.message);}
+  }
   // Pied de page sur toutes les pages
   const nb=doc.getNumberOfPages();
   const legal=T([E.nom,E.forme,E.rccm?'RCCM '+E.rccm:'',E.dgi?'NCC '+E.dgi:'',E.ville].filter(Boolean).join('  |  '));
@@ -12165,6 +12198,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
     doc.text(contact,W/2,289.5,{align:'center'});
     if(E.mentions)doc.text(doc.splitTextToSize(T(E.mentions),W-2*M-20)[0],W/2,293,{align:'center'});
     doc.text(T('Page '+i+' / '+nb),W-M,289.5,{align:'right'});
+    if(pagesAnnexes.includes(i)){doc.setFontSize(7.5);color(NAVY,'bold');doc.text(T('Paraphe du fournisseur : ________'),W-M,279,{align:'right'});}
   }
   doc.save(T(prefixFichier+'-'+(d.reference||'document'))+'.pdf');
   toast('✅ '+(isDev?'Devis':isAv?'Avoir':isFac?'Facture':'Bon de commande')+' PDF téléchargé');
@@ -13902,6 +13936,233 @@ async function impImporter(){
     PAGE_LABELS['import-catalogue']='Importer un catalogue';
   }catch(e){logErr(e);}
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-import-catalogue')){const d=document.createElement('div');d.className='page';d.id='page-import-catalogue';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
+})();
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// ANNEXES CONTRACTUELLES DES BONS DE COMMANDE (octobre 2026)
+// Fourniture → Annexe A (conditions générales d'achat)
+// Prestation / sous-traitance → Annexe B (conditions de sous-traitance + SLA)
+// Mixte → Annexes A et B. Textes versionnés (table conditions_achat),
+// modifiables par le superadmin ; chaque BC garde la version en vigueur à son émission.
+// ══════════════════════════════════════════════════════════════════════
+var BC_TYPES={fourniture:'Fourniture',prestation:'Prestation / sous-traitance',mixte:'Mixte (fourniture + prestation)',autre:'Autre — sans annexe (loyer, abonnement, frais…)'};
+var BC_TYPE_ANNEXES={fourniture:['A'],prestation:['B'],mixte:['A','B'],autre:[]};
+var _ANNEXES_CACHE=null;
+var ANNEXES_DEFAUT={
+A:{code:'A',version:1,date_effet:'2026-10-07',titre:"Conditions générales d'achat de fournitures",contenu:
+`**A1 – Champ d'application.** Les présentes conditions s'appliquent à toute commande de fournitures passée par H TECH INNOV (l'« Acheteur »). Elles priment sur les conditions générales de vente du fournisseur, sauf dérogation écrite et signée par l'Acheteur. Le bon de commande et ses éventuelles conditions particulières prévalent sur la présente annexe.
+
+**A2 – Formation de la commande.** La commande est ferme à réception par le fournisseur du bon de commande signé. Le fournisseur la confirme sous 2 jours ouvrés ; à défaut, tout début d'exécution vaut acceptation. Aucune modification de quantité, de référence ou de prix n'est valable sans avenant écrit.
+
+**A3 – Prix.** Les prix sont fermes, non révisables, en francs CFA (XOF), hors taxes, et incluent l'emballage, le transport jusqu'au lieu de livraison et les droits de douane, sauf mention contraire sur le bon de commande.
+
+**A4 – Livraison.** Lieu, date et horaires sont indiqués sur le bon de commande. Chaque livraison est accompagnée d'un bon de livraison rappelant le numéro de commande, les références et les quantités. Toute livraison partielle requiert l'accord de l'Acheteur.
+
+**A5 – Pénalités de retard.** Tout retard non imputable à l'Acheteur ou à la force majeure entraîne une pénalité de 0,5 % du montant HT de la commande par jour calendaire, plafonnée à 10 %. Au-delà de 15 jours de retard, l'Acheteur peut annuler tout ou partie de la commande sans indemnité, après mise en demeure restée sans effet sous 3 jours.
+
+**A6 – Réception et conformité.** La signature du bon de livraison ne vaut que réception des colis. L'Acheteur dispose de 8 jours ouvrés pour contrôler la conformité (référence, quantité, état, fonctionnement) et émettre des réserves. Le fournisseur reprend à ses frais tout produit non conforme et le remplace sous 7 jours.
+
+**A7 – Authenticité et normes.** Le fournisseur garantit que les produits sont neufs, d'origine, issus des circuits officiels du fabricant, non contrefaits et conformes aux normes en vigueur en Côte d'Ivoire. Il fournit sur demande les certificats d'origine, fiches techniques et licences.
+
+**A8 – Transfert de propriété et des risques.** La propriété et les risques sont transférés à l'Acheteur à la réception sans réserve au lieu de livraison. Toute clause de réserve de propriété du fournisseur est inopposable à l'Acheteur, sauf acceptation écrite.
+
+**A9 – Garantie.** Le fournisseur garantit les produits contre tout défaut de conception, de fabrication ou de fonctionnement pendant 12 mois à compter de la réception, ou la durée de la garantie fabricant si elle est plus longue. Il répare ou remplace sous 10 jours ouvrés, pièces, transport et main-d'œuvre compris. Cette garantie s'ajoute à la garantie légale des vices cachés.
+
+**A10 – Facturation et paiement.** Une facture par commande, rappelant le numéro du bon de commande, le NCC et le RCCM du fournisseur. Paiement par virement à 30 jours à compter de la réception sans réserve ou de la facture, selon la date la plus tardive. Aucun acompte n'est dû sauf mention sur le bon de commande.
+
+**A11 – Confidentialité.** Le fournisseur ne divulgue pas les informations relatives à l'Acheteur, à ses prix ni à ses clients, et ne cite pas l'Acheteur en référence sans son accord écrit.
+
+**A12 – Éthique et conformité.** Le fournisseur s'interdit toute pratique de corruption, de travail forcé ou de travail des enfants. L'Acheteur peut résilier la commande sans indemnité en cas de manquement.
+
+**A13 – Force majeure.** Sont exonérés les manquements dus à un événement imprévisible, irrésistible et extérieur, notifié par écrit sous 48 heures. Au-delà de 30 jours, chaque partie peut résilier la commande sans indemnité.
+
+**A14 – Droit applicable et litiges.** Droit ivoirien et Actes uniformes OHADA. Après tentative de règlement amiable de 30 jours, compétence exclusive du Tribunal de commerce d'Abidjan.`},
+B:{code:'B',version:1,date_effet:'2026-10-07',titre:"Conditions de sous-traitance de prestations",contenu:
+`**B1 – Objet et documents contractuels.** Les présentes conditions régissent toute prestation confiée par H TECH INNOV (le « Donneur d'ordre ») à un prestataire (le « Sous-traitant »). Ordre de priorité : bon de commande, cahier des charges ou fiche d'intervention, présente annexe. Les conditions générales du Sous-traitant sont inopposables.
+
+**B2 – Obligations d'exécution.** Le Sous-traitant exécute la prestation selon les règles de l'art, le cahier des charges et les exigences du client final que le Donneur d'ordre lui communique. Il est tenu à une obligation de résultat sur les livrables décrits au bon de commande, et de moyens pour le conseil et l'assistance.
+
+**B3 – Personnel et indépendance.** Le Sous-traitant affecte un personnel qualifié, qu'il emploie, rémunère et déclare lui-même (CNPS, impôts). Il conserve seul l'autorité hiérarchique sur ce personnel. Il fournit sur demande ses attestations fiscales et sociales à jour. Aucun lien de subordination n'existe entre son personnel et le Donneur d'ordre.
+
+**B4 – Sous-traitance en cascade.** Le Sous-traitant ne peut confier tout ou partie de la prestation à un tiers sans accord écrit préalable du Donneur d'ordre. Il reste alors entièrement responsable de ce tiers.
+
+**B5 – Relation avec le client final et non-sollicitation.** Le Sous-traitant intervient au nom de H TECH INNOV. Il s'interdit, pendant la mission et 24 mois après, de proposer directement ou indirectement ses services au client final rencontré dans le cadre de la mission, et de débaucher le personnel du Donneur d'ordre. Toute violation entraîne une indemnité égale à 50 % du chiffre d'affaires réalisé avec ce client, sans préjudice de dommages-intérêts supplémentaires.
+
+**B6 – Hygiène, sécurité et site.** Le Sous-traitant respecte le règlement intérieur et les consignes de sécurité du site du client final. Il fournit à son personnel les équipements de protection adaptés (travail en hauteur, électricité) et reste responsable de leur usage.
+
+**B7 – Niveaux de service (SLA).** Pour les interventions de maintenance et de dépannage, les délais courent à partir de la demande transmise par le Donneur d'ordre :
+
+| Priorité | Définition | Prise en charge | Intervention sur site | Rétablissement |
+| P1 – Critique | Système à l'arrêt ou sécurité du site compromise | 1 h | 4 h | 8 h |
+| P2 – Majeure | Fonction importante dégradée | 4 h ouvrées | 1 jour ouvré | 2 jours ouvrés |
+| P3 – Mineure | Gêne limitée, contournement possible | 1 jour ouvré | 3 jours ouvrés | 5 jours ouvrés |
+
+Pour les prestations à livrable (installation, étude, mission), le délai est la date de fin portée sur le bon de commande. Chaque intervention donne lieu à une fiche d'intervention signée par le client final, transmise au Donneur d'ordre sous 24 heures.
+
+**B8 – Pénalités.** Tout dépassement des délais du SLA ou de la date de fin entraîne une pénalité de 1 % du montant HT de la commande par jour de retard (par heure pour une P1), plafonnée à 15 %. Les pénalités sont déduites de la facture. Le Donneur d'ordre peut faire exécuter la prestation par un tiers aux frais du Sous-traitant après mise en demeure restée sans effet sous 48 heures.
+
+**B9 – Réception.** La prestation est réceptionnée par un procès-verbal signé par le Donneur d'ordre, avec ou sans réserves. Les réserves sont levées sous 7 jours. La garantie de bonne exécution court 12 mois à compter de la réception.
+
+**B10 – Confidentialité et données.** Le Sous-traitant garde confidentielles toutes les informations reçues : plans, codes d'accès, configurations, données du client final, prix. Il traite les données personnelles uniquement pour la mission, conformément à la loi ivoirienne n° 2013-450 du 19 juin 2013, et signale toute violation sous 48 heures. Il restitue ou détruit ces informations en fin de mission.
+
+**B11 – Propriété des livrables.** Les livrables (rapports, plans, schémas, paramétrages, documents) deviennent la propriété du Donneur d'ordre à leur paiement, avec tous droits d'utilisation et de remise au client final.
+
+**B12 – Assurances.** Le Sous-traitant justifie, avant le début de la mission, d'une assurance responsabilité civile professionnelle couvrant les dommages causés au Donneur d'ordre, au client final et aux tiers.
+
+**B13 – Facturation et paiement.** Facture après réception, rappelant le numéro du bon de commande et joignant les fiches d'intervention ou le PV de réception. Paiement par virement à 30 jours à compter de la réception de la facture conforme.
+
+**B14 – Résiliation.** En cas de manquement grave, le Donneur d'ordre peut résilier la commande après mise en demeure restée sans effet sous 8 jours. Seules les prestations réalisées et réceptionnées sont dues.
+
+**B15 – Éthique, droit applicable et litiges.** Le Sous-traitant s'interdit toute pratique de corruption, de travail forcé ou de travail des enfants. Force majeure : dispositions de l'article A13. Droit ivoirien et Actes uniformes OHADA ; après tentative de règlement amiable de 30 jours, compétence exclusive du Tribunal de commerce d'Abidjan.`}
+};
+
+function bcTypeNorm(t){return BC_TYPE_ANNEXES[t]?t:'fourniture';}
+function bcTypeTag(t){t=bcTypeNorm(t);const c={fourniture:'#1565C0',prestation:'#D97706',mixte:'#7C3AED',autre:'#7A90A8'}[t];
+  return `<div style="font-size:9.5px;font-weight:600;color:${c}">${{fourniture:'Fourniture · Annexe A',prestation:'Sous-traitance · Annexe B',mixte:'Mixte · Annexes A+B',autre:'Autre · sans annexe'}[t]}</div>`;}
+function annexeLabel(a){return 'version '+(a.version||1)+' du '+fmtD(a.date_effet);}
+
+// Versions en vigueur (dernière version active de chaque code), repli sur les textes par défaut
+async function annexesEnVigueur(force){
+  if(_ANNEXES_CACHE&&!force)return _ANNEXES_CACHE;
+  const out={A:{...ANNEXES_DEFAUT.A},B:{...ANNEXES_DEFAUT.B}};
+  try{
+    const{data,error}=await sb.from('conditions_achat').select('*').eq('actif',true).order('version',{ascending:false});
+    if(!error)(data||[]).forEach(r=>{if(out[r.code]&&(!out[r.code].id||r.version>out[r.code].version))out[r.code]=r;});
+  }catch(e){logErr(e);}
+  _ANNEXES_CACHE=out;return out;
+}
+// Version précise d'une annexe (celle figée sur le bon de commande)
+async function annexeVersion(code,version){
+  if(version){
+    try{const{data}=await sb.from('conditions_achat').select('*').eq('code',code).eq('version',version).maybeSingle();if(data)return data;}catch(e){logErr(e);}
+    if(ANNEXES_DEFAUT[code].version===version)return ANNEXES_DEFAUT[code];
+  }
+  return (await annexesEnVigueur())[code];
+}
+// Versions à figer sur un BC : conserve celles déjà figées, ajoute la version en vigueur des nouvelles annexes
+async function bcAnnexesFigees(type,existantes){
+  const cur=await annexesEnVigueur(true),out={};
+  BC_TYPE_ANNEXES[bcTypeNorm(type)].forEach(k=>{out[k]=(existantes&&existantes[k])||cur[k].version||1;});
+  return out;
+}
+function bcMajAideType(){
+  const t=bcTypeNorm(gv('docTypeBC')),el=document.getElementById('docTypeBCAide');if(!el)return;
+  el.textContent={fourniture:'Annexe A jointe : conditions générales d\u2019achat',prestation:'Annexe B jointe : conditions de sous-traitance et SLA',mixte:'Annexes A et B jointes',autre:'Aucune annexe jointe'}[t];
+}
+
+// Découpe un texte d'annexe en blocs : articles (**titre** texte), paragraphes, tableaux (lignes « | … | »)
+function annexeBlocs(txt){
+  const blocs=[];
+  String(txt||'').replace(/\r/g,'').split(/\n\s*\n/).forEach(p=>{
+    const lignes=p.split('\n').map(l=>l.trim()).filter(Boolean);if(!lignes.length)return;
+    if(lignes.every(l=>l.startsWith('|'))){
+      const rows=lignes.filter(l=>!/^\|[\s\-:|]+\|?$/.test(l)).map(l=>l.replace(/^\||\|$/g,'').split('|').map(c=>c.trim()));
+      if(rows.length)blocs.push({table:rows});return;
+    }
+    const t=lignes.join(' '),m=/^\*\*(.+?)\*\*\s*(.*)$/.exec(t);
+    blocs.push(m?{titre:m[1],texte:m[2]}:{texte:t});
+  });
+  return blocs;
+}
+
+// Dessine les annexes à la suite d'un PDF jsPDF ; renvoie les numéros de pages créées
+function bcDessinerAnnexes(doc,annexes,ref,entete){
+  const W=210,M=14,BAS=272,NAVY=[10,42,102],BLUE=[21,101,192],GREY=[96,108,130],LINE=[213,224,240];
+  const T=pdfT,pages=[];
+  annexes.forEach(a=>{
+    doc.addPage();entete(false);pages.push(doc.getNumberOfPages());
+    let y=22;
+    const saut=h=>{if(y+h>BAS){doc.addPage();entete(false);pages.push(doc.getNumberOfPages());y=22;}};
+    doc.setFillColor(...BLUE);doc.rect(M,y,3,11,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(12.5);doc.setTextColor(...NAVY);
+    doc.text(T('ANNEXE '+a.code+' - '+String(a.titre||'').toUpperCase()),M+6,y+5);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GREY);
+    doc.text(T('Version '+(a.version||1)+' du '+fmtD(a.date_effet)+' - annexée au bon de commande '+ref+' dont elle fait partie intégrante.'),M+6,y+10);
+    y+=17;
+    annexeBlocs(a.contenu).forEach(b=>{
+      if(b.table){
+        saut(28);
+        doc.autoTable({startY:y,head:[b.table[0].map(T)],body:b.table.slice(1).map(r=>r.map(T)),theme:'grid',
+          headStyles:{fillColor:NAVY,textColor:255,fontSize:7.8,fontStyle:'bold'},
+          styles:{fontSize:7.6,cellPadding:1.8,lineColor:LINE,lineWidth:0.15,textColor:[30,40,60]},
+          alternateRowStyles:{fillColor:[249,251,254]},margin:{left:M,right:M,top:20,bottom:28},
+          didDrawPage:(dt)=>{if(dt.pageNumber>1){entete(false);if(!pages.includes(doc.getNumberOfPages()))pages.push(doc.getNumberOfPages());}}});
+        y=doc.lastAutoTable.finalY+4;return;
+      }
+      const corps=doc.splitTextToSize(T(b.texte||''),W-2*M);
+      saut((b.titre?4.2:0)+corps.length*3.7+2);
+      if(b.titre){doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(T(b.titre),M,y);y+=4.2;}
+      doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(40,50,70);
+      doc.text(corps,M,y);y+=corps.length*3.7+2.6;
+    });
+    saut(12);y+=3;
+    doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...BLUE);
+    doc.text(T('Lu et accepté - Paraphe et cachet du fournisseur : ______________________'),M,y);
+  });
+  return pages;
+}
+
+// ── Page superadmin : textes des annexes, versions et aperçu ──
+var CA_EDIT={};
+v4Def('conditions-achat',{titre:'Conditions d\u2019achat (annexes BC)',icone:'📑',custom:async pg=>{
+  if(!estAdmin()){pg.innerHTML='<div class="card" style="padding:20px">Accès réservé aux administrateurs.</div>';return;}
+  const cur=await annexesEnVigueur(true);
+  let hist=[],tableOk=true;
+  try{const r=await sb.from('conditions_achat').select('id,code,version,date_effet,actif,created_at').order('code').order('version',{ascending:false});if(r.error)tableOk=false;else hist=r.data||[];}catch(e){tableOk=false;}
+  const carte=k=>{const a=cur[k];return `<div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div><h3 class="v4-h3" style="margin:0">Annexe ${k} — ${esc(a.titre)}</h3>
+      <div class="cell-sub">En vigueur : ${esc(annexeLabel(a))}${a.id?'':' (texte par défaut, pas encore enregistré en base)'} · jointe aux BC ${k==='A'?'de fourniture et mixtes':'de prestation / sous-traitance et mixtes'}</div></div>
+      <div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="caApercu('${k}')">📄 Aperçu PDF</button><button class="btn btn-primary btn-sm" onclick="caSauver('${k}')">💾 Publier une nouvelle version</button></div>
+    </div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="form-field"><label for="caTitre${k}">Titre</label><input id="caTitre${k}" value="${esc(a.titre)}"></div>
+      <div class="form-field"><label for="caDate${k}">Date d'effet</label><input type="date" id="caDate${k}" value="${isoJour()}"></div>
+      <div class="form-field full"><label for="caTxt${k}">Texte — un article par paragraphe : <code>**A1 – Titre.** texte</code> ; tableau : lignes commençant par <code>|</code></label>
+      <textarea id="caTxt${k}" style="min-height:340px;font-family:monospace;font-size:12px;line-height:1.45">${esc(a.contenu)}</textarea></div>
+    </div></div>`;};
+  const lignesHist=hist.map(h=>`<tr><td>Annexe ${esc(h.code)}</td><td>v${h.version}</td><td>${fmtD(h.date_effet)}</td><td>${h.actif?'<span style="color:#3F8A1E;font-weight:600">En vigueur</span>':'Archivée'}</td><td>${fmtD(h.created_at)}</td></tr>`).join('');
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">📑 Conditions d’achat — annexes des bons de commande</h1>
+    <div class="page-sub">Annexe A pour les fournitures, Annexe B pour la sous-traitance, les deux pour une commande mixte. Chaque publication crée une nouvelle version ; les bons déjà émis gardent la leur.</div></div></div>
+    ${tableOk?'':'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ La table <code>conditions_achat</code> n’existe pas encore : exécutez la migration <b>migration-annexes-bc.sql</b> dans Supabase. En attendant, les textes par défaut sont utilisés sur les PDF.</div>'}
+    ${carte('A')}${carte('B')}
+    <div class="card"><h3 class="v4-h3">Historique des versions</h3><div class="table-wrap"><table><thead><tr><th>Annexe</th><th>Version</th><th>Date d'effet</th><th>Statut</th><th>Publiée le</th></tr></thead>
+    <tbody>${lignesHist||'<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:14px">Aucune version enregistrée — la version 1 par défaut est utilisée.</td></tr>'}</tbody></table></div></div>`;
+}});
+async function caSauver(k){
+  if(!estAdmin()){toast('❌ Réservé aux administrateurs');return;}
+  const titre=g('caTitre'+k),contenu=gv('caTxt'+k)||'',date=gv('caDate'+k)||isoJour();
+  if(!titre||contenu.trim().length<50){toast('❌ Titre et texte requis');return;}
+  const cur=(await annexesEnVigueur(true))[k];
+  if(cur.titre===titre&&cur.contenu===contenu){toast('Aucune modification à publier');return;}
+  if(!confirm(`Publier la version ${(cur.version||0)+1} de l'Annexe ${k} ? Elle s'appliquera aux nouveaux bons de commande.`))return;
+  let nv=1;
+  try{const{data}=await sb.from('conditions_achat').select('version').eq('code',k).order('version',{ascending:false}).limit(1);nv=(data?.[0]?.version||0)+1;}catch(e){logErr(e);}
+  if(nv===1&&!cur.id&&(cur.titre!==titre||cur.contenu!==contenu))nv=2; // la v1 par défaut a déjà pu être imprimée
+  if(nv===2&&!cur.id){await sb.from('conditions_achat').insert({code:k,version:1,titre:ANNEXES_DEFAUT[k].titre,contenu:ANNEXES_DEFAUT[k].contenu,date_effet:ANNEXES_DEFAUT[k].date_effet,actif:false,created_by:uid()});}
+  const{error}=await sb.from('conditions_achat').insert({code:k,version:nv,titre,contenu,date_effet:date,actif:true,created_by:uid()});
+  if(error){toast('❌ '+error.message);return;}
+  await sb.from('conditions_achat').update({actif:false}).eq('code',k).neq('version',nv);
+  try{logAudit('publication_annexe','conditions_achat',k,{version:nv});}catch(e){}
+  _ANNEXES_CACHE=null;toast(`✅ Annexe ${k} — version ${nv} publiée`);v4Render('conditions-achat');
+}
+async function caApercu(k){
+  await ensurePdf();
+  const a={code:k,version:'(aperçu)',titre:g('caTitre'+k),contenu:gv('caTxt'+k),date_effet:gv('caDate'+k)||isoJour()};
+  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+  const ent=()=>{doc.setFillColor(10,42,102);doc.rect(0,0,210,4,'F');doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(10,42,102);doc.text(pdfT(getEntreprise().nom||'H TECH INNOV'),14,12);};
+  bcDessinerAnnexes(doc,[a],'BC-XXXX-XXXX (aperçu)',ent);
+  doc.deletePage(1);
+  doc.save('Apercu-Annexe-'+k+'.pdf');
+}
+(function(){
+  try{
+    ['superadmin','admin'].forEach(r=>{const nav=NAV[r];if(!nav)return;const k=nav.findIndex(x=>x.id==='achats');nav.splice(k<0?nav.length:k+1,0,{id:'conditions-achat',i:'📑',l:'Conditions d\u2019achat'});});
+    PAGE_LABELS['conditions-achat']='Conditions d\u2019achat';
+  }catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-conditions-achat')){const d=document.createElement('div');d.className='page';d.id='page-conditions-achat';ref.parentNode.appendChild(d);}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
 </script>
