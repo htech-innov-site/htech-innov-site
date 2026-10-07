@@ -16387,6 +16387,61 @@ async function certImprimer(id,row,fen){
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(!ref)return;['academy-certificats','certificat-signataires'].forEach(id=>{if(!document.getElementById('page-'+id)){const d=document.createElement('div');d.className='page';d.id='page-'+id;ref.parentNode.appendChild(d);}});};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
+
+// ══════════════════════════════════════════════════════════════════════
+// ERP v16 — Espaces formateurs : comptes formateurs, formateurs des sessions,
+// renvoi des formateurs vers leur espace Academy (aucun accès à l'ERP)
+// ══════════════════════════════════════════════════════════════════════
+// Créer l'accès d'un formateur à son espace (invitation par email)
+function formateurAcces(sfId){
+  const f=(V4_ROWS['site-formateurs']||[]).find(x=>x.id===sfId)||{};
+  const [prenom,...reste]=String(f.nom||'').split(' ');
+  document.getElementById('modalTitle').textContent='Créer l’accès formateur';document.getElementById('modalBox').style.width='min(560px,96vw)';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field"><label for="faP">Prénom</label><input id="faP" value="${esc(prenom||'')}"></div>
+    <div class="form-field"><label for="faN">Nom</label><input id="faN" value="${esc(reste.join(' '))}"></div>
+    <div class="form-field full"><label for="faE">Email du formateur *</label><input id="faE" type="email" placeholder="formateur@exemple.com"></div>
+    <p class="cell-sub full" style="margin:0">Il reçoit un email pour choisir son mot de passe, puis se connecte sur ${esc(ACADEMY_URL)} (Mon espace). Il voit uniquement ses apprenants et ses sessions, sans aucun accès à l’ERP.</p></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="faGo" onclick="formateurAccesOk('${sfId}')">Envoyer l’invitation</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function formateurAccesOk(sfId){
+  const email=(gv('faE')||'').trim();if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){toast('❌ Email invalide');return;}
+  const b=document.getElementById('faGo');b.disabled=true;
+  try{
+    const{data,error}=await sb.functions.invoke('academy-inviter',{body:{role:'formateur',email,prenom:g('faP'),nom:g('faN'),site_formateur_id:sfId,redirect_to:ACADEMY_URL}});
+    if(error)throw new Error(error.message);if(data?.error)throw new Error(data.error);
+    logAudit('acces_formateur','profiles',data.formateur_id,{email});
+    toast(data.invitation_envoyee?'✅ Invitation envoyée à '+email:'✅ Compte existant relié'+(data.role_conserve?' (rôle d’équipe conservé)':''),6000);closeModal();v4Render('site-formateurs');
+  }catch(e){b.disabled=false;toast('❌ '+e.message,9000);}
+}
+// Formateurs d'une session (toute la promotion)
+async function sessionFormateurs(sesId){
+  const[{data:pr},{data:sf}]=await Promise.all([sb.from('profiles').select('id,prenom,nom,email,role').not('role','in','("client","apprenant")').order('nom'),
+    sb.from('academy_session_formateurs').select('formateur_id').eq('session_id',sesId)]);
+  const sel=new Set((sf||[]).map(x=>x.formateur_id)),nom=p=>[p.prenom,p.nom].filter(Boolean).join(' ')||p.email;
+  document.getElementById('modalTitle').textContent='Formateurs de la session';document.getElementById('modalBox').style.width='min(560px,96vw)';
+  document.getElementById('modalBody').innerHTML=`<p class="cell-sub" style="margin-top:0">Les formateurs cochés voient tous les apprenants de cette session dans leur espace et peuvent leur publier cours, documents et devoirs.</p>
+    <div class="multi-choix" id="sfL">${(pr||[]).map(p=>`<label class="dt-check"><input type="checkbox" value="${esc(p.id)}" ${sel.has(p.id)?'checked':''}/> ${esc(nom(p))} <span class="cell-sub">${p.role==='formateur'?'formateur':'équipe'}</span></label>`).join('')||'<span class="cell-sub">Aucun formateur : créez d’abord leur accès (Site web › Formateurs).</span>'}</div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="sessionFormateursOk('${sesId}')">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function sessionFormateursOk(sesId){
+  const ids=[...document.querySelectorAll('#sfL input:checked')].map(i=>i.value);
+  const d=await sb.from('academy_session_formateurs').delete().eq('session_id',sesId);
+  if(d.error){toast('❌ '+d.error.message+(/academy_session_formateurs/.test(d.error.message)?' — lancez 16_espace_formateur.sql':''));return;}
+  if(ids.length){const r=await sb.from('academy_session_formateurs').insert(ids.map(f=>({session_id:sesId,formateur_id:f})));if(r.error){toast('❌ '+r.error.message);return;}}
+  toast('✅ '+ids.length+' formateur(s) affecté(s) à la session');closeModal();
+}
+(function(){
+  try{
+    const sf=V4['site-formateurs'];if(sf){const a=sf.actions;sf.actions=r=>(a?a(r):'')+(r.profil_id?' '+badge('Accès actif','badge-green'):` <button class="btn btn-outline btn-sm" onclick="formateurAcces('${r.id}')">Créer l’accès</button>`);}
+    const ss=V4['academy-sessions'];if(ss){const a=ss.actions;ss.actions=r=>(a?a(r):'')+` <button class="btn btn-outline btn-sm" onclick="sessionFormateurs('${r.id}')">Formateurs</button>`;}
+    // Un formateur n'utilise pas l'ERP : il est renvoyé vers son espace sur l'Academy
+    const _sp=showPage;showPage=function(id){if(CP&&CP.role==='formateur'){location.href=ACADEMY_URL+'#/formateur';return;}return _sp(id);};
+    if(NAV.formateur)NAV.formateur=[{s:'H TECH Academy'},{id:'dashboard',i:'🎓',l:'Mon espace formateur'}];
+  }catch(e){logErr(e);}
+})();
 </script>
 
 <div id="modal-bulletin-paie" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;padding:16px">
