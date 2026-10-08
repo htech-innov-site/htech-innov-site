@@ -473,7 +473,7 @@ async function pageVerifier(num){
   const c=(data||[])[0];
   if(error){z.innerHTML='<div class="panel vide">Vérification momentanément indisponible. Réessayez plus tard.</div>';return;}
   if(!c){z.innerHTML=`<div class="panel" style="border-left:5px solid var(--red)"><h3 style="color:var(--red)">✕ Certificat introuvable</h3><p class="note" style="font-size:15px">Aucun certificat H TECH ACADEMY ne porte le numéro <b>${esc(num)}</b>. Vérifiez la saisie ou contactez-nous : info@htechinnov.com.</p></div>`;return;}
-  const st={valide:['✓ Certificat authentique et valide','var(--green)','var(--green-pale)'],expire:['Certificat authentique, validité expirée','var(--amber)','#FFF7E6'],annule:['✕ Certificat annulé','var(--red)','#FDECEC']}[c.statut]||['','','#fff'];
+  const st={valide:['✓ Certificat authentique et valide','var(--green)','var(--green-pale)'],expire:['Certificat authentique, validité expirée','var(--amber)','#FFF7E6'],annule:['✕ Certificat annulé','var(--red)','#FDECEC'],retire:['✕ Certificat retiré','var(--red)','#FDECEC']}[c.statut]||['','','#fff'];
   const d=x=>x?new Date(x+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';
   z.innerHTML=`<div class="panel"><div style="background:${st[2]};color:${st[1]};border-radius:12px;padding:12px 14px;font-weight:700;font-size:17px">${st[0]}<div style="font-weight:400;font-size:13px">Délivré par H TECH ACADEMY — centre de formation de H TECH INNOV</div></div>
     <div class="l" style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:14px">Titulaire</div><div style="font-family:var(--head);font-weight:800;font-size:24px;color:var(--navy)">${esc(c.titulaire)}</div>
