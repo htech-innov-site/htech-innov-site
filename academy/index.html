@@ -762,8 +762,15 @@ async function montrerLecon(){
 async function basculerFait(lid){
   const C=COURS;if(C.i.statut!=='en_cours'){toast('Cette formation n’est plus en cours');return;}
   if(C.pr.has(lid)){const{error}=await sb.from('academy_progression').delete().eq('inscription_id',C.i.id).eq('lecon_id',lid);if(!error)C.pr.delete(lid);}
-  else{const{error}=await sb.from('academy_progression').insert({inscription_id:C.i.id,lecon_id:lid});if(!error){C.pr.add(lid);toast('Leçon terminée, bravo !');}else toast('Enregistrement impossible');}
+  else{const{error}=await sb.from('academy_progression').insert({inscription_id:C.i.id,lecon_id:lid});if(!error){C.pr.add(lid);toast('Leçon terminée, bravo !');verifierCertificat(C.i.id);}else toast('Enregistrement impossible');}
   rendreCours();
+}
+// Certificat automatique : le serveur vérifie le parcours à 100 % et génère le certificat
+async function verifierCertificat(insId){
+  if(VUE)return;
+  try{const{data}=await sb.functions.invoke('academy-certifier',{body:{inscription_id:insId}});
+    if(data?.nouveau){toast('🎓 Félicitations ! Votre certificat '+data.numero+' est disponible dans votre espace.');setTimeout(()=>{location.hash='#/espace';route();},2500);}
+  }catch(e){console.warn('certificat',e);}
 }
 async function ouvrirDoc(id){const d=COURS.docs.find(x=>x.id===id);const u=d&&await signedUrl(d.chemin);if(u)window.open(u,'_blank','noopener');else toast('Document indisponible');}
 let _envoi=false;
@@ -984,7 +991,7 @@ async function rendreDevoir(pubId){
   const ex=COURS.rendus.find(r=>r.publication_id===pubId);
   const d={commentaire_apprenant:c||null,rendu_le:new Date().toISOString()};if(chemin)d.fichier=chemin;
   const r=ex?await sb.from('academy_rendus').update(d).eq('id',ex.id):await sb.from('academy_rendus').insert({...d,publication_id:pubId,inscription_id:i.id,apprenant_id:USER.id});
-  if(r.error){toast('Rendu impossible : '+r.error.message);return;}toast('✅ Travail rendu à votre formateur');pageCours(i.id,'travaux');
+  if(r.error){toast('Rendu impossible : '+r.error.message);return;}toast('✅ Travail rendu à votre formateur');pageCours(i.id,'travaux');verifierCertificat(i.id);
 }
 
 // ═══ Routage ═══
