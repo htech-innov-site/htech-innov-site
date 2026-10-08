@@ -616,6 +616,22 @@ async function definirMdp(ev){
   toast('Mot de passe enregistré');location.hash='#/espace';
 }
 async function seDeconnecter(){await sb.auth.signOut();USER=null;MOI=null;location.hash='#/espace';}
+// Certificats HTA délivrés à l'apprenant (générés par l'ERP)
+async function mesCertificats(aid){
+  const zone=document.querySelector('#app .wrap.espace');if(!zone||!aid)return;
+  const{data,error}=await sb.from('hta_certificats').select('*').eq('apprenant_id',aid).eq('statut','valide').order('date_obtention',{ascending:false});
+  if(error||!data||!data.length)return;
+  const d=x=>x?new Date(x+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';
+  const urlPdf=c=>c.fichier_path?sb.storage.from('documents').getPublicUrl(c.fichier_path).data?.publicUrl:'';
+  const el=document.createElement('section');el.style.marginTop='26px';
+  el.innerHTML=`<span class="kick">Mes certificats</span><h2 style="font-size:24px;margin:6px 0 12px">Certificats H TECH ACADEMY</h2>
+    <div class="grid">${data.map(c=>`<article class="card" style="border-top:4px solid #B8977A"><span class="badge vert">Certificat obtenu</span><h3>${esc(c.formation_titre)}</h3>
+      <div class="meta"><span>🏅 N° ${esc(c.numero)}</span><span>📅 ${esc(d(c.date_obtention))}</span><span>⏳ ${c.date_validite?'Valable jusqu’au '+esc(d(c.date_validite)):'Sans date d’expiration'}</span></div>
+      <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap">${urlPdf(c)?`<a class="btn btn-g btn-s" href="${esc(urlPdf(c))}" target="_blank" rel="noopener">Télécharger (PDF)</a>`:''}
+      <a class="btn btn-o btn-s" href="#/verifier/${encodeURIComponent(c.numero)}">Lien de vérification</a></div></article>`).join('')}</div>
+    <p class="note" style="margin-top:8px">Partagez le lien de vérification avec un employeur : il confirme l’authenticité de votre certificat.</p>`;
+  zone.appendChild(el);
+}
 async function signedUrl(chemin){
   if(/^https?:\/\//.test(chemin))return chemin;
   const{data,error}=await sb.storage.from('academy').createSignedUrl(chemin,3600);return error?null:data.signedUrl;
@@ -664,6 +680,7 @@ async function pageEspace(){
       <div class="actions"><a class="btn btn-g btn-s" href="#/espace/f/${encodeURIComponent(i.id)}">${progr[i.id]?'Continuer':'Commencer'}</a></div></article>`).join('')}</div>`
     :`<div class="panel vide" style="margin-top:20px"><h3>Aucune formation pour le moment</h3><p>Votre inscription est peut-être en cours de traitement. Pour toute question : <a href="https://wa.me/${CONFIG.WHATSAPP}" target="_blank" rel="noopener">WhatsApp</a> ou info@htechinnov.com.</p><a class="btn btn-g" href="#/besoin">Exprimer un besoin de formation</a></div>`}
   </div>`);
+  mesCertificats(VUE?.mode==='apprenant'?VUE.id:USER.id);
 }
 let COURS=null;
 async function pageCours(id,onglet){
