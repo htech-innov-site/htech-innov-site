@@ -15553,6 +15553,8 @@ async function acadSessionsInfos(){
       sb.from('academy_session_formateurs').select('session_id,formateur_id'),
       sb.from('academy_inscriptions').select('*').not('session_id','is',null),
       sb.from('profiles').select('id,prenom,nom,email,role').in('role',['formateur','admin','superadmin','responsable','collaborateur'])]);
+    const ids=[...new Set((ins||[]).map(x=>x.apprenant_id).filter(Boolean))];
+    if(ids.length){const{data:pa}=await sb.from('profiles').select('id,email').in('id',ids);(ins||[]).forEach(x=>{x.email=x.email||(pa||[]).find(p=>p.id===x.apprenant_id)?.email||'';});}
     const nom=id=>{const p=(pf||[]).find(x=>x.id===id);return p?([p.prenom,p.nom].filter(Boolean).join(' ')||p.email):'—';};
     (sf||[]).forEach(x=>{(ACAD_SES_INFO[x.session_id]=ACAD_SES_INFO[x.session_id]||{f:[],a:[]}).f.push({id:x.formateur_id,nom:nom(x.formateur_id)});});
     (ins||[]).forEach(x=>{(ACAD_SES_INFO[x.session_id]=ACAD_SES_INFO[x.session_id]||{f:[],a:[]}).a.push(x);});
@@ -15655,6 +15657,300 @@ async function acadGroupeValider(sid){
     S.colonnes.push({l:'Groupe',f:r=>{const n=(ACAD_SES_INFO[r.id]?.a||[]).length;return `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();acadSessionGroupe('${r.id}')">👥 ${n}${r.places?' / '+r.places:''}</button>`;}});
     const _r=v4Render;v4Render=async function(id){if(id==='academy-sessions')await acadSessionsInfos();return _r(id);};
   }catch(e){logErr(e);}
+})();
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// H TECH ACADEMY — Certificats HTA : modèle officiel, signataires, numérotation,
+// QR de vérification, dépôt dans l'espace apprenant, détection des parcours à 100 %
+// ══════════════════════════════════════════════════════════════════════
+var HTA_SIGN_DEFAUT=[{id:'d1',nom:'Ismaila Remi HIEN',fonction:'Directeur général',ordre:1},{id:'d2',nom:'Koffi Yao',fonction:'Directeur des études',ordre:2}];
+var HTA_NIVEAUX=['Initiation','Intermédiaire','Avancé','Expert'];
+var HTA_SIGN=[],HTA_ROWS=[],HTA_ELIG=[];
+function htaUrlVerif(n){return ACAD_URL_SITE+'#/verifier/'+encodeURIComponent(n);}
+async function htaLibs(){
+  await ensurePdf();
+  if(!window.qrcode)await loadScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js');
+  if(!window._HTA_SCRIPT_FONT){
+    try{const r=await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf');
+      if(r.ok){const b=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));window._HTA_SCRIPT_FONT=btoa(s);}}
+    catch(e){logErr(e);}
+  }
+}
+async function htaSignataires(){
+  try{const{data,error}=await sb.from('hta_signataires').select('*').eq('actif',true).order('ordre');if(!error&&data&&data.length){HTA_SIGN=data;return data;}}catch(e){}
+  HTA_SIGN=HTA_SIGN_DEFAUT.slice();return HTA_SIGN;
+}
+async function htaImageSignature(path){
+  if(!path)return null;
+  try{const u=sb.storage.from('documents').getPublicUrl(path).data?.publicUrl;const r=await fetch(u);if(!r.ok)return null;const b=await r.blob();
+    return await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res(null);fr.readAsDataURL(b);});}catch(e){return null;}
+}
+
+// ── Dessin du certificat (A4 paysage, reproduction du modèle H TECH ACADEMY) ──
+async function htaDessiner(c){
+  await htaLibs();
+  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape'});
+  if(window._HTA_SCRIPT_FONT){try{doc.addFileToVFS('GreatVibes.ttf',window._HTA_SCRIPT_FONT);doc.addFont('GreatVibes.ttf','GreatVibes','normal');}catch(e){window._HTA_SCRIPT_FONT=null;}}
+  const W=297,H=210,P=pdfT;
+  const BRUN=[59,42,32],TAN=[184,151,122],BRONZE=[139,107,78],NAVY=[10,42,102],GRIS=[75,80,92],CREME=[255,252,246];
+  const espace=(t,cs,x,y,size,font,col,align)=>{doc.setFont(font[0],font[1]);doc.setFontSize(size);doc.setTextColor(...col);doc.setCharSpace(cs);
+    const w=doc.getTextWidth(t)+cs*(t.length-1);const xx=align==='center'?x-w/2:align==='right'?x-w:x;doc.text(t,xx,y);doc.setCharSpace(0);return w;};
+  // Cadre
+  doc.setFillColor(...TAN);doc.rect(0,0,W,H,'F');
+  doc.setFillColor(...BRUN);doc.rect(6.5,6.5,W-13,H-13,'F');
+  doc.setFillColor(...CREME);doc.rect(9,9,W-18,H-18,'F');
+  doc.setDrawColor(...TAN);doc.setLineWidth(0.5);
+  const L=17,o=13;
+  [[o,o,1,1],[W-o,o,-1,1],[o,H-o,1,-1],[W-o,H-o,-1,-1]].forEach(([x,y,dx,dy])=>{doc.line(x,y,x+dx*L,y);doc.line(x,y,x,y+dy*L);});
+  // En-tête : logo + H TECH ACADEMY
+  try{if(HTI_LOGO)doc.addImage(HTI_LOGO,'JPEG',85,17.5,23,16.6);}catch(e){}
+  doc.setFont('helvetica','bold');doc.setFontSize(23);doc.setTextColor(...NAVY);doc.text('H TECH ACADEMY',113,28.5);
+  espace(P('CENTRE DE FORMATION DE H TECH INNOV · ABIDJAN'),1.15,113,32.8,6.6,['helvetica','bold'],BRONZE);
+  // Titre
+  espace('CERTIFICAT',1.6,W/2,53,40,['times','bold'],BRUN,'center');
+  espace(P('EST DÉCERNÉ À'),2.2,W/2,62,9,['helvetica','normal'],GRIS,'center');
+  doc.setFont('times','bold');let tn=34;doc.setFontSize(tn);while(doc.getTextWidth(P(c.titulaire))>215&&tn>20){tn--;doc.setFontSize(tn);}
+  doc.setTextColor(...NAVY);doc.text(P(c.titulaire),W/2,76.5,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(10.2);doc.setTextColor(...GRIS);
+  doc.text(doc.splitTextToSize(P('qui a suivi avec assiduité la formation ci-dessous, en a satisfait les évaluations et a démontré la maîtrise des compétences attendues.'),180),W/2,84.5,{align:'center',lineHeightFactor:1.45});
+  doc.setFont('times','bold');let tf=22;doc.setFontSize(tf);while(doc.getTextWidth(P(c.formation_titre))>230&&tf>13){tf--;doc.setFontSize(tf);}
+  doc.setTextColor(...BRUN);doc.text(P(c.formation_titre),W/2,101,{align:'center'});
+  const sous=[c.heures?String(c.heures).toUpperCase():'',c.niveau?('NIVEAU '+String(c.niveau).toUpperCase()):''].filter(Boolean).join('  ·  ');
+  if(sous)espace(P(sous),1.3,W/2,108,8.6,['helvetica','bold'],BRONZE,'center');
+  // Sceau
+  const cx=W/2,cy=150,R=17;
+  const pts=[];for(let i=0;i<72;i++){const a=i*Math.PI/36,r=i%2?R:R-1.3;pts.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}
+  doc.setFillColor(...BRONZE);doc.lines(pts.slice(1).map((p,i)=>[p[0]-pts[i][0],p[1]-pts[i][1]]),pts[0][0],pts[0][1],[1,1],'F',true);
+  doc.setDrawColor(255,255,255);doc.setLineWidth(0.35);doc.circle(cx,cy,R-3,'S');
+  doc.setFillColor(255,255,255);doc.circle(cx,cy,9.6,'F');
+  // texte circulaire
+  const anneau='H TECH ACADEMY · CERTIFICATION · ABIDJAN · ';
+  doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.setTextColor(255,255,255);
+  const rt=R-6.3,pas=360/anneau.length;
+  for(let i=0;i<anneau.length;i++){const deg=-90+i*pas,a=deg*Math.PI/180;const ch=anneau[i]==='•'?'·':anneau[i];if(ch===' ')continue;
+    const w=doc.getTextWidth(ch)/2,px=cx+rt*Math.cos(a)+w*Math.sin(a),py=cy+rt*Math.sin(a)-w*Math.cos(a);
+    doc.text(ch,px,py,{angle:-(deg+90)});}
+  // arcs du logo + année
+  doc.setDrawColor(...BRONZE);doc.setLineWidth(0.7);
+  [4.4,3.1,1.8].forEach(r=>{const seg=[];for(let k=0;k<=18;k++){const a=Math.PI+k*Math.PI/18;seg.push([cx+r*Math.cos(a),cy-0.8+r*Math.sin(a)]);}
+    doc.lines(seg.slice(1).map((p,i)=>[p[0]-seg[i][0],p[1]-seg[i][1]]),seg[0][0],seg[0][1],[1,1],'S',false);});
+  doc.setFont('helvetica','bold');doc.setFontSize(8.4);doc.setTextColor(...BRUN);doc.text(String((c.date_obtention||'').slice(0,4)||new Date().getFullYear()),cx,cy+5,{align:'center'});
+  // Signatures
+  const sig=async(s,x0,x1)=>{const xm=(x0+x1)/2;if(!s||!s.nom)return;
+    const img=s._img||null;
+    if(img){try{doc.addImage(img,'PNG',xm-24,149,48,15);}catch(e){}}
+    else if(window._HTA_SCRIPT_FONT){doc.setFont('GreatVibes','normal');let fs=30;doc.setFontSize(fs);while(doc.getTextWidth(s.nom)>(x1-x0-6)&&fs>16){fs--;doc.setFontSize(fs);}doc.setTextColor(...BRUN);doc.text(s.nom,xm,161.5,{align:'center'});}
+    else{doc.setFont('times','bolditalic');doc.setFontSize(20);doc.setTextColor(...BRUN);doc.text(P(s.nom),xm,161,{align:'center'});}
+    doc.setDrawColor(...NAVY);doc.setLineWidth(0.3);doc.line(x0,164,x1,164);
+    doc.setFont('helvetica','bold');doc.setFontSize(9.2);const a=P(s.nom),b=P('|  '+(s.fonction||''));const wa=doc.getTextWidth(a)+1.6;doc.setFont('helvetica','normal');const wb=doc.getTextWidth(b);
+    doc.setTextColor(...BRUN);doc.setFont('helvetica','bold');doc.text(a,xm-(wa+wb)/2,169.5);doc.setFont('helvetica','normal');doc.text(b,xm-(wa+wb)/2+wa,169.5);};
+  await sig(c._s1,28,108);await sig(c._s2,189,269);
+  // Pied : numéro, dates, QR
+  const bloc=(lbl,val,x)=>{espace(P(lbl),1.1,x,182.5,7.3,['helvetica','normal'],BRONZE);doc.setFont('helvetica','bold');doc.setFontSize(10.8);doc.setTextColor(...BRUN);doc.text(P(val),x,188.5);};
+  const dfr=d=>d?new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';
+  bloc('N° DE CERTIFICAT',c.numero||'',28);bloc("DATE D'OBTENTION",dfr(c.date_obtention),103);bloc("VALABLE JUSQU'AU",c.date_validite?dfr(c.date_validite):'Sans date d’expiration',178);
+  try{const q=qrcode(0,'M');q.addData(htaUrlVerif(c.numero||''));q.make();const n=q.getModuleCount(),sz=19,m=sz/n,qx=W-27-sz,qy=173;
+    doc.setFillColor(255,255,255);doc.rect(qx-1,qy-1,sz+2,sz+2,'F');doc.setFillColor(...NAVY);
+    for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(q.isDark(r,k))doc.rect(qx+k*m,qy+r*m,m+0.02,m+0.02,'F');
+    doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P('Vérifier en ligne'),qx+sz/2,qy+sz+3.2,{align:'center'});
+    doc.link(qx,qy,sz,sz,{url:htaUrlVerif(c.numero||'')});}catch(e){logErr(e);}
+  return doc;
+}
+async function htaPreparerSignataires(c){
+  const all=HTA_SIGN.length?HTA_SIGN:await htaSignataires();
+  const f=(nom,fonc,id)=>{const s=all.find(x=>x.id===id)||all.find(x=>x.nom===nom)||{nom,fonction:fonc};return{...s,nom:nom||s.nom,fonction:fonc||s.fonction};};
+  c._s1=c.signataire1_nom?f(c.signataire1_nom,c.signataire1_fonction):null;c._s2=c.signataire2_nom?f(c.signataire2_nom,c.signataire2_fonction):null;
+  for(const s of [c._s1,c._s2])if(s&&s.signature_path)s._img=await htaImageSignature(s.signature_path);
+  return c;
+}
+async function htaTelecharger(c){
+  const doc=await htaDessiner(await htaPreparerSignataires({...c}));
+  doc.save(pdfT('Certificat-'+(c.numero||'apercu')+'-'+String(c.titulaire||'').replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');
+}
+
+// ── Création d'un certificat ──
+async function htaNumero(){
+  const{data,error}=await sb.rpc('hta_prochain_numero');
+  if(error||!data)throw new Error('Numérotation indisponible : exécutez migration-certificats-hta.sql ('+(error?.message||'')+')');
+  return data;
+}
+async function htaCreer(c,opts){
+  opts=opts||{};
+  c.numero=await htaNumero();
+  const row={numero:c.numero,inscription_id:c.inscription_id||null,apprenant_id:c.apprenant_id||null,titulaire:c.titulaire,formation_ref:c.formation_ref||null,formation_titre:c.formation_titre,
+    heures:c.heures||null,niveau:c.niveau||null,date_obtention:c.date_obtention,date_validite:c.date_validite||null,
+    signataire1_nom:c.signataire1_nom||null,signataire1_fonction:c.signataire1_fonction||null,signataire2_nom:c.signataire2_nom||null,signataire2_fonction:c.signataire2_fonction||null,
+    statut:'valide',created_by:uid()};
+  const{data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single();
+  if(error)throw new Error(error.message);
+  const doc=await htaDessiner(await htaPreparerSignataires({...row}));
+  const blob=doc.output('blob'),chemin='certificats-hta/'+row.numero+'.pdf';
+  const up=await sb.storage.from('documents').upload(chemin,blob,{contentType:'application/pdf',upsert:true});
+  if(!up.error)await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',ins.id);
+  if(row.inscription_id)await sb.from('academy_inscriptions').update({statut:'terminee',date_fin:row.date_obtention}).eq('id',row.inscription_id);
+  try{logAudit('certificat_hta','hta_certificats',row.numero,{titulaire:row.titulaire,formation:row.formation_titre});}catch(e){}
+  if(!opts.silencieux)doc.save(pdfT('Certificat-'+row.numero+'-'+String(row.titulaire).replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');
+  return row.numero;
+}
+function htaValidite(dateObt,choix){
+  if(choix==='aucune'||!dateObt)return null;
+  const d=new Date(dateObt+'T12:00:00');d.setFullYear(d.getFullYear()+parseInt(choix));return d.toISOString().slice(0,10);
+}
+async function htaFormInscription(insId){
+  const{data:i}=await sb.from('academy_inscriptions').select('*').eq('id',insId).single();
+  if(!i){toast('❌ Inscription introuvable');return;}
+  htaForm({inscription_id:i.id,apprenant_id:i.apprenant_id,titulaire:i.apprenant_nom,formation_ref:i.formation_ref,formation_titre:i.formation_titre||acadTitre(i.formation_ref),
+    heures:i.heures_presentiel?i.heures_presentiel+' heures':''});
+}
+async function htaForm(p){
+  p=p||{};await htaSignataires();
+  const deja=p.inscription_id?(await sb.from('hta_certificats').select('numero').eq('inscription_id',p.inscription_id).eq('statut','valide')).data||[]:[];
+  const opt=(sel)=>HTA_SIGN.map(s=>`<option value="${esc(s.id)}" ${s.id===sel?'selected':''}>${esc(s.nom+' — '+(s.fonction||''))}</option>`).join('')+'<option value="">— Aucun —</option>';
+  document.getElementById('modalBox').style.width='min(720px,96vw)';
+  document.getElementById('modalTitle').textContent='🎓 Générer un certificat H TECH ACADEMY';
+  document.getElementById('modalBody').innerHTML=`
+    ${deja.length?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:10px;font-size:12.5px">⚠️ Cet apprenant a déjà le certificat ${esc(deja.map(x=>x.numero).join(', '))} pour cette inscription.</div>`:''}
+    <div class="form-grid">
+      <div class="form-field full"><label for="htT">Titulaire (tel qu’il apparaîtra) *</label><input id="htT" value="${esc(p.titulaire||'')}"></div>
+      <div class="form-field full"><label for="htF">Formation *</label><input id="htF" value="${esc(p.formation_titre||'')}"></div>
+      <div class="form-field"><label for="htH">Volume</label><input id="htH" value="${esc(p.heures||'')}" placeholder="30 heures"></div>
+      <div class="form-field"><label for="htN">Niveau</label><select id="htN"><option value="">—</option>${HTA_NIVEAUX.map(n=>`<option ${n===p.niveau?'selected':''}>${n}</option>`).join('')}</select></div>
+      <div class="form-field"><label for="htD">Date d’obtention *</label><input id="htD" type="date" value="${esc(p.date_obtention||isoJour())}"></div>
+      <div class="form-field"><label for="htV">Validité</label><select id="htV"><option value="3">3 ans</option><option value="2">2 ans</option><option value="1">1 an</option><option value="aucune">Sans date d’expiration</option></select></div>
+      <div class="form-field"><label for="htS1">Signataire de gauche</label><select id="htS1">${opt(HTA_SIGN[0]?.id)}</select></div>
+      <div class="form-field"><label for="htS2">Signataire de droite</label><select id="htS2">${opt(HTA_SIGN[1]?.id)}</select></div>
+      <p class="cell-sub full" style="margin:0">Le numéro HTA est attribué à la création. Le PDF est déposé dans l’espace de l’apprenant sur H TECH ACADEMY et le certificat devient vérifiable en ligne.</p>
+    </div>`;
+  window._HTA_P=p;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="htaApercu()">👁 Aperçu</button><button class="btn btn-primary" id="htGo" onclick="htaValider()">🎓 Générer le certificat</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function htaLireForm(){
+  const p=window._HTA_P||{},s1=HTA_SIGN.find(s=>s.id===gv('htS1')),s2=HTA_SIGN.find(s=>s.id===gv('htS2'));
+  return{...p,titulaire:g('htT')||'',formation_titre:g('htF')||'',heures:g('htH')||'',niveau:gv('htN')||'',date_obtention:gv('htD')||isoJour(),
+    date_validite:htaValidite(gv('htD')||isoJour(),gv('htV')),signataire1_nom:s1?.nom||'',signataire1_fonction:s1?.fonction||'',signataire2_nom:s2?.nom||'',signataire2_fonction:s2?.fonction||''};
+}
+async function htaApercu(){const c=htaLireForm();c.numero='HTA-'+(c.date_obtention||'').slice(0,4)+'-APERÇU';await htaTelecharger(c);}
+async function htaValider(){
+  const c=htaLireForm();if(!c.titulaire||!c.formation_titre){toast('❌ Titulaire et formation requis');return;}
+  const b=document.getElementById('htGo');b.disabled=true;b.textContent='Génération…';
+  try{const n=await htaCreer(c);toast('✅ Certificat '+n+' généré et déposé dans l’espace de l’apprenant',6000);closeModal();
+    if(document.getElementById('page-academy-certificats')?.classList.contains('active'))v4Render('academy-certificats');}
+  catch(e){b.disabled=false;b.textContent='🎓 Générer le certificat';toast('❌ '+e.message,10000);}
+}
+
+// ── Parcours à 100 % : toutes les leçons faites et tous les devoirs rendus ──
+async function htaEligibles(){
+  const{data:ins}=await sb.from('academy_inscriptions').select('*').neq('statut','abandon');
+  const L=(ins||[]);if(!L.length)return[];
+  const{data:certs}=await sb.from('hta_certificats').select('inscription_id').eq('statut','valide');
+  const dejaC=new Set((certs||[]).map(x=>x.inscription_id));
+  const C=L.filter(i=>!dejaC.has(i.id));if(!C.length)return[];
+  const refs=[...new Set(C.map(i=>i.formation_ref))];
+  const[{data:mods},{data:pubs},{data:rendus}]=await Promise.all([sb.from('academy_modules').select('id,formation_ref').in('formation_ref',refs),
+    sb.from('academy_publications').select('id,type,cible,formation_ref,session_id,inscriptions').eq('type','devoir'),
+    sb.from('academy_rendus').select('inscription_id,publication_id,note').in('inscription_id',C.map(i=>i.id))]);
+  const{data:lec}=await sb.from('academy_lecons').select('id,module_id').in('module_id',(mods||[]).map(m=>m.id).concat(['00000000-0000-0000-0000-000000000000']));
+  const{data:pr}=await sb.from('academy_progression').select('inscription_id,lecon_id').in('inscription_id',C.map(i=>i.id));
+  return C.map(i=>{
+    const ms=(mods||[]).filter(m=>m.formation_ref===i.formation_ref).map(m=>m.id),ls=(lec||[]).filter(l=>ms.includes(l.module_id));
+    const faits=(pr||[]).filter(p=>p.inscription_id===i.id&&ls.some(l=>l.id===p.lecon_id)).length;
+    const devs=(pubs||[]).filter(p=>(p.cible==='formation'&&p.formation_ref===i.formation_ref)||(p.cible==='session'&&p.session_id&&p.session_id===i.session_id)||((p.inscriptions||[]).includes(i.id)));
+    const rendus_i=(rendus||[]).filter(r=>r.inscription_id===i.id);
+    const devOk=devs.filter(d=>rendus_i.some(r=>r.publication_id===d.id)).length;
+    return{i,lecons:ls.length,faits,devoirs:devs.length,devOk,pct:ls.length?Math.round(100*faits/ls.length):0};
+  }).filter(x=>x.lecons>0&&x.faits>=x.lecons&&x.devOk>=x.devoirs);
+}
+async function htaGenererTous(){
+  const E=HTA_ELIG;if(!E.length)return;
+  await htaSignataires();const s1=HTA_SIGN[0],s2=HTA_SIGN[1];
+  if(!confirm(`Générer ${E.length} certificat(s) avec les signataires ${s1?.nom||'—'} et ${s2?.nom||'—'} (validité 3 ans) ?`))return;
+  let ok=0;const err=[];
+  for(const x of E){const i=x.i;
+    try{await htaCreer({inscription_id:i.id,apprenant_id:i.apprenant_id,titulaire:i.apprenant_nom,formation_ref:i.formation_ref,formation_titre:i.formation_titre||acadTitre(i.formation_ref),
+      heures:i.heures_presentiel?i.heures_presentiel+' heures':'',niveau:'',date_obtention:isoJour(),date_validite:htaValidite(isoJour(),'3'),
+      signataire1_nom:s1?.nom,signataire1_fonction:s1?.fonction,signataire2_nom:s2?.nom,signataire2_fonction:s2?.fonction},{silencieux:true});ok++;}
+    catch(e){err.push(i.apprenant_nom+' : '+e.message);}}
+  toast(`✅ ${ok} certificat(s) généré(s)`+(err.length?' — '+err.length+' erreur(s) : '+err[0]:''),9000);v4Render('academy-certificats');
+}
+
+// ── Page « Certificats » (H TECH Academy) ──
+v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
+  await htaSignataires();
+  let err=null;try{const r=await sb.from('hta_certificats').select('*').order('created_at',{ascending:false});if(r.error)err=r.error;HTA_ROWS=r.data||[];}catch(e){err=e;HTA_ROWS=[];}
+  try{HTA_ELIG=err?[]:await htaEligibles();}catch(e){logErr(e);HTA_ELIG=[];}
+  const st={valide:['Valide','#3F8A1E'],annule:['Annulé','#DC2626']};
+  const expire=c=>c.date_validite&&c.date_validite<isoJour();
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🎓 Certificats H TECH ACADEMY</h1><div class="page-sub">Numérotés HTA, vérifiables en ligne et déposés dans l’espace de chaque apprenant</div></div>
+    <div class="v4-tools"><a class="btn btn-outline btn-sm" href="${esc(ACAD_URL_SITE+'#/verifier')}" target="_blank">🔍 Page de vérification</a><button class="btn btn-primary btn-sm" onclick="htaForm()">+ Certificat manuel</button></div></div>
+  ${err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ Les tables des certificats n’existent pas encore : exécutez <b>migration-certificats-hta.sql</b> dans Supabase.</div>':''}
+  <div class="card" style="margin-bottom:14px;border-left:4px solid ${HTA_ELIG.length?'#3F8A1E':'var(--g200)'}">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="card-title" style="margin:0">✅ Parcours terminés à 100 % — à certifier (${HTA_ELIG.length})</div>
+    ${HTA_ELIG.length>1?`<button class="btn btn-accent btn-sm" onclick="htaGenererTous()">🎓 Générer tous les certificats</button>`:''}</div>
+    <div class="cell-sub" style="margin:4px 0 8px">Toutes les leçons terminées et tous les devoirs rendus. La liste se met à jour à chaque ouverture de cette page.</div>
+    ${HTA_ELIG.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--g100)">
+      <div><b>${esc(x.i.apprenant_nom||'')}</b><div class="cell-sub">${esc(x.i.formation_titre||acadTitre(x.i.formation_ref))} · ${x.faits}/${x.lecons} leçons · ${x.devOk}/${x.devoirs} devoirs</div></div>
+      <button class="btn btn-primary btn-sm" onclick="htaFormInscription('${x.i.id}')">🎓 Générer</button></div>`).join('')||'<div class="cell-sub">Aucun apprenant en attente de certificat.</div>'}
+  </div>
+  <div class="card" style="margin-bottom:14px"><div class="card-title">Certificats délivrés (${HTA_ROWS.length})</div><div class="table-wrap"><table><thead><tr><th>N°</th><th>Titulaire</th><th>Formation</th><th>Obtention</th><th>Validité</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
+  ${HTA_ROWS.map(c=>`<tr><td><code style="font-size:10.5px">${esc(c.numero)}</code></td><td><strong>${esc(c.titulaire)}</strong></td><td style="font-size:12px">${esc(c.formation_titre)}<div class="cell-sub">${esc([c.heures,c.niveau].filter(Boolean).join(' · '))}</div></td>
+    <td style="font-size:12px">${fmtD(c.date_obtention)}</td><td style="font-size:12px">${c.date_validite?fmtD(c.date_validite)+(expire(c)?' <span style="color:#D97706">(expiré)</span>':''):'Sans expiration'}</td>
+    <td><select onchange="htaStatut('${c.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${(st[c.statut]||st.valide)[1]};font-weight:600">${Object.entries(st).map(([k,v])=>`<option value="${k}" ${k===c.statut?'selected':''}>${v[0]}</option>`).join('')}</select></td>
+    <td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="htaPdf('${c.id}')" title="Télécharger le PDF">📄</button><a class="btn btn-outline btn-sm" href="${esc(htaUrlVerif(c.numero))}" target="_blank" title="Vérifier en ligne">🔗</a></div></td></tr>`).join('')
+    ||'<tr><td colspan="7" style="text-align:center;color:var(--g400);padding:16px">Aucun certificat délivré.</td></tr>'}
+  </tbody></table></div></div>
+  <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="card-title" style="margin:0">✍️ Signataires</div><button class="btn btn-outline btn-sm" onclick="htaSignForm()">+ Ajouter un signataire</button></div>
+    <div class="cell-sub" style="margin:4px 0 8px">Les deux premiers sont proposés par défaut (gauche, puis droite). Sans image de signature, le nom est écrit en calligraphie.</div>
+    ${HTA_SIGN.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--g100)">
+      <div><b>${esc(s.nom)}</b> <span class="cell-sub" style="margin:0">${esc(s.fonction||'')}</span>${s.signature_path?' · <span style="color:#3F8A1E;font-size:12px">signature image</span>':''}</div>
+      ${String(s.id).startsWith('d')?'<span class="cell-sub">par défaut — ajoutez vos signataires pour les remplacer</span>':`<div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="htaSignForm('${s.id}')">✏️</button><button class="btn btn-outline btn-sm" onclick="htaSignRetirer('${s.id}')">🗑</button></div>`}</div>`).join('')}
+  </div>`;
+}});
+async function htaStatut(id,s){
+  if(s==='annule'&&!confirm('Annuler ce certificat ? La page de vérification affichera « Certificat annulé ».')){v4Render('academy-certificats');return;}
+  const{error}=await sb.from('hta_certificats').update({statut:s}).eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('statut_certificat','hta_certificats',id,{statut:s});}catch(e){}toast('Statut mis à jour');v4Render('academy-certificats');
+}
+async function htaPdf(id){
+  const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;
+  if(c.fichier_path){const u=sb.storage.from('documents').getPublicUrl(c.fichier_path).data?.publicUrl;if(u){window.open(u,'_blank');return;}}
+  await htaTelecharger(c);
+}
+function htaSignForm(id){
+  const s=id?HTA_SIGN.find(x=>x.id===id):{ordre:HTA_SIGN.filter(x=>!String(x.id).startsWith('d')).length+1};
+  document.getElementById('modalBox').style.width='min(520px,96vw)';
+  document.getElementById('modalTitle').textContent=id?'✏️ Signataire':'+ Ajouter un signataire';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field full"><label for="sgN">Nom complet *</label><input id="sgN" value="${esc(s.nom||'')}"></div>
+    <div class="form-field full"><label for="sgF">Fonction *</label><input id="sgF" value="${esc(s.fonction||'')}" placeholder="Directeur des études"></div>
+    <div class="form-field"><label for="sgO">Ordre (1 = gauche par défaut)</label><input id="sgO" type="number" min="1" value="${esc(s.ordre||1)}"></div>
+    <div class="form-field full"><label for="sgI">Image de la signature (PNG sur fond transparent, facultatif)</label><input id="sgI" type="file" accept="image/png"></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="htaSignSauver('${id||''}')">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function htaSignSauver(id){
+  const nom=g('sgN'),fonction=g('sgF');if(!nom||!fonction){toast('❌ Nom et fonction requis');return;}
+  const p={nom,fonction,ordre:parseInt(gv('sgO'))||1,actif:true};
+  const f=document.getElementById('sgI')?.files?.[0];
+  if(f){const chemin='signatures/'+Date.now()+'-'+nom.replace(/[^A-Za-z0-9]+/g,'_')+'.png';
+    const up=await sb.storage.from('documents').upload(chemin,f,{contentType:'image/png'});if(up.error){toast('❌ '+up.error.message);return;}p.signature_path=chemin;}
+  const{error}=id?await sb.from('hta_signataires').update(p).eq('id',id):await sb.from('hta_signataires').insert(p);
+  if(error){toast('❌ '+error.message);return;}toast('✅ Signataire enregistré');closeModal();v4Render('academy-certificats');
+}
+async function htaSignRetirer(id){if(!confirm('Retirer ce signataire ? Les certificats déjà délivrés ne changent pas.'))return;
+  const{error}=await sb.from('hta_signataires').update({actif:false}).eq('id',id);if(error){toast('❌ '+error.message);return;}v4Render('academy-certificats');}
+(function(){
+  try{
+    ['superadmin','admin'].forEach(r=>{const nav=NAV[r];if(!nav||nav.some(x=>x.id==='academy-certificats'))return;const k=nav.findIndex(x=>x.id==='academy-formateurs');nav.splice(k<0?nav.length:k+1,0,{id:'academy-certificats',i:'🎓',l:'Certificats Academy'});});
+    PAGE_LABELS['academy-certificats']='Certificats Academy';
+    // Bouton « Certificat » sur chaque inscription
+    const ap=V4['academy-inscriptions'];
+    if(ap&&ap.colonnes&&!ap.colonnes.some(c=>c.l==='Certificat'))ap.colonnes.push({l:'Certificat',f:r=>`<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();htaFormInscription('${r.id}')" title="Générer le certificat">🎓</button>`});
+  }catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-academy-certificats')){const d=document.createElement('div');d.className='page';d.id='page-academy-certificats';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
 
 </script>
