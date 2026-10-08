@@ -643,6 +643,33 @@ async function telechargerCertificat(chemin){
   if(error||!data?.signedUrl){if(w)w.close();toast('Certificat momentanément indisponible. Réessayez ou contactez info@htechinnov.com');return;}
   if(w)w.location=data.signedUrl;else location.href=data.signedUrl;
 }
+// Ordres de mission du formateur (créés dans l'ERP)
+async function mesOrdresMission(fid){
+  const zone=document.querySelector('#app .wrap.espace');if(!zone||!fid)return;
+  const{data,error}=await sb.from('ordres_mission').select('id,numero,objet,client,lieu,date_debut,date_fin,statut,fichier_path,accepte_le,donnees').eq('missionne_id',fid).neq('statut','brouillon').order('date_debut',{ascending:false});
+  if(error||!data||!data.length)return;
+  const d=x=>x?new Date(x+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';
+  const ST={envoye:['À valider','#D97706'],accepte:['Accepté','#0891B2'],en_cours:['En cours','#1565C0'],termine:['Terminé','#7C3AED'],cloture:['Clôturé','#3F8A1E'],annule:['Annulé','#DC2626']};
+  const el=document.createElement('section');el.style.marginTop='26px';
+  el.innerHTML=`<span class="kick">Mes missions</span><h2 style="font-size:24px;margin:6px 0 12px">Ordres de mission</h2>
+    <div class="grid">${data.map(o=>`<article class="card" style="border-top:4px solid ${(ST[o.statut]||['','#7A90A8'])[1]}">
+      <span class="badge" style="background:${(ST[o.statut]||['','#7A90A8'])[1]};color:#fff">${esc((ST[o.statut]||[o.statut])[0])}</span><h3>${esc(o.objet||'')}</h3>
+      <div class="meta"><span>🧭 ${esc(o.numero)}</span><span>📅 ${esc(d(o.date_debut))}${o.date_fin&&o.date_fin!==o.date_debut?' → '+esc(d(o.date_fin)):''}</span>${o.lieu?`<span>📍 ${esc(o.lieu)}</span>`:''}${o.client?`<span>🏢 ${esc(o.client)}</span>`:''}</div>
+      <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap">${o.fichier_path?`<button class="btn btn-o btn-s" onclick="telechargerOM('${esc(o.fichier_path)}')">Télécharger (PDF)</button>`:''}
+      ${o.statut==='envoye'&&!VUE?`<button class="btn btn-g btn-s" onclick="accepterOM('${o.id}','${esc(o.numero)}')">Je donne mon accord</button>`:''}
+      ${o.accepte_le?`<span class="note">Accord donné le ${esc(d(String(o.accepte_le).slice(0,10)))}</span>`:''}</div></article>`).join('')}</div>`;
+  zone.appendChild(el);
+}
+async function telechargerOM(chemin){
+  const w=window.open('','_blank');const{data,error}=await sb.storage.from('missions').createSignedUrl(chemin,600);
+  if(error||!data?.signedUrl){if(w)w.close();toast('Document momentanément indisponible. Contactez H TECH INNOV au 27 22 56 28 37.');return;}
+  if(w)w.location=data.signedUrl;else location.href=data.signedUrl;
+}
+async function accepterOM(id,num){
+  if(!confirm('Donner votre accord pour l’ordre de mission '+num+' ? Vous confirmez avoir pris connaissance de la mission, des dates et des conditions.'))return;
+  const{error}=await sb.rpc('om_accepter',{p_id:id});if(error){toast('Accord impossible : '+error.message);return;}
+  toast('✅ Merci ! Votre accord a été transmis à H TECH INNOV.');route();
+}
 async function signedUrl(chemin){
   if(/^https?:\/\//.test(chemin))return chemin;
   const{data,error}=await sb.storage.from('academy').createSignedUrl(chemin,3600);return error?null:data.signedUrl;
@@ -857,6 +884,7 @@ async function pageFormateur(){
     <h2 style="font-size:20px;margin:22px 0 10px">Mes publications</h2>
     ${(pubs||[]).length?`<div class="panel">${pubs.map(p=>`<div class="lecon"><span class="ico">${TYPES_PUB[p.type]?.[0]||'•'}</span><div class="t"><b>${esc(p.titre)}</b><small>${esc(TYPES_PUB[p.type]?.[1]||'')} · ${esc(libCible(p))} · ${esc(dateCourte(p.created_at))}${p.disponible_le&&new Date(p.disponible_le)>new Date()?' · visible le '+esc(dateCourte(p.disponible_le)):''}</small></div>${VUE&&!estAdmin()?'':`<button class="btn btn-o btn-s" onclick="supprimerPub('${p.id}')">Retirer</button>`}</div>`).join('')}</div>`:'<div class="panel vide">Rien publié pour le moment.</div>'}
   </div>`);
+  mesOrdresMission(VUE?.mode==='formateur'?VUE.id:USER.id);
 }
 let FORM_CTX=null;
 function libCible(p){
