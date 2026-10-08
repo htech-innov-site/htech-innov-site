@@ -16120,7 +16120,7 @@ async function acadFormateurValider(forcer){
     if(r?.error==='apprenant_existant'){b.disabled=false;b.textContent='Inscrire et créer l’accès';
       if(confirm(email+' est déjà inscrit comme apprenant. En faire un formateur ?'))return acadFormateurValider(true);return;}
     try{logAudit('inscription_formateur','profiles',r.user_id||'',{});}catch(e){}
-    if(r.acces)acadFichesAcces([r.acces],'✅ Formateur inscrit — accès à transmettre');
+    if(r.acces)acadFichesAcces([{...r.acces,user_id:r.user_id}],'✅ Formateur inscrit — accès à transmettre');
     else{toast('✅ Compte existant passé formateur (il garde ses identifiants)',6000);closeModal();}
     if(document.getElementById('page-academy-formateurs')?.classList.contains('active'))v4Render('academy-formateurs');
   }catch(e){b.disabled=false;b.textContent='Inscrire et créer l’accès';toast('❌ '+e.message,12000);}
@@ -16162,6 +16162,599 @@ async function acadGroupeValider(sid){
   if(acces.length)acadFichesAcces(acces,`✅ ${acces.length+existants} participant(s) inscrit(s) — accès à transmettre`+(existants?` (${existants} avaient déjà un compte)`:''));
   else{toast(`✅ ${existants} participant(s) inscrit(s), tous avaient déjà un compte`,6000);acadSessionGroupe(sid);}
 }
+
+</script>
+<script>
+// Fiche de bienvenue formateur — H TECH INNOV / H TECH ACADEMY (A4 portrait, 2 pages)
+async function bienvenuePDF(f,res){
+  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,M=16,P=pdfT,NAVY=[10,42,102],BLUE=[21,101,192],GREEN=[63,138,30],GREY=[96,108,130],LIGHT=[244,247,252],LINE=[213,224,240],TXT=[30,40,60],VERT_CLAIR=[237,246,232];
+  const col=(c,s,sz)=>{doc.setTextColor(...c);if(s)doc.setFont('helvetica',s);if(sz)doc.setFontSize(sz);};
+  const espace=(t,cs,x,y)=>{doc.setCharSpace(cs);doc.text(t,x,y);doc.setCharSpace(0);};
+  const entete=(n)=>{
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,4,'F');doc.setFillColor(...GREEN);doc.rect(0,4,W,1,'F');
+    try{if(res.logo)doc.addImage(res.logo,'JPEG',M,10,22,16);}catch(e){}
+    col(NAVY,'bold',13);doc.text('H TECH ACADEMY',M+26,16.5);col(GREEN,'bold',6.8);espace('AU C\u0152UR DE VOS COMP\u00c9TENCES',0.9,M+26,21);
+    col(GREY,'normal',7.5);doc.text(P('Centre de formation de H TECH INNOV · Abidjan'),M+26,25);
+    col(NAVY,'bold',15);doc.text('FICHE DE BIENVENUE',W-M,16.5,{align:'right'});
+    col(GREY,'normal',8);doc.text(P('Formateur · '+(f.date_fr||'')+(n?'  ·  page '+n+'/2':'')),W-M,22,{align:'right'});
+    doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.line(M,30,W-M,30);
+  };
+  const pied=()=>{doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);doc.line(M,283,W-M,283);col(GREY,'normal',7);
+    doc.text(P("H TECH INNOV  |  SARL  |  RCCM CI-ABJ-03-2026-B12-06284  |  Cocody Riviera Jules Verne, Abidjan, Côte d'Ivoire"),W/2,287,{align:'center'});
+    doc.text(P('Standard +225 27 22 56 28 37  |  WhatsApp +225 07 14 94 24 21  |  info@htechinnov.com  |  www.htechinnov.com/academy'),W/2,290.5,{align:'center'});};
+  const titre=(t,y,ico)=>{doc.setFillColor(...GREEN);doc.rect(M,y-4,2.2,6,'F');col(NAVY,'bold',11.5);doc.text(P(t.toUpperCase()),M+5,y+0.6);return y+7;};
+  const para=(t,x,y,w,sz,c)=>{col(c||TXT,'normal',sz||9.3);const l=doc.splitTextToSize(P(t),w);doc.text(l,x,y,{lineHeightFactor:1.45});return y+l.length*(sz||9.3)*0.3528*1.45;};
+
+  // ───── Page 1 ─────
+  entete(1);
+  // Bandeau d'accueil
+  let y=36;doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,38,3,3,'FD');
+  const cx=M+20,cy=y+19;
+  let photoOk=false;
+  if(res.photo){try{doc.saveGraphicsState();doc.circle(cx,cy,14,null);doc.clip();doc.discardPath();
+    doc.addImage(res.photo,res.photo.startsWith('data:image/png')?'PNG':'JPEG',cx-14,cy-14,28,28);doc.restoreGraphicsState();photoOk=true;}catch(e){try{doc.restoreGraphicsState();}catch(_){}}}
+  if(!photoOk){doc.setFillColor(...NAVY);doc.circle(cx,cy,14,'F');col([255,255,255],'bold',16);doc.text(P(f.initiales||''),cx,cy+2,{align:'center'});}
+  doc.setDrawColor(...GREEN);doc.setLineWidth(1.2);doc.circle(cx,cy,14.6,'S');
+  col(GREEN,'bold',8);espace('BIENVENUE DANS L’ÉQUIPE'.replace('’',"'"),1,M+40,y+11);
+  col(NAVY,'bold',19);doc.text(P(f.prenom+' '+f.nom),M+40,y+20);
+  col(TXT,'normal',10);doc.text(P(f.titre||''),M+40,y+26.5);
+  col(GREY,'normal',8.2);doc.text(P('Formateur H TECH ACADEMY depuis le '+(f.date_fr||'')),M+40,y+32);
+  y+=46;
+  // Mot d'accueil
+  y=titre('Le mot d’accueil'.replace('’',"'"),y);
+  y=para(`Cher ${f.prenom},`,M,y+1,W-2*M,9.6);
+  y=para(`Nous sommes heureux de vous accueillir parmi les formateurs de H TECH ACADEMY. Votre expertise en ${f.domaine||'votre domaine'} va directement contribuer à notre promesse : former aux certifications qui font la différence, avec un expert qui suit chaque apprenant jusqu’à la réussite.`,M,y+1.5,W-2*M);
+  y=para(`Cette fiche réunit tout ce dont vous avez besoin pour démarrer : votre profil tel qu’il est publié, vos accès à votre espace formateur et nos engagements réciproques. Notre équipe reste à votre écoute à chaque étape.`,M,y+1.5,W-2*M);
+  // Signature
+  y+=3;col(GREY,'normal',8.2);doc.text(P('Pour H TECH ACADEMY,'),M,y+2);
+  col(NAVY,'bold',9.6);doc.text(P(f.signataire||''),M,y+7.5);col(GREY,'normal',8.2);doc.text(P(f.signataire_fonction||''),M,y+11.5);
+  y+=20;
+  // Profil publié (masqué s'il est vide)
+  const aProfil=(f.competences||[]).length||(f.formations||[]).length||(f.certifications||[]).length;
+  if(aProfil){
+  y=titre('Votre profil publié',y);
+  col(GREY,'normal',8);doc.text(P('Tel qu’il apparaît sur www.htechinnov.com/academy — rubrique Formateurs'),M,y);y+=5;
+  if((f.competences||[]).length){col(NAVY,'bold',8.6);doc.text(P('Compétences'),M,y);y+=2.5;}
+  let x=M;doc.setFontSize(8.2);
+  (f.competences||[]).forEach(c=>{doc.setFont('helvetica','bold');const w=doc.getTextWidth(P(c))+7;if(x+w>W-M){x=M;y+=8;}
+    doc.setLineWidth(0.3);doc.setFillColor(...VERT_CLAIR);doc.setDrawColor(190,220,175);doc.roundedRect(x,y,w,6,3,3,'FD');col(GREEN,'bold',8.2);doc.text(P(c),x+3.5,y+4.1);x+=w+2.5;});
+  if((f.competences||[]).length)y+=12;
+  const liste=(t,items,yy)=>{if(!items||!items.length)return yy;col(NAVY,'bold',8.6);doc.text(P(t),M,yy);yy+=4.6;col(TXT,'normal',8.8);
+    items.forEach(it=>{const l=doc.splitTextToSize(P(it),W-2*M-6);doc.setFillColor(...BLUE);doc.circle(M+1.3,yy-1.2,0.8,'F');doc.text(l,M+4.5,yy);yy+=l.length*4.3+0.6;});return yy+2;};
+  y=liste('Formations animées',f.formations,y);
+  y=liste('Certifications',f.certifications,y);
+  doc.setLineWidth(0.3);doc.setFillColor(255,248,230);doc.setDrawColor(240,215,150);doc.roundedRect(M,y,W-2*M,8,2,2,'FD');
+  col([150,100,10],'normal',8.2);doc.text(P('Une information à corriger ou à compléter ? Contactez-nous au 27 22 56 28 37 ou sur WhatsApp au 07 14 94 24 21.'),M+4,y+5.2);y+=14;
+  }
+  // Accès
+  y=titre('Vos accès à l’espace formateur'.replace('’',"'"),y);
+  doc.setFillColor(...NAVY);doc.roundedRect(M,y,W-2*M,33,3,3,'F');
+  const ligneAcc=(l,v,yy,gros)=>{col([170,190,225],'normal',7.4);espace(P(l.toUpperCase()),0.6,M+6,yy);col([255,255,255],'bold',gros?13:10.5);doc.setFont(gros?'courier':'helvetica','bold');doc.text(P(v),M+6,yy+5.4);};
+  ligneAcc('Adresse',f.url,y+7);ligneAcc('Identifiant',f.identifiant||'Communiqué par H TECH INNOV',y+18.5,!!f.identifiant);
+  if(f.mot_de_passe){col([170,190,225],'normal',7.4);espace('MOT DE PASSE PROVISOIRE',0.6,M+70,y+18.5);doc.setFont('courier','bold');doc.setFontSize(13);doc.setTextColor(255,226,140);doc.text(P(f.mot_de_passe),M+70,y+23.9);}
+  else{col([170,190,225],'normal',7.4);espace('MOT DE PASSE',0.6,M+70,y+18.5);col([255,255,255],'normal',8.5);doc.text(P('Remis séparément par H TECH INNOV'),M+70,y+23.9);}
+  col([200,212,235],'normal',7.6);doc.text(P('À la première connexion, vous choisissez votre propre mot de passe.'),M+6,y+30);
+  try{const q=qrcode(0,'M');q.addData(f.url);q.make();const n=q.getModuleCount(),sz=24,m=sz/n,qx=W-M-sz-5,qy=y+4.5;
+    doc.setFillColor(255,255,255);doc.roundedRect(qx-1.5,qy-1.5,sz+3,sz+3,1.5,1.5,'F');doc.setFillColor(...NAVY);
+    for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(q.isDark(r,k))doc.rect(qx+k*m,qy+r*m,m+0.02,m+0.02,'F');}catch(e){}
+  pied();
+
+  // ───── Page 2 ─────
+  doc.addPage();entete(2);y=40;
+  y=titre('Votre espace formateur en 5 étapes',y);
+  const etapes=[['Connectez-vous','Sur www.htechinnov.com/academy › « Mon espace », avec votre identifiant. Choisissez votre mot de passe personnel.'],
+    ['Retrouvez vos apprenants','Vos apprenants en suivi individuel et les participants de vos sessions de groupe apparaissent automatiquement.'],
+    ['Publiez vos contenus','Supports, vidéos, annonces, devoirs et examens : pour un apprenant, plusieurs, ou toute une session en une fois.'],
+    ['Corrigez et notez','Les devoirs rendus arrivent dans votre espace : note sur 20 et commentaire pour chaque apprenant.'],
+    ['Échangez','Répondez aux questions de vos apprenants par message, sous 48 heures ouvrées.']];
+  const cw=(W-2*M-4*3)/5;
+  doc.setLineWidth(0.3);etapes.forEach(([t,d],k)=>{const xx=M+k*(cw+3);doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(xx,y,cw,48,2.5,2.5,'FD');
+    doc.setFillColor(...(k%2?BLUE:GREEN));doc.circle(xx+6.5,y+7,3.8,'F');col([255,255,255],'bold',10);doc.text(String(k+1),xx+6.5,y+8.4,{align:'center'});
+    col(NAVY,'bold',8.4);doc.text(doc.splitTextToSize(P(t),cw-5),xx+3,y+16);col(TXT,'normal',7.3);doc.text(doc.splitTextToSize(P(d),cw-5),xx+3,y+24,{lineHeightFactor:1.35});});
+  y+=56;
+  y=titre('Nos engagements réciproques',y);
+  const half=(W-2*M-6)/2;
+  const bloc=(t,items,xx,c)=>{doc.setDrawColor(...c);doc.setLineWidth(0.5);doc.setFillColor(255,255,255);doc.roundedRect(xx,y,half,64,2.5,2.5,'FD');
+    doc.setFillColor(...c);doc.roundedRect(xx,y,half,8,2.5,2.5,'F');doc.rect(xx,y+4,half,4,'F');col([255,255,255],'bold',8.6);doc.text(P(t),xx+4,y+5.4);
+    let yy=y+14;items.forEach(it=>{col(c,'bold',9);doc.text('✓'.replace('✓','+'),xx+4,yy);col(TXT,'normal',8);const l=doc.splitTextToSize(P(it),half-12);doc.text(l,xx+8.5,yy,{lineHeightFactor:1.35});yy+=l.length*3.75+2.2;});};
+  bloc('H TECH INNOV s’engage à'.replace('’',"'"),['Vous confier des sessions adaptées à votre expertise, planifiées à l’avance','Mettre à disposition salle, équipements et plateforme','Gérer les inscriptions, la facturation et la logistique','Vous rémunérer selon votre contrat, dans les délais convenus','Valoriser votre profil sur nos supports'],M,GREEN);
+  bloc('Vous vous engagez à',['Préparer et animer vos sessions selon le programme validé','Être ponctuel et faire signer les feuilles d’émargement','Suivre vos apprenants : devoirs corrigés, messages répondus','Garder confidentielles les données des apprenants et des clients','Ne pas solliciter directement nos clients ni nos apprenants'],M+half+6,BLUE);
+  y+=72;
+  y=titre('Le parcours de vos apprenants',y);
+  const pas=[['Inscription','Compte créé par H TECH INNOV'],['Formation','Leçons, supports, sessions'],['Évaluation','Devoirs rendus et notés'],['Certificat','Généré automatiquement à 100 %']];
+  const pw=(W-2*M)/4;doc.setDrawColor(...LINE);doc.setLineWidth(1);doc.line(M+pw/2,y+5,W-M-pw/2,y+5);
+  pas.forEach(([t,d],k)=>{const xx=M+k*pw+pw/2;doc.setFillColor(...(k===3?GREEN:NAVY));doc.circle(xx,y+5,4.2,'F');col([255,255,255],'bold',9);doc.text(String(k+1),xx,y+6.5,{align:'center'});
+    col(NAVY,'bold',8.8);doc.text(P(t),xx,y+15,{align:'center'});col(GREY,'normal',7.6);doc.text(doc.splitTextToSize(P(d),pw-6),xx,y+19.5,{align:'center'});});
+  y+=30;col(TXT,'normal',8.4);y=para('Le certificat H TECH ACADEMY, numéroté et vérifiable en ligne par QR code, est déposé automatiquement dans l’espace de l’apprenant dès que son parcours est complet. Votre suivi régulier est la clé de sa réussite.',M,y,W-2*M,8.4);
+  y+=5;y=titre('Vos contacts',y);
+  doc.setLineWidth(0.3);doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,25,2.5,2.5,'FD');
+  const ct=[['Votre interlocuteur',f.signataire||''],['Standard','+225 27 22 56 28 37'],['WhatsApp / mobile','+225 07 14 94 24 21'],
+    ['Fonction',f.signataire_fonction||''],['Email','info@htechinnov.com'],['Adresse','Cocody Riviera Jules Verne']];
+  const c3=(W-2*M)/3;
+  ct.forEach(([l,v],k)=>{const xx=M+5+(k%3)*c3,yy=y+8+Math.floor(k/3)*10;col(GREY,'normal',7.2);espace(P(l.toUpperCase()),0.5,xx,yy);col(NAVY,'bold',8.8);doc.text(doc.splitTextToSize(P(v),c3-6)[0],xx,yy+4.5);});
+  y+=33;col(GREEN,'bold',11);doc.text(P('Au plaisir de construire ensemble des formations qui font la différence !'),W/2,y,{align:'center'});
+  pied();
+  return doc;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Fiche de bienvenue formateur : bouton sur l'annuaire, choix du signataire,
+// photo corporate, accès Academy, partage WhatsApp
+// ══════════════════════════════════════════════════════════════════════
+var BV={};
+function bvDateFr(iso){const M=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const[a,m,j]=String(iso||isoJour()).slice(0,10).split('-').map(Number);return j+' '+M[m-1]+' '+a;}
+function bvNoms(nomComplet,prof){
+  if(prof&&(prof.prenom||prof.nom))return{prenom:prof.prenom||'',nom:(prof.nom||'').toUpperCase()};
+  const mots=String(nomComplet||'').trim().split(/\s+/).filter(Boolean);
+  const maj=mots.filter(m=>m.length>1&&m===m.toUpperCase()&&/[A-ZÀ-Ý]/.test(m));
+  const cap=m=>m.charAt(0).toUpperCase()+m.slice(1).toLowerCase();
+  if(maj.length&&maj.length<mots.length)return{prenom:mots.filter(m=>!maj.includes(m)).join(' '),nom:maj.join(' ')};
+  return{prenom:cap(mots[0]||''),nom:mots.slice(1).join(' ').toUpperCase()};
+}
+// Photo corporate : recadrage carré centré, haute qualité
+function bvPhoto(src){
+  return new Promise(res=>{if(!src)return res(null);const im=new Image();im.crossOrigin='anonymous';
+    im.onload=()=>{const c=Math.min(im.naturalWidth,im.naturalHeight),t=Math.min(600,c),cv=document.createElement('canvas');cv.width=cv.height=t;
+      const x=cv.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(im,(im.naturalWidth-c)/2,(im.naturalHeight-c)/4,c,c,0,0,t,t);
+      try{res({data:cv.toDataURL('image/jpeg',0.93),taille:c});}catch(e){res(null);}};
+    im.onerror=()=>res(null);im.src=src;});
+}
+async function bvForm(id,accesNeuf){
+  await htaSignataires();
+  let r=null;if(id){const q=await sb.from('site_formateurs').select('*').eq('id',id).maybeSingle();r=q.data;}
+  const uid=r?.profil_id||accesNeuf?.user_id||null;
+  let prof=null;if(uid){const q=await sb.from('profiles').select('*').eq('id',uid).maybeSingle();prof=q.data;}
+  if(!r&&uid){const q=await sb.from('site_formateurs').select('*').eq('profil_id',uid).limit(1).maybeSingle();r=q.data;}
+  const{data:formProfils}=await sb.from('profiles').select('id,prenom,nom,identifiant,email').eq('role','formateur').order('nom');
+  BV={r,prof,acces:accesNeuf||null};
+  const n=bvNoms(r?.nom||[accesNeuf?.prenom,accesNeuf?.nom].filter(Boolean).join(' '),prof||accesNeuf);
+  const ph=r?.photo_data?await bvPhoto(r.photo_data):null;BV.photo=ph;
+  const alerteP=!r?.photo_data?'Aucune photo dans l’annuaire : ses initiales seront affichées.':(ph&&ph.taille<250?'Photo de petite taille ('+ph.taille+' px) : elle risque d’être floue. Remplacez-la dans l’annuaire par une photo d’au moins 400 px.':'');
+  const sOpt=HTA_SIGN.map((s,k)=>`<option value="${k}">${esc(s.nom+' — '+(s.fonction||''))}</option>`).join('');
+  document.getElementById('modalBox').style.width='min(640px,96vw)';
+  document.getElementById('modalTitle').textContent='📄 Fiche de bienvenue — '+(n.prenom+' '+n.nom).trim();
+  document.getElementById('modalBody').innerHTML=`
+    ${alerteP?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:10px;font-size:12.5px">⚠️ ${esc(alerteP)}</div>`:''}
+    ${!r?`<div class="card" style="border-left:4px solid #1565C0;margin-bottom:10px;font-size:12.5px">Ce formateur n’a pas encore de profil dans l’annuaire (Site web › Formateurs et experts) : la rubrique « Votre profil publié » sera omise.</div>`:''}
+    <div class="form-grid">
+      <div class="form-field"><label for="bvP">Prénom</label><input id="bvP" value="${esc(n.prenom)}"></div>
+      <div class="form-field"><label for="bvN">Nom</label><input id="bvN" value="${esc(n.nom)}"></div>
+      <div class="form-field full"><label for="bvT">Titre</label><input id="bvT" value="${esc(r?.titre||'')}" placeholder="Data Analyst Senior"></div>
+      <div class="form-field full"><label for="bvDom">Domaine d’expertise (dans le mot d’accueil : « Votre expertise en … »)</label><input id="bvDom" value="${esc((r?.competences||[]).slice(0,2).join(' et ')||'')}"></div>
+      <div class="form-field"><label for="bvS">Signataire *</label><select id="bvS">${sOpt}</select></div>
+      <div class="form-field"><label for="bvD">Formateur depuis le</label><input id="bvD" type="date" value="${esc(String(r?.created_at||prof?.created_at||isoJour()).slice(0,10))}"></div>
+      ${accesNeuf?`<div class="form-field full"><label>Accès inclus</label><div style="font-size:13px">Identifiant <code>${esc(accesNeuf.identifiant)}</code> et mot de passe provisoire <code>${esc(accesNeuf.mot_de_passe)}</code></div></div>`
+      :`<div class="form-field full"><label for="bvC">Compte Academy</label><select id="bvC"><option value="">— Aucun compte —</option>${(formProfils||[]).map(p=>`<option value="${p.id}" ${p.id===uid?'selected':''}>${esc([p.prenom,p.nom].filter(Boolean).join(' ')+' — '+(p.identifiant||p.email||''))}</option>`).join('')}</select>
+        <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:6px"><input type="checkbox" id="bvMdp"> Générer un nouveau mot de passe provisoire et l’inclure sur la fiche</label>
+        <div class="cell-sub">Sinon, la fiche indique « Remis séparément par H TECH INNOV ».</div></div>`}
+    </div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="bvGo" onclick="bvGenerer()">📄 Générer la fiche</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function bvGenerer(){
+  const b=document.getElementById('bvGo');b.disabled=true;b.textContent='Génération…';
+  try{
+    await htaLibs();
+    const r=BV.r,sig=HTA_SIGN[parseInt(gv('bvS'))||0]||{};
+    let acces=BV.acces;
+    if(!acces){
+      const cid=gv('bvC');
+      if(cid&&r&&r.profil_id!==cid)await sb.from('site_formateurs').update({profil_id:cid}).eq('id',r.id); // association annuaire ↔ compte
+      if(cid){const{data:p}=await sb.from('profiles').select('*').eq('id',cid).maybeSingle();BV.prof=p;
+        if(document.getElementById('bvMdp')?.checked){const x=await acadComptes({action:'reinitialiser',user_id:cid});acces=x.acces;}
+        else acces={identifiant:p?.identifiant||p?.email||'',telephone:p?.telephone};}
+    }
+    const prenom=g('bvP')||'',nom=g('bvN')||'';
+    const f={prenom,nom,initiales:((prenom[0]||'')+(nom[0]||'')).toUpperCase(),titre:g('bvT')||'',domaine:g('bvDom')||'',
+      date_fr:bvDateFr(gv('bvD')),competences:r?.competences||[],certifications:r?.certifications||[],formations:(r?.formations||[]).map(x=>acadTitre(x)),
+      url:ACAD_URL_SITE,identifiant:acces?.identifiant||'',mot_de_passe:acces?.mot_de_passe||'',signataire:sig.nom||'',signataire_fonction:sig.fonction||''};
+    const doc=await bienvenuePDF(f,{logo:HTI_LOGO,photo:BV.photo?.data||null});
+    const nomF=pdfT('Fiche-bienvenue-'+(prenom+'-'+nom).replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf';
+    BV.doc=doc;BV.nomF=nomF;BV.f=f;BV.tel=acces?.telephone||BV.prof?.telephone||'';
+    try{logAudit('fiche_bienvenue','site_formateurs',r?.id||'',{formateur:prenom+' '+nom,signataire:sig.nom});}catch(e){}
+    doc.save(nomF);
+    const wa=acadTelWa(BV.tel),partage=!!(navigator.canShare&&navigator.canShare({files:[new File([doc.output('blob')],nomF,{type:'application/pdf'})]}));
+    document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #3F8A1E;font-size:13px">✅ La fiche de bienvenue de <b>${esc(prenom+' '+nom)}</b> est téléchargée.
+      ${f.mot_de_passe?'<div style="margin-top:6px;color:#B45309">Elle contient son mot de passe provisoire : transmettez-la directement au formateur.</div>':''}</div>
+      <p class="cell-sub" style="margin-top:10px">${partage?'Sur téléphone, « Partager » envoie le PDF directement dans WhatsApp.':'WhatsApp ne permet pas de joindre un fichier depuis un lien : le message s’ouvre, ajoutez-y le PDF téléchargé (trombone 📎).'}</p>`;
+    document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="BV.doc.save(BV.nomF)">⬇️ Télécharger à nouveau</button>
+      ${partage?`<button class="btn btn-accent" onclick="bvPartager()">📤 Partager</button>`:''}
+      ${wa?`<a class="btn btn-accent" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(bvMessage(f))}">WhatsApp</a>`:''}
+      <button class="btn btn-primary" onclick="closeModal()">Terminé</button>`;
+  }catch(e){b.disabled=false;b.textContent='📄 Générer la fiche';toast('❌ '+e.message,9000);}
+}
+function bvMessage(f){return `Bonjour ${f.prenom},\nBienvenue parmi les formateurs de H TECH ACADEMY ! Vous trouverez ci-joint votre fiche de bienvenue : vos accès à votre espace formateur, votre profil publié et nos engagements réciproques.\n🌐 ${f.url}\nAu plaisir de travailler ensemble,\n${f.signataire} — H TECH INNOV`;}
+async function bvPartager(){
+  try{await navigator.share({files:[new File([BV.doc.output('blob')],BV.nomF,{type:'application/pdf'})],text:bvMessage(BV.f),title:'Fiche de bienvenue H TECH ACADEMY'});}
+  catch(e){if(e.name!=='AbortError')toast('Partage impossible : '+e.message);}
+}
+(function(){
+  try{
+    const S=V4['site-formateurs'];
+    if(S){
+      const ph=(S.champs||[]).find(c=>c.k==='photo_data');if(ph&&(ph.taille||0)<600)ph.taille=600; // photos nettes sur la fiche
+      if(S.colonnes&&!S.colonnes.some(c=>c.l==='Bienvenue'))S.colonnes.push({l:'Bienvenue',f:r=>`<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();bvForm('${r.id}')" title="Fiche de bienvenue">📄</button>`});
+    }
+    // Fiche proposée juste après l'inscription d'un formateur
+    if(typeof acadFichesAcces==='function'){
+      const _f=acadFichesAcces;
+      acadFichesAcces=function(liste,titre){_f(liste,titre);
+        const L=(liste||[]).filter(a=>a&&a.identifiant);
+        if(L.length===1&&L[0].role==='formateur'){const ft=document.getElementById('modalFooter');
+          if(ft)ft.insertAdjacentHTML('afterbegin',`<button class="btn btn-accent" onclick="bvForm(null,window._ACAD_FICHES[0])">📄 Fiche de bienvenue</button>`);}};
+    }
+  }catch(e){logErr(e);}
+})();
+
+</script>
+<script>
+// Ordres de mission H TECH INNOV — formateurs et équipes (A4 portrait)
+async function omPDF(o,res){
+  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,M=14,BAS=272,P=pdfT,NAVY=[10,42,102],BLUE=[21,101,192],GREEN=[63,138,30],GREY=[96,108,130],LIGHT=[244,247,252],LINE=[213,224,240],TXT=[30,40,60];
+  const col=(c,s,sz)=>{doc.setTextColor(...c);if(s)doc.setFont('helvetica',s);if(sz)doc.setFontSize(sz);};
+  const entete=(p1)=>{
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,4,'F');doc.setFillColor(...BLUE);doc.rect(0,4,W,1,'F');
+    if(!p1){col(NAVY,'bold',9);doc.text('H TECH INNOV',M,12);col(GREY,'normal',9);doc.text(P('ORDRE DE MISSION '+o.numero),W-M,12,{align:'right'});return;}
+    try{if(res.logo)doc.addImage(res.logo,'JPEG',M,10,26,19);}catch(e){}
+    const x=M+30;col(NAVY,'bold',15);doc.text('H TECH INNOV',x,16);col(GREY,'normal',8);
+    ['SARL  |  RCCM CI-ABJ-03-2026-B12-06284',"Cocody Riviera Jules Verne, Abidjan, Côte d'Ivoire",'Standard +225 27 22 56 28 37  /  +225 07 14 94 24 21','info@htechinnov.com  |  www.htechinnov.com'].forEach((t,i)=>doc.text(P(t),x,21.5+i*4));
+    col(NAVY,'bold',19);doc.text('ORDRE DE MISSION',W-M,17,{align:'right'});doc.setDrawColor(...BLUE);doc.setLineWidth(0.8);doc.line(W-M-30,20,W-M,20);
+    let y=25.5;doc.setFontSize(8.5);
+    [['N°',o.numero],['Date',o.date],['Type',o.type_label]].forEach(([k,v])=>{col(GREY,'normal');doc.text(P(k),W-M-56,y);col(NAVY,'bold');doc.text(P(v),W-M,y,{align:'right'});y+=4.6;});
+  };
+  entete(true);let y=44;
+  const saut=h=>{if(y+h>BAS){doc.addPage();entete(false);y=20;}};
+  const section=(t)=>{saut(14);doc.setFillColor(...BLUE);doc.rect(M,y,2.2,6,'F');col(NAVY,'bold',10.5);doc.text(P(t.toUpperCase()),M+5,y+4.6);y+=9.5;};
+  // Grille label / valeur sur 2 colonnes
+  const grille=(items)=>{
+    const half=(W-2*M-4)/2;let i=0;
+    while(i<items.length){const a=items[i],b=items[i+1];const larg=a[2]||(!b);
+      if(larg){const l=doc.splitTextToSize(P(a[1]||'—'),W-2*M-8);const h=7+l.length*4.2;saut(h+2);
+        doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.setLineWidth(0.25);doc.roundedRect(M,y,W-2*M,h,1.5,1.5,'FD');
+        col(GREY,'normal',7.2);doc.text(P(a[0].toUpperCase()),M+4,y+4.6);col(TXT,'bold',9);doc.text(l,M+4,y+9);y+=h+2;i++;continue;}
+      const la=doc.splitTextToSize(P(a[1]||'—'),half-8),lb=doc.splitTextToSize(P(b[1]||'—'),half-8);const h=7+Math.max(la.length,lb.length)*4.2;saut(h+2);
+      [[a,la,M],[b,lb,M+half+4]].forEach(([it,ln,x])=>{doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.setLineWidth(0.25);doc.roundedRect(x,y,half,h,1.5,1.5,'FD');
+        col(GREY,'normal',7.2);doc.text(P(it[0].toUpperCase()),x+4,y+4.6);col(TXT,'bold',9);doc.text(ln,x+4,y+9);});
+      y+=h+2;i+=2;}
+    y+=2;
+  };
+  const puces=(items)=>{items.forEach(t=>{const l=doc.splitTextToSize(P(t),W-2*M-8);saut(l.length*4.1+1.5);doc.setFillColor(...BLUE);doc.circle(M+2,y-1.1,0.8,'F');col(TXT,'normal',8.8);doc.text(l,M+5.5,y);y+=l.length*4.1+1.4;});y+=2;};
+  const tableau=(head,body,widths,foot)=>{saut(Math.min(14+(body.length+(foot?1:0))*7.6,120));doc.autoTable({showFoot:'lastPage',startY:y,head:[head.map(P)],body:body.map(r=>r.map(P)),foot:foot?[foot.map(P)]:undefined,theme:'grid',
+    headStyles:{fillColor:NAVY,textColor:255,fontSize:8,fontStyle:'bold'},footStyles:{fillColor:LIGHT,textColor:NAVY,fontStyle:'bold',fontSize:8.5},
+    styles:{fontSize:8.3,cellPadding:2,lineColor:LINE,lineWidth:0.2,textColor:TXT},columnStyles:widths||{},margin:{left:M,right:M,top:20,bottom:28},
+    didDrawPage:d=>{if(d.pageNumber>1)entete(false);}});y=doc.lastAutoTable.finalY+5;};
+  const texte=(t,sz)=>{const l=doc.splitTextToSize(P(t),W-2*M);saut(l.length*4+2);col(TXT,'normal',sz||8.6);doc.text(l,M,y);y+=l.length*(sz||8.6)*0.3528*1.38+2;};
+
+  (o.blocs||[]).forEach(b=>{
+    // Le titre de rubrique reste avec son contenu ; un tableau court n'est jamais coupé
+    const est=b.tableau?Math.min(14+(b.tableau.body.length+(b.tableau.foot?1:0))*7.6,120):b.grille?22:b.puces?14:12;
+    if(b.s)saut(9.5+est);
+    if(b.s)section(b.s);
+    if(b.grille)grille(b.grille);
+    if(b.puces)puces(b.puces);
+    if(b.tableau)tableau(b.tableau.head,b.tableau.body,b.tableau.widths,b.tableau.foot);
+    if(b.texte)texte(b.texte,b.sz);
+  });
+  // Signatures
+  saut(50);y+=2;col(TXT,'normal',8.6);doc.text(P('Fait à Abidjan, le '+o.date+'.'),M,y);y+=5;
+  const n=o.signatures.length,sw=(W-2*M-(n-1)*4)/n;
+  o.signatures.forEach((s,k)=>{const x=M+k*(sw+4);doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.roundedRect(x,y,sw,34,2,2,'S');
+    col(BLUE,'bold',7.8);doc.text(doc.splitTextToSize(P(s.titre.toUpperCase()),sw-6),x+3,y+5.5);
+    col(NAVY,'bold',8.6);doc.text(P(s.nom||''),x+3,y+14);col(GREY,'normal',7.6);doc.text(doc.splitTextToSize(P(s.fonction||''),sw-6),x+3,y+18);
+    col(GREY,'italic',7);doc.text(doc.splitTextToSize(P(s.mention||'Date et signature'),sw-6),x+3,y+31);
+    if(s.cachet&&res.cachet){try{doc.addImage(res.cachet,'PNG',x+sw-27,y+9,24,18);}catch(e){}}});
+  y+=40;
+  // Pied
+  const nb=doc.getNumberOfPages();
+  for(let i=1;i<=nb;i++){doc.setPage(i);doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);doc.line(M,282,W-M,282);col(GREY,'normal',7);
+    doc.text(P("H TECH INNOV  |  SARL  |  RCCM CI-ABJ-03-2026-B12-06284  |  Cocody Riviera Jules Verne, Abidjan, Côte d'Ivoire"),W/2,286,{align:'center'});
+    doc.text(P('Standard +225 27 22 56 28 37  |  +225 07 14 94 24 21  |  info@htechinnov.com  |  www.htechinnov.com'),W/2,289.5,{align:'center'});
+    doc.text(P('Page '+i+' / '+nb),W-M,289.5,{align:'right'});}
+  return doc;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ORDRES DE MISSION — formateurs et équipes : création, PDF, envoi, accord, frais réels, clôture
+// ══════════════════════════════════════════════════════════════════════
+var OM_ST={brouillon:['Brouillon','#7A90A8'],envoye:['Envoyé','#D97706'],accepte:['Accepté','#0891B2'],en_cours:['En cours','#1565C0'],termine:['Terminé','#7C3AED'],cloture:['Clôturé','#3F8A1E'],annule:['Annulé','#DC2626']};
+var OM_ROWS=[],OM_EDIT=null,OM_FILTRE={};
+var OM_ATTENTES_DEF=['Animer la session selon le programme validé, supports chargés sur H TECH ACADEMY au plus tard 48 heures avant','Faire signer la feuille d’émargement chaque demi-journée et la remettre en fin de session','Administrer l’évaluation des acquis et le questionnaire de satisfaction','Saisir les notes et appréciations dans l’espace formateur sous 5 jours ouvrés','Remettre un bref rapport de fin de session (déroulé, niveau du groupe, points d’attention)'];
+var OM_LOGISTIQUE_DEF=['Salle équipée : vidéoprojecteur, écran, tableau blanc, connexion internet','Pauses-café et déjeuner des participants'];
+var OM_CONSIGNES_DEF=['Port des EPI obligatoire sur site ; harnais pour tout travail en hauteur au-delà de 2 mètres','Respect du règlement intérieur et des consignes de sécurité du client ; badge d’accès porté en permanence','Consignation électrique avant toute intervention sur le réseau ; ne jamais travailler seul en hauteur','Conduite : pas de conduite de nuit au-delà de 19h00, pauses toutes les 2 heures, limitations de vitesse respectées'];
+var OM_LIVRABLES_DEF=['Fiches d’intervention signées par le client, photos avant / après','Procès-verbal de réception signé (ou réserves notées)','Plan de câblage et paramètres de configuration remis au référent technique','Rapport de mission et état de frais sous 48 heures après le retour'];
+const omLignes=t=>String(t||'').split(/\n+/).map(x=>x.trim()).filter(Boolean);
+const omMontant=n=>fmtF(n||0)+' FCFA';
+function omDateFr(iso){if(!iso)return'';const J=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];const d=new Date(String(iso).slice(0,10)+'T12:00:00');return J[d.getDay()]+' '+bvDateFr(iso);}
+function omPeriode(r){if(!r.date_debut)return'';if(!r.date_fin||r.date_fin===r.date_debut)return'Le '+omDateFr(r.date_debut);
+  const n=Math.round((new Date(r.date_fin)-new Date(r.date_debut))/86400000)+1;return 'Du '+omDateFr(r.date_debut)+' au '+omDateFr(r.date_fin)+' ('+n+' jours)';}
+
+// ── Construction du document (mêmes rubriques que les modèles validés) ──
+function omDocument(r){
+  const d=r.donnees||{},blocs=[];
+  if(r.type==='formateur'){
+    blocs.push({s:'Le formateur',grille:[['Nom et prénom',r.missionne_nom],['Qualité',d.qualite||'Formateur partenaire'],['Contrat de référence',d.contrat||'—'],['Contact',d.contact||'—']]});
+    blocs.push({s:'La mission',grille:[['Formation',r.objet,1],['Client',r.client||'—'],['Session',d.session_label||'—'],['Dates',omPeriode(r)],['Horaires',d.horaires||'—'],['Lieu',r.lieu||'—',1],['Modalité',d.modalite||'Présentiel'],['Référent H TECH INNOV',d.referent||'—']]});
+    if(omLignes(d.objectifs).length)blocs.push({s:'Objectifs pédagogiques',puces:omLignes(d.objectifs)});
+    if(omLignes(d.attentes).length)blocs.push({s:'Ce qui est attendu du formateur',puces:omLignes(d.attentes)});
+    const L=(d.remuneration||[]).filter(l=>l.designation);
+    if(L.length){const tot=L.reduce((s,l)=>s+numIn(l.qte)*numIn(l.pu),0);
+      blocs.push({s:'Rémunération et frais',tableau:{head:['Désignation','Quantité','Prix unitaire HT','Total HT'],body:L.map(l=>[l.designation,String(l.qte),omMontant(numIn(l.pu)),omMontant(numIn(l.qte)*numIn(l.pu))]),foot:['Total de la mission','','',omMontant(tot)],widths:{1:{halign:'center'},2:{halign:'right'},3:{halign:'right'}}},texte:d.conditions_paiement||''});}
+    if(omLignes(d.logistique).length)blocs.push({s:'Logistique fournie par H TECH INNOV',puces:omLignes(d.logistique)});
+    blocs.push({s:'Conditions',texte:'La présente mission est exécutée dans le cadre du contrat de partenariat de référence, dont les clauses (confidentialité, non-sollicitation des clients et apprenants, propriété des supports, annulation) s’appliquent intégralement. Toute modification de dates ou de contenu fait l’objet d’un nouvel ordre de mission.'});
+  }else{
+    blocs.push({s:'Le missionné',grille:[['Nom et prénom',r.missionne_nom],['Poste',d.poste||'—'],['Service',d.service||'—'],['Matricule',d.matricule||'—']]});
+    blocs.push({s:'La mission',grille:[['Objet',r.objet,1],['Client',r.client||'—'],['Référence',d.reference||'—'],['Site d’intervention',r.lieu||'—',1],
+      ['Départ',[omDateFr(r.date_debut),d.heure_depart?'à '+d.heure_depart:'',d.lieu_depart?'depuis '+d.lieu_depart:''].filter(Boolean).join(' ')],['Retour prévu',[omDateFr(r.date_fin),d.heure_retour?'vers '+d.heure_retour:''].filter(Boolean).join(' ')],
+      ['Chef de mission',d.chef||'—'],['Contact sur site',d.contact_site||'—']]});
+    const E=(d.equipe||[]).filter(x=>x.nom);if(E.length)blocs.push({s:'Équipe d’intervention',tableau:{head:['Nom','Rôle','Téléphone'],body:E.map(x=>[x.nom,x.role||'',x.tel||''])}});
+    const pd=numIn(d.perdiem)*numIn(d.perdiem_jours);
+    blocs.push({s:'Déplacement, hébergement et frais',grille:[['Transport',d.transport||'—'],['Hébergement',d.hebergement||'—'],
+      ['Indemnité journalière (per diem)',pd?omMontant(numIn(d.perdiem))+' × '+d.perdiem_jours+' jour(s) = '+omMontant(pd)+(d.avance?', versés en avance':''):'—'],['Autres frais',d.autres_frais||'—']]});
+    const MAT=(d.materiel||[]).filter(x=>x.designation);
+    if(MAT.length)blocs.push({s:'Matériel et équipements remis',tableau:{head:['Désignation','Quantité','Remis','Retourné'],body:MAT.map(x=>[x.designation,x.qte||'','','']),widths:{1:{halign:'center'},2:{halign:'center'},3:{halign:'center'}}}});
+    if(omLignes(d.consignes).length)blocs.push({s:'Consignes de sécurité',puces:omLignes(d.consignes)});
+    if(omLignes(d.livrables).length)blocs.push({s:'Livrables au retour',puces:omLignes(d.livrables)});
+    const F=(d.frais||[]).filter(x=>x.nature),FR=r.frais_reels||{};
+    if(F.length){const tp=F.reduce((s,x)=>s+numIn(x.prevu),0),tr=F.reduce((s,x)=>s+numIn((FR[x.nature]||{}).reel),0),aReel=Object.keys(FR).length>0;
+      blocs.push({s:'État de frais au retour'+(aReel?'':' (à compléter par le missionné)'),tableau:{head:['Nature','Prévu','Réel','Justificatif'],
+        body:F.map(x=>[x.nature,x.prevu?omMontant(numIn(x.prevu)):'—',aReel&&FR[x.nature]?.reel!=null&&FR[x.nature]?.reel!==''?omMontant(numIn(FR[x.nature].reel)):'',FR[x.nature]?.justif||'']),
+        foot:['Total',omMontant(tp),aReel?omMontant(tr):'',aReel?(tr-tp>0?'Reste dû au missionné : '+omMontant(tr-tp):tr-tp<0?'À restituer : '+omMontant(tp-tr):'Soldé'):''],widths:{1:{halign:'right'},2:{halign:'right'}}}});}
+  }
+  const sig=[];
+  sig.push({titre:r.type==='formateur'?'Le formateur':'Le missionné',nom:r.missionne_nom,fonction:r.type==='formateur'?(d.qualite||'Formateur partenaire'):(d.poste||''),
+    mention:r.accepte_le?'Accord donné en ligne le '+fmtD(r.accepte_le):(r.type==='formateur'?'« Bon pour accord », date et signature':'« Pris connaissance », date et signature')});
+  if(r.type==='equipe'&&d.chef)sig.push({titre:'Le chef de mission',nom:d.chef.split(' — ')[0],fonction:d.chef.split(' — ')[1]||'',mention:'Date et signature'});
+  sig.push({titre:'Pour H TECH INNOV',nom:r.signataire_nom||'',fonction:r.signataire_fonction||'',cachet:true,mention:'Date, signature et cachet'});
+  return{numero:r.numero,date:bvDateFr(String(r.created_at||isoJour()).slice(0,10)),type_label:r.type==='formateur'?'Formateur':'Équipe — intervention',blocs,signatures:sig};
+}
+async function omGenererPDF(r){
+  await ensurePdf();
+  return await omPDF(omDocument(r),{logo:HTI_LOGO,cachet:(typeof HTI_STAMP==='string'&&HTI_STAMP.startsWith('data:'))?HTI_STAMP:null});
+}
+
+// ── Page ──
+v4Def('ordres-mission',{titre:'Ordres de mission',icone:'🧭',custom:async pg=>{
+  let err=null;try{const q=await sb.from('ordres_mission').select('*').order('created_at',{ascending:false});if(q.error)err=q.error;OM_ROWS=q.data||[];}catch(e){err=e;OM_ROWS=[];}
+  const t=OM_FILTRE.type||'',s=OM_FILTRE.statut||'',q=(OM_FILTRE.q||'').toLowerCase();
+  const vis=OM_ROWS.filter(r=>(!t||r.type===t)&&(!s||r.statut===s)&&(!q||(r.numero+' '+r.missionne_nom+' '+(r.objet||'')+' '+(r.client||'')).toLowerCase().includes(q)));
+  const auj=isoJour(),enCours=OM_ROWS.filter(r=>['accepte','en_cours'].includes(r.statut)&&r.date_debut<=auj&&(!r.date_fin||r.date_fin>=auj)).length;
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🧭 Ordres de mission</h1><div class="page-sub">Missions des formateurs et des équipes : ordre de mission, accord, déplacement, frais et clôture</div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="omForm('equipe')">+ Mission équipe</button><button class="btn btn-primary btn-sm" onclick="omForm('formateur')">+ Mission formateur</button></div></div>
+  ${err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ La table <code>ordres_mission</code> n’existe pas encore : exécutez <b>migration-ordres-mission.sql</b> dans Supabase.</div>':''}
+  <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-icon blue">🧭</div><div class="kpi-label">Ordres de mission</div><div class="kpi-value">${OM_ROWS.length}</div></div>
+    <div class="kpi"><div class="kpi-icon amber">✍️</div><div class="kpi-label">En attente d’accord</div><div class="kpi-value">${OM_ROWS.filter(r=>r.statut==='envoye').length}</div></div>
+    <div class="kpi"><div class="kpi-icon green">🚗</div><div class="kpi-label">En mission aujourd’hui</div><div class="kpi-value">${enCours}</div></div>
+    <div class="kpi"><div class="kpi-icon red">💰</div><div class="kpi-label">Frais à clôturer</div><div class="kpi-value">${OM_ROWS.filter(r=>r.statut==='termine').length}</div></div></div>
+  <div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <input placeholder="Rechercher (n°, personne, objet, client)…" value="${esc(OM_FILTRE.q||'')}" oninput="OM_FILTRE.q=this.value;clearTimeout(window._oq);window._oq=setTimeout(()=>v4Render('ordres-mission'),300)" style="flex:1;min-width:180px">
+    <select onchange="OM_FILTRE.type=this.value;v4Render('ordres-mission')"><option value="">Formateurs et équipes</option><option value="formateur" ${t==='formateur'?'selected':''}>Formateurs</option><option value="equipe" ${t==='equipe'?'selected':''}>Équipes</option></select>
+    <select onchange="OM_FILTRE.statut=this.value;v4Render('ordres-mission')"><option value="">Tous les statuts</option>${Object.entries(OM_ST).map(([k,v])=>`<option value="${k}" ${k===s?'selected':''}>${v[0]}</option>`).join('')}</select></div>
+  <div class="table-wrap"><table><thead><tr><th>N°</th><th>Missionné</th><th>Mission</th><th>Dates</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
+  ${vis.map(r=>`<tr><td><code style="font-size:10.5px">${esc(r.numero)}</code><div class="cell-sub">${r.type==='formateur'?'🎓 Formateur':'🛠️ Équipe'}</div></td>
+    <td><strong>${esc(r.missionne_nom)}</strong></td><td style="font-size:12px">${esc(r.objet||'')}<div class="cell-sub">${esc([r.client,r.lieu].filter(Boolean).join(' · '))}</div></td>
+    <td style="font-size:12px">${r.date_debut?fmtD(r.date_debut)+(r.date_fin&&r.date_fin!==r.date_debut?' → '+fmtD(r.date_fin):''):'—'}</td>
+    <td><select onchange="omStatut('${r.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${OM_ST[r.statut][1]};font-weight:600">${Object.entries(OM_ST).map(([k,v])=>`<option value="${k}" ${k===r.statut?'selected':''}>${v[0]}</option>`).join('')}</select>${r.accepte_le?`<div class="cell-sub">Accord le ${fmtD(r.accepte_le)}</div>`:''}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="omForm('${r.type}','${r.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="omPdf('${r.id}')" title="PDF">📄</button>
+      ${r.statut!=='annule'?`<button class="btn btn-outline btn-sm" onclick="omEnvoyer('${r.id}')" title="Transmettre">📤</button>`:''}
+      ${r.type==='equipe'&&['en_cours','termine','cloture'].includes(r.statut)?`<button class="btn btn-outline btn-sm" onclick="omFrais('${r.id}')" title="Frais réels et clôture">💰</button>`:''}
+      <button class="btn btn-outline btn-sm" onclick="openDocs('ordres_mission','${r.id}','${jsq(r.numero)}')" title="Pièces jointes (justificatifs, ordre signé)">📎</button><button class="btn btn-outline btn-sm" onclick="omDupliquer('${r.id}')" title="Dupliquer">⧉</button><button class="btn btn-outline btn-sm" onclick="omSupprimer('${r.id}')" title="Supprimer">🗑</button></div></td></tr>`).join('')
+    ||'<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:18px">Aucun ordre de mission.</td></tr>'}
+  </tbody></table></div></div>`;
+}});
+
+// ── Lignes éditables (rémunération, équipe, matériel, frais) ──
+function omTable(id,cols,rows){
+  const ligne=(r)=>`<tr>${cols.map(c=>`<td style="padding:2px"><input data-k="${c.k}" value="${esc(r?.[c.k]??'')}" ${c.num?'type="number" min="0"':''} placeholder="${esc(c.ph||'')}" style="width:100%;font-size:12.5px;padding:5px 6px"></td>`).join('')}<td style="padding:2px;width:30px"><button type="button" class="btn btn-outline btn-sm" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+  window._OM_LIG=window._OM_LIG||{};window._OM_LIG[id]=ligne({});
+  return `<div class="table-wrap"><table id="${id}" style="font-size:12.5px"><thead><tr>${cols.map(c=>`<th style="${c.w?'width:'+c.w:''}">${esc(c.l)}</th>`).join('')}<th></th></tr></thead><tbody>${(rows&&rows.length?rows:[{}]).map(ligne).join('')}</tbody></table></div>
+    <button type="button" class="btn btn-outline btn-sm" style="margin-top:4px" onclick="document.querySelector('#${id} tbody').insertAdjacentHTML('beforeend',window._OM_LIG['${id}'])">+ Ligne</button>`;
+}
+function omLireTable(id){return[...document.querySelectorAll('#'+id+' tbody tr')].map(tr=>{const o={};tr.querySelectorAll('input[data-k]').forEach(i=>o[i.dataset.k]=i.value.trim());return o;}).filter(o=>Object.values(o).some(Boolean));}
+
+// ── Formulaire ──
+async function omForm(type,id){
+  await htaSignataires();
+  const r=id?OM_ROWS.find(x=>x.id===id):null;OM_EDIT={type,id:id||null,r};
+  const d=r?.donnees||{};
+  const[{data:pf},{data:ses},{data:parts},{data:dv}]=await Promise.all([
+    sb.from('profiles').select('id,prenom,nom,role,telephone,identifiant,email').order('nom'),
+    type==='formateur'?sb.from('academy_sessions').select('*').order('date_debut',{ascending:false}).limit(60):Promise.resolve({data:[]}),
+    type==='formateur'?sb.from('partenaires').select('id,reference,nom,type,statut').eq('type','formateur'):Promise.resolve({data:[]}),
+    type==='equipe'?sb.from('devis').select('id,reference,titre,client_nom').order('created_at',{ascending:false}).limit(60):Promise.resolve({data:[]})]);
+  const nomP=p=>[p.prenom,p.nom].filter(Boolean).join(' ')||p.email||'';
+  const forms=(pf||[]).filter(p=>p.role==='formateur'),equipe=(pf||[]).filter(p=>!['apprenant','formateur','client'].includes(p.role));
+  window._OM_PF=pf||[];window._OM_SES=ses||[];window._OM_PARTS=parts||[];window._OM_DV=dv||[];
+  const v=(k,def)=>esc(d[k]??def??'');
+  const inp=(id,l,val,cls,ty,ph)=>`<div class="form-field ${cls||''}"><label for="${id}">${l}</label><input id="${id}" type="${ty||'text'}" value="${val??''}" placeholder="${esc(ph||'')}"></div>`;
+  const ta=(id,l,val,rows)=>`<div class="form-field full"><label for="${id}">${l}</label><textarea id="${id}" rows="${rows||4}">${val}</textarea><div class="cell-sub">Une ligne par élément.</div></div>`;
+  const sigOpt=HTA_SIGN.map((s,k)=>`<option value="${k}" ${r&&s.nom===r.signataire_nom?'selected':''}>${esc(s.nom+' — '+(s.fonction||''))}</option>`).join('');
+  let corps='';
+  if(type==='formateur'){
+    corps=`<div class="form-grid">
+      <div class="form-field"><label for="omPers">Formateur *</label><select id="omPers" onchange="omChoixFormateur()"><option value="">— Choisir —</option>${forms.map(p=>`<option value="${p.id}" ${r?.missionne_id===p.id?'selected':''}>${esc(nomP(p))}</option>`).join('')}<option value="__libre" ${r&&!r.missionne_id?'selected':''}>Autre (saisie libre)</option></select></div>
+      ${inp('omNom','Nom affiché *',esc(r?.missionne_nom||''))}
+      ${inp('omQual','Qualité',v('qualite','Formateur partenaire'))}
+      <div class="form-field"><label for="omContrat">Contrat de référence</label><select id="omContrat"><option value="">— Aucun —</option>${(parts||[]).map(p=>`<option value="${esc(p.reference+' — Contrat de partenariat formateur')}" ${d.contrat&&d.contrat.startsWith(p.reference)?'selected':''}>${esc(p.reference+' · '+p.nom)}</option>`).join('')}</select></div>
+      ${inp('omContact','Contact',v('contact'))}
+      <div class="form-field"><label for="omSes">Session Academy</label><select id="omSes" onchange="omChoixSession()"><option value="">— Aucune —</option>${(ses||[]).map(s=>`<option value="${s.id}" ${d.session_id===s.id?'selected':''}>${esc((s.titre||acadTitre(s.formation_ref))+' · '+fmtD(s.date_debut))}</option>`).join('')}</select></div>
+      ${inp('omObjet','Formation *',esc(r?.objet||''),'full')}
+      ${inp('omClient','Client',esc(r?.client||''),'','','[Client] SA — intra-entreprise')}
+      ${inp('omSesLab','Session (libellé)',v('session_label'),'','','SES-2026-031 · 12 participants')}
+      ${inp('omDeb','Début *',esc(r?.date_debut||''),'','date')}${inp('omFin','Fin',esc(r?.date_fin||''),'','date')}
+      ${inp('omHor','Horaires',v('horaires','8h30 – 16h30, pause déjeuner 12h30 – 13h30'))}
+      <div class="form-field"><label for="omMod">Modalité</label><select id="omMod">${['Présentiel','Classe virtuelle','Hybride'].map(m=>`<option ${d.modalite===m?'selected':''}>${m}</option>`).join('')}</select></div>
+      ${inp('omLieu','Lieu',esc(r?.lieu||'Salle de formation H TECH INNOV, Cocody Riviera Jules Verne, Abidjan'),'full')}
+      ${inp('omRef','Référent H TECH INNOV',v('referent'),'full','','Nom — fonction · téléphone')}
+      ${ta('omObj','Objectifs pédagogiques',v('objectifs'),3)}
+      ${ta('omAtt','Ce qui est attendu du formateur',esc(d.attentes??OM_ATTENTES_DEF.join('\n')),5)}
+      <div class="form-field full"><label>Rémunération (HT)</label>${omTable('omRem',[{k:'designation',l:'Désignation',ph:'Animation de la formation (journée)'},{k:'qte',l:'Qté',num:1,w:'70px'},{k:'pu',l:'Prix unitaire HT',num:1,w:'130px'}],d.remuneration||[{designation:'Animation de la formation (journée)',qte:'',pu:''}])}</div>
+      ${inp('omPaie','Conditions de paiement et frais',v('conditions_paiement','Facturation après la session, sur présentation des feuilles d’émargement et du rapport. Paiement à 30 jours de réception de la facture. Frais de déplacement hors Abidjan pris en charge sur justificatif, après accord préalable.'),'full')}
+      ${ta('omLog','Logistique fournie par H TECH INNOV',esc(d.logistique??OM_LOGISTIQUE_DEF.join('\n')),3)}
+    </div>`;
+  }else{
+    corps=`<div class="form-grid">
+      <div class="form-field"><label for="omPers">Missionné *</label><select id="omPers" onchange="omChoixMembre()"><option value="">— Choisir —</option>${equipe.map(p=>`<option value="${p.id}" ${r?.missionne_id===p.id?'selected':''}>${esc(nomP(p))}</option>`).join('')}<option value="__libre" ${r&&!r.missionne_id?'selected':''}>Autre (saisie libre)</option></select></div>
+      ${inp('omNom','Nom affiché *',esc(r?.missionne_nom||''))}
+      ${inp('omPoste','Poste',v('poste'))}${inp('omServ','Service',v('service'),'','','Smart Building')}${inp('omMat','Matricule',v('matricule'))}
+      <div class="form-field"><label for="omDevis">Devis lié</label><select id="omDevis" onchange="omChoixDevis()"><option value="">— Aucun —</option>${(dv||[]).map(x=>`<option value="${x.id}" ${d.devis_id===x.id?'selected':''}>${esc(x.reference+' · '+(x.client_nom||'')+' · '+(x.titre||''))}</option>`).join('')}</select></div>
+      ${inp('omObjet','Objet de la mission *',esc(r?.objet||''),'full')}
+      ${inp('omClient','Client',esc(r?.client||''))}${inp('omRefx','Référence',v('reference'),'','','DEV-2026-0210 · BC client …')}
+      ${inp('omLieu','Site d’intervention',esc(r?.lieu||''),'full')}
+      ${inp('omDeb','Date de départ *',esc(r?.date_debut||''),'','date')}${inp('omHd','Heure de départ',v('heure_depart','7h00'))}
+      ${inp('omFin','Date de retour',esc(r?.date_fin||''),'','date')}${inp('omHr','Heure de retour prévue',v('heure_retour','18h00'))}
+      ${inp('omLd','Lieu de départ',v('lieu_depart','les locaux H TECH INNOV'))}
+      <div class="form-field"><label for="omChef">Chef de mission</label><select id="omChef"><option value="">— Aucun —</option>${equipe.map(p=>{const lab=nomP(p)+' — '+(p.role||'');return `<option value="${esc(nomP(p))}" ${d.chef&&d.chef.startsWith(nomP(p))?'selected':''}>${esc(nomP(p))}</option>`;}).join('')}</select></div>
+      ${inp('omChefF','Fonction du chef de mission',esc((d.chef||'').split(' — ')[1]||''),'','','Responsable technique')}
+      ${inp('omCs','Contact sur site',v('contact_site'))}
+      <div class="form-field full"><label>Équipe d’intervention</label>${omTable('omEq',[{k:'nom',l:'Nom'},{k:'role',l:'Rôle'},{k:'tel',l:'Téléphone',w:'140px'}],d.equipe||[])}</div>
+      ${inp('omTr','Transport',v('transport'),'full','','Véhicule de société — modèle, immatriculation')}
+      ${inp('omHeb','Hébergement',v('hebergement'),'full','','Hôtel …, 2 nuits, réservé et réglé par H TECH INNOV')}
+      ${inp('omPd','Per diem (FCFA / jour)',v('perdiem'),'','number')}${inp('omPdj','Nombre de jours',v('perdiem_jours'),'','number')}
+      <div class="form-field"><label style="display:flex;gap:7px;align-items:center;margin-top:24px"><input type="checkbox" id="omAv" ${d.avance!==false?'checked':''}> Per diem versé en avance</label></div>
+      ${inp('omAf','Autres frais',v('autres_frais','Carburant, péage et petites fournitures sur justificatif'))}
+      <div class="form-field full"><label>Matériel et équipements remis</label>${omTable('omMatl',[{k:'designation',l:'Désignation'},{k:'qte',l:'Quantité',w:'110px'}],d.materiel||[])}</div>
+      ${ta('omCons','Consignes de sécurité',esc(d.consignes??OM_CONSIGNES_DEF.join('\n')),4)}
+      ${ta('omLiv','Livrables au retour',esc(d.livrables??OM_LIVRABLES_DEF.join('\n')),4)}
+      <div class="form-field full"><label>Frais prévus</label>${omTable('omFr',[{k:'nature',l:'Nature',ph:'Carburant'},{k:'prevu',l:'Montant prévu (FCFA)',num:1,w:'170px'}],d.frais||[{nature:'Per diem',prevu:''},{nature:'Carburant',prevu:''},{nature:'Péage',prevu:''}])}</div>
+    </div>`;
+  }
+  document.getElementById('modalBox').style.width='min(920px,96vw)';
+  document.getElementById('modalTitle').textContent=(r?'✏️ '+r.numero:'+ Nouvel ordre de mission')+' — '+(type==='formateur'?'formateur':'équipe');
+  document.getElementById('modalBody').innerHTML=corps+`<div class="form-grid" style="margin-top:10px"><div class="form-field"><label for="omSig">Signataire H TECH INNOV</label><select id="omSig">${sigOpt}</select></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="omApercu()">👁 Aperçu</button><button class="btn btn-primary" id="omGo" onclick="omSauver()">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function omChoixFormateur(){const id=gv('omPers'),p=(window._OM_PF||[]).find(x=>x.id===id);if(!p)return;
+  const nom=[p.prenom,(p.nom||'').toUpperCase()].filter(Boolean).join(' ');document.getElementById('omNom').value=nom;
+  if(!gv('omContact'))document.getElementById('omContact').value=[p.telephone,p.identifiant].filter(Boolean).join(' · ');
+  const c=(window._OM_PARTS||[]).find(x=>(x.nom||'').toLowerCase().includes((p.nom||'').toLowerCase())&&p.nom);if(c)document.getElementById('omContrat').value=c.reference+' — Contrat de partenariat formateur';}
+function omChoixMembre(){const id=gv('omPers'),p=(window._OM_PF||[]).find(x=>x.id===id);if(!p)return;
+  document.getElementById('omNom').value=[p.prenom,(p.nom||'').toUpperCase()].filter(Boolean).join(' ');}
+function omChoixSession(){const s=(window._OM_SES||[]).find(x=>x.id===gv('omSes'));if(!s)return;
+  document.getElementById('omObjet').value=s.titre||acadTitre(s.formation_ref);document.getElementById('omDeb').value=s.date_debut||'';document.getElementById('omFin').value=s.date_fin||'';
+  if(s.lieu)document.getElementById('omLieu').value=s.lieu;
+  document.getElementById('omSesLab').value=(s.titre||acadTitre(s.formation_ref))+(s.places?' · '+s.places+' places':'');
+  if(s.format)document.getElementById('omMod').value=/virtu|distan/i.test(s.format)?'Classe virtuelle':/hybr/i.test(s.format)?'Hybride':'Présentiel';}
+function omChoixDevis(){const x=(window._OM_DV||[]).find(y=>y.id===gv('omDevis'));if(!x)return;
+  if(!g('omObjet'))document.getElementById('omObjet').value=x.titre||'';document.getElementById('omClient').value=x.client_nom||'';document.getElementById('omRefx').value=x.reference||'';}
+function omLireForm(){
+  const T=OM_EDIT.type,sig=HTA_SIGN[parseInt(gv('omSig'))||0]||{},pid=gv('omPers');
+  const base={type:T,missionne_id:pid&&pid!=='__libre'?pid:null,missionne_nom:g('omNom')||'',objet:g('omObjet')||'',client:g('omClient')||null,lieu:g('omLieu')||null,
+    date_debut:gv('omDeb')||null,date_fin:gv('omFin')||gv('omDeb')||null,signataire_nom:sig.nom||null,signataire_fonction:sig.fonction||null};
+  let d;
+  if(T==='formateur'){const ses=(window._OM_SES||[]).find(x=>x.id===gv('omSes'));
+    d={qualite:g('omQual'),contrat:gv('omContrat'),contact:g('omContact'),session_id:gv('omSes')||null,session_label:g('omSesLab'),horaires:g('omHor'),modalite:gv('omMod'),referent:g('omRef'),
+      objectifs:gv('omObj'),attentes:gv('omAtt'),remuneration:omLireTable('omRem'),conditions_paiement:g('omPaie'),logistique:gv('omLog'),formation_ref:ses?.formation_ref||null};}
+  else{const ch=gv('omChef');
+    d={poste:g('omPoste'),service:g('omServ'),matricule:g('omMat'),devis_id:gv('omDevis')||null,reference:g('omRefx'),heure_depart:g('omHd'),heure_retour:g('omHr'),lieu_depart:g('omLd'),
+      chef:ch?ch+(g('omChefF')?' — '+g('omChefF'):''):'',contact_site:g('omCs'),equipe:omLireTable('omEq'),transport:g('omTr'),hebergement:g('omHeb'),perdiem:gv('omPd'),perdiem_jours:gv('omPdj'),
+      avance:!!document.getElementById('omAv')?.checked,autres_frais:g('omAf'),materiel:omLireTable('omMatl'),consignes:gv('omCons'),livrables:gv('omLiv'),frais:omLireTable('omFr')};
+    const pd=numIn(d.perdiem)*numIn(d.perdiem_jours);const fp=d.frais.find(x=>/per ?diem/i.test(x.nature));if(fp&&!fp.prevu&&pd)fp.prevu=String(pd);}
+  return{...base,donnees:d};
+}
+async function omApercu(){const p=omLireForm();const r={...(OM_EDIT.r||{}),...p,numero:OM_EDIT.r?.numero||'OM-APERÇU',created_at:OM_EDIT.r?.created_at||isoJour()};
+  const doc=await omGenererPDF(r);doc.save(pdfT('Apercu-'+r.numero)+'.pdf');}
+async function omSauver(){
+  const p=omLireForm();
+  if(!p.missionne_nom||!p.objet||!p.date_debut){toast('❌ Missionné, objet et date de début requis');return;}
+  if(p.date_fin&&p.date_fin<p.date_debut){toast('❌ La date de fin précède la date de début');return;}
+  const b=document.getElementById('omGo');b.disabled=true;
+  try{
+    let res;
+    if(OM_EDIT.id){p.updated_at=new Date().toISOString();res=await sb.from('ordres_mission').update(p).eq('id',OM_EDIT.id);}
+    else{const{data:num,error:en}=await sb.rpc('om_prochain_numero');if(en)throw new Error('Numérotation : '+en.message);p.numero=num;p.statut='brouillon';p.created_by=uid();res=await sb.from('ordres_mission').insert(p);}
+    if(res.error)throw new Error(res.error.message);
+    try{logAudit(OM_EDIT.id?'modification':'creation','ordres_mission',p.numero||OM_EDIT.r?.numero,{type:p.type,missionne:p.missionne_nom});}catch(e){}
+    if(OM_EDIT.r&&['envoye','accepte'].includes(OM_EDIT.r.statut))toast('ℹ️ Ordre déjà transmis : pensez à le renvoyer (📤) pour que le missionné ait la version à jour',7000);
+    else toast('✅ Ordre de mission enregistré');
+    closeModal();v4Render('ordres-mission');
+  }catch(e){b.disabled=false;toast('❌ '+e.message,9000);}
+}
+async function omPdf(id){const r=OM_ROWS.find(x=>x.id===id);if(!r)return;const doc=await omGenererPDF(r);doc.save(pdfT('Ordre-de-mission-'+r.numero+'-'+String(r.missionne_nom).replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');}
+// Transmission : PDF déposé dans l'espace du missionné (formateurs) + WhatsApp / partage
+async function omEnvoyer(id){
+  const r=OM_ROWS.find(x=>x.id===id);if(!r)return;
+  const doc=await omGenererPDF(r),blob=doc.output('blob'),chemin='ordres/'+r.numero+'.pdf',nomF=pdfT('Ordre-de-mission-'+r.numero)+'.pdf';
+  const up=await sb.storage.from('missions').upload(chemin,blob,{contentType:'application/pdf',upsert:true});
+  const patch={fichier_path:up.error?r.fichier_path:chemin,updated_at:new Date().toISOString()};
+  if(r.statut==='brouillon')patch.statut='envoye';
+  const{error}=await sb.from('ordres_mission').update(patch).eq('id',id);if(error){toast('❌ '+error.message);return;}
+  Object.assign(r,patch);try{logAudit('envoi','ordres_mission',r.numero,{});}catch(e){}
+  let tel='';if(r.missionne_id){const{data:p}=await sb.from('profiles').select('telephone').eq('id',r.missionne_id).maybeSingle();tel=p?.telephone||'';}
+  const wa=acadTelWa(tel),fichier=new File([blob],nomF,{type:'application/pdf'}),partage=!!(navigator.canShare&&navigator.canShare({files:[fichier]}));
+  const msg=`Bonjour ${r.missionne_nom.split(' ')[0]},\nVoici votre ordre de mission ${r.numero} : ${r.objet} — ${omPeriode(r)}${r.lieu?', '+r.lieu:''}.\n`+
+    (r.type==='formateur'&&r.missionne_id?`Vous pouvez le consulter et donner votre accord dans votre espace formateur : ${ACAD_URL_SITE}\n`:'Merci d’en prendre connaissance.\n')+`H TECH INNOV — 27 22 56 28 37`;
+  window._OM_ENVOI={fichier,msg};
+  document.getElementById('modalBox').style.width='min(560px,96vw)';
+  document.getElementById('modalTitle').textContent='📤 Ordre de mission '+r.numero+' transmis';
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #3F8A1E;font-size:13px">✅ Statut : <b>${OM_ST[r.statut][0]}</b>.${up.error?'<div style="color:#B45309;margin-top:6px">PDF non déposé dans le stockage : '+esc(up.error.message)+' — exécutez migration-ordres-mission.sql.</div>':r.type==='formateur'&&r.missionne_id?'<div style="margin-top:6px">Le formateur le retrouve dans son espace H TECH ACADEMY, avec un bouton pour donner son accord.</div>':''}</div>
+    <p class="cell-sub" style="margin-top:10px">${partage?'« Partager » envoie le PDF directement dans WhatsApp.':'Le PDF est téléchargé ; ajoutez-le au message WhatsApp avec le trombone 📎.'}</p>`;
+  if(!partage)doc.save(nomF);
+  document.getElementById('modalFooter').innerHTML=`${partage?`<button class="btn btn-accent" onclick="navigator.share({files:[window._OM_ENVOI.fichier],text:window._OM_ENVOI.msg}).catch(()=>{})">📤 Partager</button>`:''}
+    ${wa?`<a class="btn btn-accent" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(msg)}">WhatsApp</a>`:''}
+    <button class="btn btn-outline" onclick="navigator.clipboard.writeText(window._OM_ENVOI.msg).then(()=>toast('Message copié'))">Copier le message</button><button class="btn btn-primary" onclick="closeModal();v4Render('ordres-mission')">Terminé</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function omStatut(id,s){
+  const r=OM_ROWS.find(x=>x.id===id);if(!r)return;
+  if(s==='annule'&&!confirm('Annuler l’ordre de mission '+r.numero+' ?')){v4Render('ordres-mission');return;}
+  if(s==='cloture'&&r.type==='equipe'&&!r.frais_reels){toast('Saisissez d’abord les frais réels (💰) : la clôture se fait depuis cet écran');v4Render('ordres-mission');return;}
+  const patch={statut:s,updated_at:new Date().toISOString()};if(s==='cloture')patch.cloture_le=new Date().toISOString();
+  const{error}=await sb.from('ordres_mission').update(patch).eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('statut','ordres_mission',r.numero,{statut:s});}catch(e){}toast('Statut : '+OM_ST[s][0]);v4Render('ordres-mission');
+}
+// Frais réels au retour et clôture
+function omFrais(id){
+  const r=OM_ROWS.find(x=>x.id===id);if(!r)return;const F=(r.donnees?.frais||[]).filter(x=>x.nature),FR=r.frais_reels||{};
+  if(!F.length){toast('Aucun frais prévu sur cet ordre de mission : ajoutez-les dans le formulaire (✏️)');return;}
+  window._OM_FRAIS=r;
+  document.getElementById('modalBox').style.width='min(640px,96vw)';
+  document.getElementById('modalTitle').textContent='💰 Frais réels — '+r.numero;
+  document.getElementById('modalBody').innerHTML=`<div class="table-wrap"><table><thead><tr><th>Nature</th><th>Prévu</th><th>Réel (FCFA)</th><th>Justificatif</th></tr></thead><tbody>
+    ${F.map((x,k)=>`<tr><td>${esc(x.nature)}</td><td style="text-align:right">${x.prevu?omMontant(numIn(x.prevu)):'—'}</td><td><input id="frR${k}" type="number" min="0" value="${esc(FR[x.nature]?.reel??'')}" style="width:120px" oninput="omFraisTotal()"></td><td><input id="frJ${k}" value="${esc(FR[x.nature]?.justif??'')}" placeholder="Reçu n°…" style="width:140px"></td></tr>`).join('')}
+    </tbody></table></div><div id="frTot" style="margin-top:8px;font-weight:600"></div>
+    <p class="cell-sub">Les justificatifs scannés se joignent depuis 📎 sur la ligne de l’ordre de mission.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="omFraisSauver(false)">💾 Enregistrer</button><button class="btn btn-primary" onclick="omFraisSauver(true)">✅ Enregistrer et clôturer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');omFraisTotal();
+}
+function omFraisTotal(){const r=window._OM_FRAIS,F=(r.donnees?.frais||[]).filter(x=>x.nature);
+  const tp=F.reduce((s,x)=>s+numIn(x.prevu),0),tr=F.reduce((s,x,k)=>s+numIn(gv('frR'+k)),0),dif=tr-tp;
+  document.getElementById('frTot').innerHTML=`Prévu ${omMontant(tp)} · Réel ${omMontant(tr)} · <span style="color:${dif>0?'#B45309':dif<0?'#1565C0':'#3F8A1E'}">${dif>0?'Reste dû au missionné : '+omMontant(dif):dif<0?'À restituer par le missionné : '+omMontant(-dif):'Soldé'}</span>`;}
+async function omFraisSauver(cloturer){
+  const r=window._OM_FRAIS,F=(r.donnees?.frais||[]).filter(x=>x.nature),FR={};
+  F.forEach((x,k)=>{FR[x.nature]={reel:gv('frR'+k),justif:g('frJ'+k)||''};});
+  const patch={frais_reels:FR,updated_at:new Date().toISOString()};if(cloturer){patch.statut='cloture';patch.cloture_le=new Date().toISOString();}
+  const{error}=await sb.from('ordres_mission').update(patch).eq('id',r.id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit(cloturer?'cloture':'frais_reels','ordres_mission',r.numero,{});}catch(e){}
+  toast(cloturer?'✅ Mission clôturée':'Frais enregistrés');closeModal();v4Render('ordres-mission');
+}
+async function omDupliquer(id){
+  const r=OM_ROWS.find(x=>x.id===id);if(!r)return;if(!confirm('Créer un nouvel ordre de mission à partir de '+r.numero+' (mêmes informations, à ajuster) ?'))return;
+  const{data:num,error:en}=await sb.rpc('om_prochain_numero');if(en){toast('❌ '+en.message);return;}
+  const{id:_i,numero,statut,created_at,updated_at,accepte_le,cloture_le,fichier_path,frais_reels,...reste}=r;
+  const{error}=await sb.from('ordres_mission').insert({...reste,numero:num,statut:'brouillon',created_by:uid()});if(error){toast('❌ '+error.message);return;}
+  toast('✅ '+num+' créé (brouillon)');await v4Render('ordres-mission');const n=OM_ROWS.find(x=>x.numero===num);if(n)omForm(n.type,n.id);
+}
+async function omSupprimer(id){
+  const r=OM_ROWS.find(x=>x.id===id);if(!r)return;
+  if(r.statut!=='brouillon'&&!estAdmin()){toast('❌ Seul un administrateur peut supprimer un ordre transmis ; utilisez « Annulé »');return;}
+  if(!confirm('Supprimer définitivement l’ordre de mission '+r.numero+' ?'+(r.statut!=='brouillon'?'\n(Il a déjà été transmis : « Annulé » garde une trace.)':'')))return;
+  if(r.fichier_path){try{await sb.storage.from('missions').remove([r.fichier_path]);}catch(e){}}
+  const{error}=await sb.from('ordres_mission').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('suppression','ordres_mission',r.numero,{});}catch(e){}toast('Ordre de mission supprimé');v4Render('ordres-mission');
+}
+(function(){
+  try{
+    ['superadmin','admin','directeur','responsable'].forEach(ro=>{const nav=NAV[ro];if(!nav||nav.some(x=>x.id==='ordres-mission'))return;const k=nav.findIndex(x=>x.id==='partenariats');nav.splice(k<0?nav.length:k+1,0,{id:'ordres-mission',i:'🧭',l:'Ordres de mission'});});
+    PAGE_LABELS['ordres-mission']='Ordres de mission';
+  }catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-ordres-mission')){const d=document.createElement('div');d.className='page';d.id='page-ordres-mission';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
+})();
 
 </script>
 </body>
