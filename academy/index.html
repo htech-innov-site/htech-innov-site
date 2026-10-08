@@ -579,10 +579,10 @@ async function envoyerBesoin(ev){
 async function session(){const{data}=await sb.auth.getSession();USER=data.session?.user||null;if(USER&&!MOI){const{data:p}=await sb.from('profiles').select('id,prenom,nom,email,role').eq('id',USER.id).maybeSingle();MOI=p;}return USER;}
 function pageConnexion(msg){
   app(`<div class="wrap espace"><div class="login">
-    <h1>Mon espace</h1><p class="note">Apprenants, formateurs et administration : connectez-vous avec votre email.</p>
+    <h1>Mon espace</h1><p class="note">Apprenants et formateurs : connectez-vous avec l’identifiant et le mot de passe remis par H TECH INNOV.</p>
     ${msg?`<p class="recap" style="padding:12px">${esc(msg)}</p>`:''}
     <form onsubmit="seConnecter(event)" novalidate>
-      <label class="f" for="lEmail" style="margin-top:14px">Email</label><input class="in" id="lEmail" type="email" autocomplete="email" required>
+      <label class="f" for="lEmail" style="margin-top:14px">Identifiant ou email</label><input class="in" id="lEmail" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="ex. a.kouassi" required>
       <label class="f" for="lMdp" style="margin-top:12px">Mot de passe</label><input class="in" id="lMdp" type="password" autocomplete="current-password" required>
       <div class="err" id="lErr" role="alert"></div>
       <button class="btn btn-p" style="width:100%" type="submit">Se connecter</button>
@@ -593,18 +593,23 @@ function pageConnexion(msg){
 }
 async function seConnecter(ev){
   ev.preventDefault();const e=document.getElementById('lErr');e.textContent='';
-  const{error}=await sb.auth.signInWithPassword({email:document.getElementById('lEmail').value.trim(),password:document.getElementById('lMdp').value});
-  if(error){e.textContent='Email ou mot de passe incorrect.';return;}
+  const v=document.getElementById('lEmail').value.trim(),mdp=document.getElementById('lMdp').value;
+  if(!v||!mdp){e.textContent='Saisissez votre identifiant et votre mot de passe.';return;}
+  const essai=em=>sb.auth.signInWithPassword({email:em,password:mdp});
+  let{error}=await essai(v.includes('@')?v:v.toLowerCase()+'@'+DOMAINE_ACCES);
+  if(error&&v.includes('@')){const{data:em}=await sb.rpc('academy_login_email',{p_login:v});if(em&&em.toLowerCase()!==v.toLowerCase())({error}=await essai(em));}
+  if(error){e.textContent='Identifiant ou mot de passe incorrect.';return;}
   MOI=null;await session();route();
 }
-async function mdpOublie(){
-  const email=document.getElementById('lEmail').value.trim();
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){document.getElementById('lErr').textContent='Saisissez d’abord votre email ci-dessus.';return;}
-  await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
-  toast('Si un compte existe, un lien de réinitialisation vient d’être envoyé à '+email,6000);
+const DOMAINE_ACCES='acces.htechinnov.com';
+function mdpOublie(){
+  const id=(document.getElementById('lEmail')?.value||'').trim();
+  const txt=encodeURIComponent('Bonjour H TECH INNOV, j’ai oublié mon mot de passe H TECH ACADEMY.'+(id?' Mon identifiant : '+id+'.':'')+' Pouvez-vous m’envoyer un nouveau mot de passe provisoire ?');
+  document.getElementById('lErr').innerHTML=`Votre conseiller H TECH INNOV vous remet un nouveau mot de passe provisoire. <a href="https://wa.me/${CONFIG.WHATSAPP}?text=${txt}" target="_blank" rel="noopener">Le demander sur WhatsApp</a>.`;
 }
 function pageMotDePasse(){
-  app(`<div class="wrap espace"><div class="login"><h1>Choisissez votre mot de passe</h1><p class="note">Pour accéder à votre espace H TECH ACADEMY (apprenant ou formateur).</p>
+  const prov=USER?.user_metadata?.mdp_provisoire;
+  app(`<div class="wrap espace"><div class="login"><h1>${prov?'Bienvenue ! Choisissez votre mot de passe':'Choisissez votre mot de passe'}</h1><p class="note">${prov?'Votre mot de passe provisoire a fonctionné. Remplacez-le par un mot de passe personnel que vous seul(e) connaissez.':'Pour accéder à votre espace H TECH ACADEMY (apprenant ou formateur).'}</p>
     <form onsubmit="definirMdp(event)" novalidate><label class="f" for="m1" style="margin-top:14px">Nouveau mot de passe (8 caractères minimum)</label><input class="in" id="m1" type="password" autocomplete="new-password" minlength="8" required>
     <label class="f" for="m2" style="margin-top:12px">Confirmation</label><input class="in" id="m2" type="password" autocomplete="new-password" required>
     <div class="err" id="mErr" role="alert"></div><button class="btn btn-g" style="width:100%" type="submit">Enregistrer et accéder à mon espace</button></form></div></div>`);
@@ -612,8 +617,8 @@ function pageMotDePasse(){
 async function definirMdp(ev){
   ev.preventDefault();const a=document.getElementById('m1').value,b=document.getElementById('m2').value,e=document.getElementById('mErr');
   if(a.length<8){e.textContent='8 caractères minimum.';return;}if(a!==b){e.textContent='Les deux mots de passe sont différents.';return;}
-  const{error}=await sb.auth.updateUser({password:a});if(error){e.textContent=error.message;return;}
-  toast('Mot de passe enregistré');location.hash='#/espace';
+  const{data:maj,error}=await sb.auth.updateUser({password:a,data:{mdp_provisoire:false}});if(error){e.textContent=/same|different/i.test(error.message)?'Choisissez un mot de passe différent du mot de passe provisoire.':error.message;return;}
+  if(maj?.user)USER=maj.user;toast('Mot de passe enregistré');location.hash='#/espace';
 }
 async function seDeconnecter(){await sb.auth.signOut();USER=null;MOI=null;location.hash='#/espace';}
 // Certificats HTA délivrés à l'apprenant (générés par l'ERP)
@@ -1005,6 +1010,7 @@ async function route(){
   const h=decodeURIComponent(location.hash.replace(/^#\/?/,''));
   if(h.startsWith('access_token')||h.includes('type=')){return;} // retour d'un lien email : géré par la session
   const[p,a,b]=h.split('/');
+  if(['espace','formateur','admin'].includes(p)){await session();if(USER?.user_metadata?.mdp_provisoire)return pageMotDePasse();}
   document.querySelectorAll('nav.links a[data-r]').forEach(x=>x.classList.toggle('on',x.dataset.r===(p||'accueil')));
   document.getElementById('navLinks').classList.remove('open');
   if(!p)return pageAccueil();
