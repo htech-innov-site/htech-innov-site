@@ -15770,6 +15770,14 @@ async function htaTelecharger(c){
   doc.save(pdfT('Certificat-'+(c.numero||'apercu')+'-'+String(c.titulaire||'').replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');
 }
 
+// Le logo de l'en-tête est déposé dans le stockage pour la génération automatique côté serveur
+var _HTA_LOGO_OK=false;
+async function htaPublierLogo(){
+  if(_HTA_LOGO_OK||!HTI_LOGO||!String(HTI_LOGO).startsWith('data:image/'))return;
+  try{const png=HTI_LOGO.startsWith('data:image/png');const b=await (await fetch(HTI_LOGO)).blob();
+    const r=await sb.storage.from('documents').upload('certificats-hta/_logo.'+(png?'png':'jpg'),b,{contentType:png?'image/png':'image/jpeg',upsert:true});
+    if(!r.error)_HTA_LOGO_OK=true;}catch(e){logErr(e);}
+}
 // ── Création d'un certificat ──
 async function htaNumero(){
   const{data,error}=await sb.rpc('hta_prochain_numero');
@@ -15878,7 +15886,7 @@ async function htaGenererTous(){
 
 // ── Page « Certificats » (H TECH Academy) ──
 v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
-  await htaSignataires();
+  await htaSignataires();htaPublierLogo();
   let err=null;try{const r=await sb.from('hta_certificats').select('*').order('created_at',{ascending:false});if(r.error)err=r.error;HTA_ROWS=r.data||[];}catch(e){err=e;HTA_ROWS=[];}
   try{HTA_ELIG=err?[]:await htaEligibles();}catch(e){logErr(e);HTA_ELIG=[];}
   const st={valide:['Valide','#3F8A1E'],annule:['Annulé','#DC2626']};
@@ -15886,6 +15894,7 @@ v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🎓 Certificats H TECH ACADEMY</h1><div class="page-sub">Numérotés HTA, vérifiables en ligne et déposés dans l’espace de chaque apprenant</div></div>
     <div class="v4-tools"><a class="btn btn-outline btn-sm" href="${esc(ACAD_URL_SITE+'#/verifier')}" target="_blank">🔍 Page de vérification</a><button class="btn btn-primary btn-sm" onclick="htaForm()">+ Certificat manuel</button></div></div>
   ${err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ Les tables des certificats n’existent pas encore : exécutez <b>migration-certificats-hta.sql</b> dans Supabase.</div>':''}
+  <div class="card" style="margin-bottom:14px;font-size:12.5px;border-left:4px solid #1565C0">⚡ <b>Génération automatique</b> : dès qu’un apprenant termine sa dernière leçon ou rend son dernier devoir sur H TECH ACADEMY, son certificat est généré (signataires 1 et 2 ci-dessous, validité 3 ans), déposé dans son espace et ajouté ici. La liste ci-dessous rattrape les parcours terminés avant cette mise en place.</div>
   <div class="card" style="margin-bottom:14px;border-left:4px solid ${HTA_ELIG.length?'#3F8A1E':'var(--g200)'}">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="card-title" style="margin:0">✅ Parcours terminés à 100 % — à certifier (${HTA_ELIG.length})</div>
     ${HTA_ELIG.length>1?`<button class="btn btn-accent btn-sm" onclick="htaGenererTous()">🎓 Générer tous les certificats</button>`:''}</div>
