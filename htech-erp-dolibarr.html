@@ -3057,6 +3057,8 @@ async function loadProf(){
       if(r3.data)CP=r3.data;
     }
     const d=CP;
+    // Formateurs et apprenants : accès par le site H TECH ACADEMY uniquement
+    if(['formateur','apprenant'].includes(d.role)&&typeof ecranAcademySeulement==='function'){ecranAcademySeulement(d.role);return;}
     const av=document.getElementById('sbAvatar');
     if(av){av.textContent=((d.prenom||'?')[0]+(d.nom||d.email||'?')[0]).toUpperCase();av.style.background=RC[d.role]||'var(--navy2)';}
     const sn=document.getElementById('sbName');if(sn)sn.textContent=((d.prenom||'')+' '+(d.nom||'')).trim()||d.email;
@@ -15453,6 +15455,209 @@ async function mdApercu(code,depuisEditeur){
   </div>
 </div>
 
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// H TECH Academy — comptes formateurs (invitation) et accès réservé à l'Academy
+// Les formateurs et apprenants se connectent sur le site H TECH ACADEMY, jamais sur l'ERP.
+// ══════════════════════════════════════════════════════════════════════
+var ACAD_URL_SITE=(typeof ACADEMY_URL!=='undefined'?ACADEMY_URL:'https://www.htechinnov.com/academy/');
+function ecranAcademySeulement(role){
+  const url=ACAD_URL_SITE+'#/espace';
+  document.body.innerHTML=`<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F4F7FC;font-family:Arial,sans-serif;padding:20px">
+    <div style="max-width:440px;background:#fff;border:1px solid #D5E0F0;border-radius:14px;padding:28px;text-align:center;box-shadow:0 8px 30px rgba(10,42,102,.08)">
+      <div style="font-size:40px">🎓</div><h1 style="color:#0A2A66;font-size:21px;margin:10px 0">Votre espace est sur H TECH ACADEMY</h1>
+      <p style="color:#4A5A78;font-size:14.5px;line-height:1.5">Les comptes ${role==='formateur'?'formateurs':'apprenants'} se connectent sur le site de formation, avec le même email et le même mot de passe.</p>
+      <a href="${url}" style="display:inline-block;margin-top:14px;background:#3F8A1E;color:#fff;text-decoration:none;font-weight:700;padding:11px 20px;border-radius:9px">Aller sur H TECH ACADEMY</a>
+      <p style="color:#8A97AD;font-size:12px;margin-top:14px">Redirection automatique…</p></div></div>`;
+  setTimeout(()=>location.replace(url),3500);
+}
+// Renvoie un lien de connexion (choix d'un nouveau mot de passe) vers l'Academy
+async function acadRenvoyerAcces(email){
+  email=String(email||'').trim();if(!email){email=prompt('Email du formateur ou de l’apprenant :');if(!email)return;}
+  if(!confirm('Envoyer à '+email+' un email pour (re)définir son mot de passe et accéder à H TECH ACADEMY ?'))return;
+  const{error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:ACAD_URL_SITE});
+  if(error){toast('❌ '+error.message,8000);return;}
+  try{logAudit('renvoi_acces_academy','profiles',email,{});}catch(e){}
+  toast('✅ Lien d’accès envoyé à '+email,5000);
+}
+function acadFormateurForm(){
+  document.getElementById('modalBox').style.width='min(560px,96vw)';
+  document.getElementById('modalTitle').textContent='Inscrire un formateur';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field"><label for="afPrenom">Prénom *</label><input id="afPrenom"></div>
+    <div class="form-field"><label for="afNom">Nom *</label><input id="afNom"></div>
+    <div class="form-field full"><label for="afEmail">Email (identifiant de connexion) *</label><input id="afEmail" type="email"></div>
+    <div class="form-field full"><label for="afTel">Téléphone</label><input id="afTel"></div>
+    <p class="cell-sub full" style="margin:0">Le formateur reçoit un email pour choisir son mot de passe. Il se connecte ensuite sur ${esc(ACAD_URL_SITE)} et n’a pas accès à l’ERP. Vous l’associez ensuite à ses apprenants (champ « Expert associé » de l’inscription) ou à ses sessions.</p></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="afGo" onclick="acadFormateurValider()">Inscrire et envoyer l’accès</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function acadFormateurValider(forcer){
+  const prenom=g('afPrenom')||'',nom=g('afNom')||'',email=(gv('afEmail')||'').trim().toLowerCase(),telephone=g('afTel')||'';
+  if(!prenom||!nom||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){toast('❌ Prénom, nom et email valides requis');return;}
+  const b=document.getElementById('afGo');b.disabled=true;b.textContent='Inscription…';
+  try{
+    const{data,error}=await sb.functions.invoke('academy-formateur',{body:{email,prenom,nom,telephone,redirect_to:ACAD_URL_SITE,forcer:!!forcer}});
+    let det=data;
+    if(error){try{const c=error.context;if(c&&typeof c.json==='function')det=await c.json();}catch(_){}
+      if(!det&&(error.name==='FunctionsFetchError'||/Failed to send/i.test(error.message)))throw new Error('La fonction « academy-formateur » n’est pas déployée sur Supabase.');}
+    if(det?.error==='apprenant_existant'){b.disabled=false;b.textContent='Inscrire et envoyer l’accès';
+      if(confirm(email+' est déjà inscrit comme apprenant. En faire un formateur ? (il gardera ses formations mais son espace deviendra un espace formateur)'))return acadFormateurValider(true);return;}
+    if(det?.error)throw new Error(det.error);
+    if(error)throw new Error(error.message);
+    // Rôle confirmé depuis la session administrateur (même règle que le changement de rôle de l'ERP)
+    if(det?.user_id)await sb.from('profiles').update({role:'formateur',prenom,nom,telephone}).eq('id',det.user_id);
+    if(det?.existant)await sb.auth.resetPasswordForEmail(email,{redirectTo:ACAD_URL_SITE});
+    try{logAudit('inscription_formateur','profiles',det?.user_id||email,{email});}catch(e){}
+    toast(det?.existant?'✅ Compte existant passé formateur — lien de connexion envoyé à '+email:'✅ Formateur inscrit — invitation envoyée à '+email,6000);
+    closeModal();if(document.getElementById('page-academy-formateurs')?.classList.contains('active'))v4Render('academy-formateurs');
+  }catch(e){b.disabled=false;b.textContent='Inscrire et envoyer l’accès';toast('❌ '+e.message,12000);}
+}
+v4Def('academy-formateurs',{titre:'Formateurs',icone:'🧑‍🏫',custom:async pg=>{
+  const[{data:f},{data:ins},{data:sf}]=await Promise.all([
+    sb.from('profiles').select('id,prenom,nom,email,telephone,created_at').eq('role','formateur').order('nom'),
+    sb.from('academy_inscriptions').select('expert_id,statut'),
+    sb.from('academy_session_formateurs').select('formateur_id')]);
+  const F=f||[];
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🧑‍🏫 Formateurs</h1><div class="page-sub">Comptes formateurs de H TECH ACADEMY — connexion sur le site Academy uniquement, sans accès à l’ERP</div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="acadRenvoyerAcces()">✉️ Renvoyer un accès</button><button class="btn btn-primary btn-sm" onclick="acadFormateurForm()">+ Inscrire un formateur</button></div></div>
+  <div class="card"><div class="table-wrap"><table><thead><tr><th>Formateur</th><th>Contact</th><th>Apprenants en cours</th><th>Sessions</th><th>Actions</th></tr></thead><tbody>
+  ${F.map(x=>{const n=(ins||[]).filter(i=>i.expert_id===x.id&&i.statut!=='terminee'&&i.statut!=='abandon').length,s=(sf||[]).filter(i=>i.formateur_id===x.id).length;
+    return `<tr><td><strong>${esc([x.prenom,x.nom].filter(Boolean).join(' ')||'—')}</strong><div class="cell-sub">Depuis le ${fmtD(x.created_at)}</div></td>
+    <td style="font-size:12px">${esc(x.email||'')}<div class="cell-sub">${esc(x.telephone||'')}</div></td><td>${n}</td><td>${s}</td>
+    <td><button class="btn btn-outline btn-sm" onclick="acadRenvoyerAcces('${jsq(x.email||'')}')" title="Renvoyer le lien pour choisir un mot de passe">✉️ Renvoyer l’accès</button></td></tr>`;}).join('')
+    ||'<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:18px">Aucun formateur. <button class="btn btn-primary btn-sm" onclick="acadFormateurForm()">+ Inscrire un formateur</button></td></tr>'}
+  </tbody></table></div></div>`;
+}});
+(function(){
+  try{
+    ['superadmin','admin'].forEach(r=>{const nav=NAV[r];if(!nav||nav.some(x=>x.id==='academy-formateurs'))return;const k=nav.findIndex(x=>x.id==='academy-inscriptions');nav.splice(k<0?nav.length:k+1,0,{id:'academy-formateurs',i:'🧑‍🏫',l:'Formateurs'});});
+    PAGE_LABELS['academy-formateurs']='Formateurs';
+    const ap=V4['academy-inscriptions'];if(ap&&ap.outils&&!ap.outils.some(o=>/Renvoyer/.test(o.l)))ap.outils.push({l:'✉️ Renvoyer un accès',fn:'acadRenvoyerAcces()'});
+  }catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-academy-formateurs')){const d=document.createElement('div');d.className='page';d.id='page-academy-formateurs';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
+})();
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// H TECH Academy — formations de groupe : formateurs d'une session, participants,
+// inscription groupée (tous les participants invités en une fois)
+// ══════════════════════════════════════════════════════════════════════
+var ACAD_SES_INFO={};
+async function acadSessionsInfos(){
+  ACAD_SES_INFO={};
+  try{
+    const[{data:sf},{data:ins},{data:pf}]=await Promise.all([
+      sb.from('academy_session_formateurs').select('session_id,formateur_id'),
+      sb.from('academy_inscriptions').select('*').not('session_id','is',null),
+      sb.from('profiles').select('id,prenom,nom,email,role').in('role',['formateur','admin','superadmin','responsable','collaborateur'])]);
+    const nom=id=>{const p=(pf||[]).find(x=>x.id===id);return p?([p.prenom,p.nom].filter(Boolean).join(' ')||p.email):'—';};
+    (sf||[]).forEach(x=>{(ACAD_SES_INFO[x.session_id]=ACAD_SES_INFO[x.session_id]||{f:[],a:[]}).f.push({id:x.formateur_id,nom:nom(x.formateur_id)});});
+    (ins||[]).forEach(x=>{(ACAD_SES_INFO[x.session_id]=ACAD_SES_INFO[x.session_id]||{f:[],a:[]}).a.push(x);});
+    window._ACAD_EQUIPE=(pf||[]).map(p=>({id:p.id,nom:[p.prenom,p.nom].filter(Boolean).join(' ')||p.email,role:p.role}));
+  }catch(e){logErr(e);}
+}
+async function acadSessionGroupe(sid){
+  await acadSessionsInfos();
+  const{data:s}=await sb.from('academy_sessions').select('*').eq('id',sid).single();if(!s){toast('❌ Session introuvable');return;}
+  const info=ACAD_SES_INFO[sid]||{f:[],a:[]},eq=window._ACAD_EQUIPE||[];
+  const forms=eq.filter(p=>p.role==='formateur'),autres=eq.filter(p=>p.role!=='formateur');
+  const coche=p=>`<label style="display:flex;gap:8px;align-items:center;font-size:13px;padding:3px 0"><input type="checkbox" class="sgF" value="${esc(p.id)}" ${info.f.some(x=>x.id===p.id)?'checked':''}> ${esc(p.nom)}${p.role!=='formateur'?' <span class="cell-sub" style="margin:0">(équipe)</span>':''}</label>`;
+  document.getElementById('modalBox').style.width='min(760px,96vw)';
+  document.getElementById('modalTitle').textContent='👥 '+(s.titre||acadTitre(s.formation_ref))+' — '+fmtD(s.date_debut);
+  document.getElementById('modalBody').innerHTML=`
+    <div class="v4-h3">Formateur(s) de la session</div>
+    <p class="cell-sub" style="margin:0 0 6px">Chaque formateur coché voit tous les participants de la session dans son espace Academy et peut leur publier supports, devoirs et examens en une seule fois.</p>
+    <div style="max-height:180px;overflow:auto;border:1px solid var(--g200);border-radius:8px;padding:8px 12px">${forms.map(coche).join('')||'<p class="cell-sub">Aucun formateur. Inscrivez-en un dans H TECH Academy › Formateurs.</p>'}${autres.length?'<div class="cell-sub" style="margin:6px 0 2px">Équipe H TECH INNOV</div>'+autres.map(coche).join(''):''}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:8px;flex-wrap:wrap">
+      <div class="v4-h3" style="margin:0">Participants (${info.a.length}${s.places?' / '+s.places+' places':''})</div>
+      <button class="btn btn-accent btn-sm" onclick="acadGroupeForm('${sid}')">+ Inscrire un groupe</button></div>
+    <div class="table-wrap" style="max-height:240px;overflow:auto;margin-top:6px"><table><thead><tr><th>Apprenant</th><th>Email</th><th>Statut</th></tr></thead><tbody>
+      ${info.a.map(a=>`<tr><td>${esc(a.apprenant_nom||'—')}</td><td style="font-size:12px">${esc(a.email||a.apprenant_email||'')}</td><td>${esc((ACAD_ST[a.statut]||[a.statut||''])[0])}</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;color:var(--g400);padding:12px">Aucun participant pour l’instant.</td></tr>'}
+    </tbody></table></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Fermer</button><button class="btn btn-primary" onclick="acadSessionFormateursSauver('${sid}')">💾 Enregistrer les formateurs</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function acadSessionFormateursSauver(sid){
+  const choix=[...document.querySelectorAll('.sgF:checked')].map(x=>x.value);
+  const avant=(ACAD_SES_INFO[sid]?.f||[]).map(x=>x.id);
+  const ajout=choix.filter(x=>!avant.includes(x)),retrait=avant.filter(x=>!choix.includes(x));
+  if(retrait.length){const{error}=await sb.from('academy_session_formateurs').delete().eq('session_id',sid).in('formateur_id',retrait);if(error){toast('❌ '+error.message);return;}}
+  if(ajout.length){const{error}=await sb.from('academy_session_formateurs').insert(ajout.map(f=>({session_id:sid,formateur_id:f})));if(error){toast('❌ '+error.message);return;}}
+  try{logAudit('formateurs_session','academy_sessions',sid,{ajout,retrait});}catch(e){}
+  toast('✅ Formateurs de la session enregistrés');closeModal();v4Render('academy-sessions');
+}
+// Inscription groupée : une ligne par participant « Prénom Nom ; email ; téléphone »
+async function acadGroupeForm(sid){
+  const{data:s}=await sb.from('academy_sessions').select('*').eq('id',sid).single();if(!s)return;
+  const info=ACAD_SES_INFO[sid]||{f:[]},eq=window._ACAD_EQUIPE||[];
+  const expDef=info.f[0]?.id||'';
+  document.getElementById('modalTitle').textContent='+ Inscrire un groupe — '+(s.titre||acadTitre(s.formation_ref));
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field full"><label for="grListe">Participants — un par ligne : Prénom Nom ; email ; téléphone</label>
+      <textarea id="grListe" rows="9" style="font-family:monospace;font-size:12.5px" placeholder="Awa KONAN ; awa.konan@entreprise.ci ; 0700000000&#10;Koffi YAO ; k.yao@entreprise.ci"></textarea>
+      <div class="cell-sub">Vous pouvez coller directement deux ou trois colonnes copiées depuis Excel.</div></div>
+    <div class="form-field"><label for="grExp">Expert associé (suivi individuel) *</label><select id="grExp">${eq.map(p=>`<option value="${esc(p.id)}" ${p.id===expDef?'selected':''}>${esc(p.nom)}</option>`).join('')}</select></div>
+    <div class="form-field"><label for="grFin">Financeur</label><select id="grFin">${Object.entries(ACAD_PROFILS).map(([k,v])=>`<option value="${k}" ${k==='organisation'?'selected':''}>${esc(v)}</option>`).join('')}</select></div>
+    <div class="form-field full"><label for="grDevis">Référence du devis ou de la facture</label><input id="grDevis" placeholder="DEV-2026-0001"></div>
+    <div id="grProg" class="full"></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="acadSessionGroupe('${sid}')">← Retour</button><button class="btn btn-primary" id="grGo" onclick="acadGroupeValider('${sid}')">Inscrire et envoyer les accès</button>`;
+}
+function acadGroupeLire(txt){
+  return String(txt||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{
+    const c=l.split(/\s*[;\t,]\s*/).map(x=>x.trim()).filter(Boolean);
+    const email=c.find(x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))||'';
+    const tel=c.find(x=>x!==email&&/^[+\d][\d\s.-]{6,}$/.test(x))||'';
+    const nomComplet=c.find(x=>x!==email&&x!==tel)||'';
+    const mots=nomComplet.split(/\s+/);
+    // Convention : NOM en majuscules ; sinon premier mot = prénom
+    const maj=mots.filter(m=>m.length>1&&m===m.toUpperCase()&&/[A-Z]/.test(m));
+    const nom=maj.length?maj.join(' '):mots.slice(1).join(' ');
+    const prenom=maj.length?mots.filter(m=>!maj.includes(m)).join(' '):mots[0]||'';
+    return{ligne:l,email:email.toLowerCase(),telephone:tel,prenom,nom:nom||prenom};
+  });
+}
+async function acadGroupeValider(sid){
+  const L=acadGroupeLire(gv('grListe')),exp=gv('grExp');
+  if(!L.length){toast('❌ Collez au moins un participant');return;}
+  const inval=L.filter(x=>!x.email);if(inval.length){toast('❌ Email manquant ou invalide : '+inval.slice(0,3).map(x=>x.ligne).join(' | '),9000);return;}
+  if(!exp){toast('❌ Choisissez l’expert associé');return;}
+  const{data:s}=await sb.from('academy_sessions').select('*').eq('id',sid).single();
+  const deja=(ACAD_SES_INFO[sid]?.a||[]).length;
+  if(s?.places&&deja+L.length>s.places&&!confirm(`La session compte ${s.places} places et ${deja} inscrits : vous allez dépasser la capacité (${deja+L.length}). Continuer ?`))return;
+  if(!confirm(`Inscrire ${L.length} participant(s) à cette session et leur envoyer leur accès H TECH ACADEMY ?`))return;
+  const b=document.getElementById('grGo');b.disabled=true;
+  const prog=document.getElementById('grProg'),res=[];
+  for(let i=0;i<L.length;i++){
+    const x=L[i];b.textContent=`Inscription ${i+1}/${L.length}…`;
+    prog.innerHTML=`<div class="cell-sub">${i+1} / ${L.length} — ${esc(x.prenom+' '+x.nom)}</div>`;
+    const body={email:x.email,prenom:x.prenom,nom:x.nom,telephone:x.telephone,formation_ref:s.formation_ref,formation_titre:acadTitre(s.formation_ref),session_id:sid,
+      expert_id:exp,expert_nom:srcLabel('profiles',exp)||(window._ACAD_EQUIPE||[]).find(p=>p.id===exp)?.nom||'',financeur:gv('grFin'),demande_id:null,devis_reference:g('grDevis')||null,redirect_to:ACAD_URL_SITE};
+    try{const{data,error}=await sb.functions.invoke('academy-inviter',{body});
+      let det=data;if(error){try{const c=error.context;if(c&&typeof c.json==='function')det=await c.json();}catch(_){}}
+      if(error||det?.error)throw new Error(det?.error||error.message);
+      res.push({x,ok:true,inv:data?.invitation_envoyee});
+    }catch(e){res.push({x,ok:false,err:e.message});}
+    await new Promise(r=>setTimeout(r,400)); // laisse respirer l'envoi des emails
+  }
+  const ok=res.filter(r=>r.ok),ko=res.filter(r=>!r.ok);
+  try{logAudit('inscription_groupe','academy_sessions',sid,{inscrits:ok.length,erreurs:ko.length});}catch(e){}
+  prog.innerHTML=`<div class="card" style="border-left:4px solid ${ko.length?'#D97706':'#3F8A1E'};margin-top:8px"><b>${ok.length} inscrit(s)</b>${ok.filter(r=>r.inv).length?' · '+ok.filter(r=>r.inv).length+' invitation(s) envoyée(s)':''}${ko.length?`<div style="margin-top:6px;color:#B45309">${ko.length} échec(s) :</div>`+ko.map(r=>`<div class="cell-sub">${esc(r.x.ligne)} — ${esc(r.err)}</div>`).join(''):''}</div>`;
+  b.disabled=false;b.textContent='Terminé';b.onclick=()=>acadSessionGroupe(sid);
+  toast(`✅ ${ok.length}/${L.length} participant(s) inscrit(s)`,6000);
+}
+(function(){
+  try{
+    const S=V4['academy-sessions'];if(!S)return;
+    S.colonnes.splice(3,0,{l:'Formateurs',f:r=>{const i=ACAD_SES_INFO[r.id];return i&&i.f.length?esc(i.f.map(x=>x.nom).join(', ')):'<span style="color:#D97706;font-size:12px">À affecter</span>';}});
+    S.colonnes.push({l:'Groupe',f:r=>{const n=(ACAD_SES_INFO[r.id]?.a||[]).length;return `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();acadSessionGroupe('${r.id}')">👥 ${n}${r.places?' / '+r.places:''}</button>`;}});
+    const _r=v4Render;v4Render=async function(id){if(id==='academy-sessions')await acadSessionsInfos();return _r(id);};
+  }catch(e){logErr(e);}
+})();
+
+</script>
 </body>
 </html>
 
