@@ -13354,7 +13354,7 @@ async function academyInscrire(demandeId){
   document.getElementById('modalBody').innerHTML=`<div class="form-grid">
     <div class="form-field"><label for="aiPrenom">Prénom *</label><input id="aiPrenom" value="${esc(r.prenom||'')}"></div>
     <div class="form-field"><label for="aiNom">Nom *</label><input id="aiNom" value="${esc(r.nom||'')}"></div>
-    <div class="form-field"><label for="aiEmail">Email (identifiant de connexion) *</label><input id="aiEmail" type="email" value="${esc(r.email||'')}"></div>
+    <div class="form-field"><label for="aiEmail">Email (facultatif)</label><input id="aiEmail" type="email" value="${esc(r.email||'')}"></div>
     <div class="form-field"><label for="aiTel">Téléphone</label><input id="aiTel" value="${esc(r.telephone||'')}"></div>
     <div class="form-field full"><label for="aiForm">Formation *</label><div style="display:flex;gap:8px"><select id="aiForm" onchange="acadSessionsSel()" style="flex:1">${forms.map(f=>`<option value="${esc(f.reference)}" ${f.reference===ref0?'selected':''}>${esc(f.designation)}${f.visible_site===false?' (hors site)':''}</option>`).join('')}</select>
       <button type="button" class="btn btn-outline btn-sm" onclick="closeModal();acadCreerFormation('${jsq((r.formations_autres||[])[0]||'')}')">+ Nouvelle formation</button></div>${(r.formations_autres||[]).length?`<div class="cell-sub">Demandée hors catalogue : ${esc(r.formations_autres.join(', '))}. Créez-la d’abord si besoin.</div>`:''}</div>
@@ -13362,9 +13362,9 @@ async function academyInscrire(demandeId){
     <div class="form-field"><label for="aiFin">Financeur</label><select id="aiFin">${Object.entries(ACAD_PROFILS).map(([k,v])=>`<option value="${k}" ${k===r.profil?'selected':''}>${esc(v)}</option>`).join('')}</select></div>
     <div class="form-field full"><label for="aiExp">Expert associé *</label><select id="aiExp"><option value="">—</option>${experts.map(p=>`<option value="${esc(p.v)}">${esc(p.l)}</option>`).join('')}</select></div>
     <div class="form-field full"><label for="aiDevis">Référence du devis ou de la facture</label><input id="aiDevis" placeholder="DEV-2026-0001"></div>
-    <p class="cell-sub full" style="margin:0">L’apprenant reçoit un email pour choisir son mot de passe et accéder à son espace sur ${esc(ACADEMY_URL)}. S’il a déjà un compte, la formation est ajoutée à son espace.</p></div>`;
+    <p class="cell-sub full" style="margin:0">Un identifiant et un mot de passe provisoire sont créés immédiatement : vous les transmettez à l’apprenant (WhatsApp, copie ou fiche imprimée). Il se connecte sur ${esc(ACADEMY_URL)}. S’il a déjà un compte (même email), la formation est ajoutée à son espace.</p></div>`;
   window._ACAD_SES=ses||[];acadSessionsSel();
-  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="aiGo" onclick="academyInscrireValider('${demandeId||''}')">Inscrire et envoyer l’accès</button>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="aiGo" onclick="academyInscrireValider('${demandeId||''}')">Inscrire et créer l’accès</button>`;
   document.getElementById('modalOverlay').classList.add('open');
 }
 function acadSessionsSel(){
@@ -15515,17 +15515,17 @@ async function acadFormateurValider(forcer){
 }
 v4Def('academy-formateurs',{titre:'Formateurs',icone:'🧑‍🏫',custom:async pg=>{
   const[{data:f},{data:ins},{data:sf}]=await Promise.all([
-    sb.from('profiles').select('id,prenom,nom,email,telephone,created_at').eq('role','formateur').order('nom'),
+    sb.from('profiles').select('*').eq('role','formateur').order('nom'),
     sb.from('academy_inscriptions').select('expert_id,statut'),
     sb.from('academy_session_formateurs').select('formateur_id')]);
   const F=f||[];
-  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🧑‍🏫 Formateurs</h1><div class="page-sub">Comptes formateurs de H TECH ACADEMY — connexion sur le site Academy uniquement, sans accès à l’ERP</div></div>
-    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="acadRenvoyerAcces()">✉️ Renvoyer un accès</button><button class="btn btn-primary btn-sm" onclick="acadFormateurForm()">+ Inscrire un formateur</button></div></div>
-  <div class="card"><div class="table-wrap"><table><thead><tr><th>Formateur</th><th>Contact</th><th>Apprenants en cours</th><th>Sessions</th><th>Actions</th></tr></thead><tbody>
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🧑‍🏫 Formateurs</h1><div class="page-sub">Comptes formateurs de H TECH ACADEMY — identifiant et mot de passe remis par vous, connexion sur le site Academy uniquement</div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="acadRenvoyerAcces()">🔑 Nouveau mot de passe</button><button class="btn btn-primary btn-sm" onclick="acadFormateurForm()">+ Inscrire un formateur</button></div></div>
+  <div class="card"><div class="table-wrap"><table><thead><tr><th>Formateur</th><th>Identifiant</th><th>Apprenants en cours</th><th>Sessions</th><th>Actions</th></tr></thead><tbody>
   ${F.map(x=>{const n=(ins||[]).filter(i=>i.expert_id===x.id&&i.statut!=='terminee'&&i.statut!=='abandon').length,s=(sf||[]).filter(i=>i.formateur_id===x.id).length;
     return `<tr><td><strong>${esc([x.prenom,x.nom].filter(Boolean).join(' ')||'—')}</strong><div class="cell-sub">Depuis le ${fmtD(x.created_at)}</div></td>
-    <td style="font-size:12px">${esc(x.email||'')}<div class="cell-sub">${esc(x.telephone||'')}</div></td><td>${n}</td><td>${s}</td>
-    <td><button class="btn btn-outline btn-sm" onclick="acadRenvoyerAcces('${jsq(x.email||'')}')" title="Renvoyer le lien pour choisir un mot de passe">✉️ Renvoyer l’accès</button></td></tr>`;}).join('')
+    <td style="font-size:12px"><code>${esc(x.identifiant||x.email||'')}</code><div class="cell-sub">${esc(x.telephone||'')}</div></td><td>${n}</td><td>${s}</td>
+    <td><button class="btn btn-outline btn-sm" onclick="acadRenvoyerAcces('${x.id}')" title="Générer un nouveau mot de passe provisoire">🔑 Nouveau mot de passe</button></td></tr>`;}).join('')
     ||'<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:18px">Aucun formateur. <button class="btn btn-primary btn-sm" onclick="acadFormateurForm()">+ Inscrire un formateur</button></td></tr>'}
   </tbody></table></div></div>`;
 }});
@@ -15533,7 +15533,7 @@ v4Def('academy-formateurs',{titre:'Formateurs',icone:'🧑‍🏫',custom:async 
   try{
     ['superadmin','admin'].forEach(r=>{const nav=NAV[r];if(!nav||nav.some(x=>x.id==='academy-formateurs'))return;const k=nav.findIndex(x=>x.id==='academy-inscriptions');nav.splice(k<0?nav.length:k+1,0,{id:'academy-formateurs',i:'🧑‍🏫',l:'Formateurs'});});
     PAGE_LABELS['academy-formateurs']='Formateurs';
-    const ap=V4['academy-inscriptions'];if(ap&&ap.outils&&!ap.outils.some(o=>/Renvoyer/.test(o.l)))ap.outils.push({l:'✉️ Renvoyer un accès',fn:'acadRenvoyerAcces()'});
+    const ap=V4['academy-inscriptions'];if(ap&&ap.outils&&!ap.outils.some(o=>/mot de passe/.test(o.l)))ap.outils.push({l:'🔑 Nouveau mot de passe',fn:'acadRenvoyerAcces()'});
   }catch(e){logErr(e);}
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-academy-formateurs')){const d=document.createElement('div');d.className='page';d.id='page-academy-formateurs';ref.parentNode.appendChild(d);}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
@@ -16025,6 +16025,143 @@ async function htaSignRetirer(id){if(!confirm('Retirer ce signataire ? Les certi
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-academy-certificats')){const d=document.createElement('div');d.className='page';d.id='page-academy-certificats';ref.parentNode.appendChild(d);}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// H TECH ACADEMY — Accès sans email : identifiant + mot de passe provisoire remis par l'administrateur
+// (fonction serveur « academy-comptes »). Remplace les invitations par email.
+// ══════════════════════════════════════════════════════════════════════
+async function acadComptes(body){
+  const{data,error}=await sb.functions.invoke('academy-comptes',{body});
+  let det=data;if(error){try{const c=error.context;if(c&&typeof c.json==='function')det=await c.json();}catch(_){}
+    if(!det&&(error.name==='FunctionsFetchError'||/Failed to send/i.test(error.message)))throw new Error('La fonction « academy-comptes » n’est pas déployée sur Supabase.');}
+  if(det?.error&&det.error!=='apprenant_existant')throw new Error(det.error);
+  if(error&&!det)throw new Error(error.message);
+  return det;
+}
+function acadTelWa(t){let d=String(t||'').replace(/\D/g,'');if(!d)return'';if(d.length===10&&d[0]==='0')d='225'+d;if(d.length===10)d='225'+d;return d;}
+function acadMsgAcces(a){
+  return `Bonjour ${a.prenom||''},\nVoici votre accès à H TECH ACADEMY :\n🌐 ${ACAD_URL_SITE}\n👤 Identifiant : ${a.identifiant}\n🔑 Mot de passe provisoire : ${a.mot_de_passe}\nÀ votre première connexion, vous choisirez votre propre mot de passe.\nH TECH INNOV — Au cœur de vos projets`;
+}
+function acadFichesAcces(liste,titre){
+  liste=(liste||[]).filter(a=>a&&a.identifiant);if(!liste.length)return;
+  window._ACAD_FICHES=liste;
+  document.getElementById('modalBox').style.width='min(760px,96vw)';
+  document.getElementById('modalTitle').textContent=titre||'🔑 Accès H TECH ACADEMY';
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #D97706;margin-bottom:10px;font-size:12.5px">⚠️ Notez ou transmettez ces accès maintenant : le mot de passe provisoire ne sera plus affiché après fermeture. En cas de perte, générez-en simplement un nouveau.</div>
+    <div class="table-wrap"><table><thead><tr><th>Personne</th><th>Identifiant</th><th>Mot de passe provisoire</th><th>Transmettre</th></tr></thead><tbody>
+    ${liste.map((a,k)=>{const wa=acadTelWa(a.telephone);return `<tr><td><strong>${esc([a.prenom,a.nom].filter(Boolean).join(' '))}</strong><div class="cell-sub">${a.role==='formateur'?'Formateur':'Apprenant'}</div></td>
+      <td><code style="font-size:13px">${esc(a.identifiant)}</code></td><td><code style="font-size:13px;font-weight:700">${esc(a.mot_de_passe)}</code></td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">${wa?`<a class="btn btn-accent btn-sm" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(acadMsgAcces(a))}">WhatsApp</a>`:''}
+        <button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText(acadMsgAcces(window._ACAD_FICHES[${k}])).then(()=>toast('Message copié'))">Copier</button></div></td></tr>`;}).join('')}
+    </tbody></table></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="acadImprimerFiches()">🖨 Imprimer ${liste.length>1?'les fiches':'la fiche'}</button><button class="btn btn-primary" onclick="closeModal()">Terminé</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function acadImprimerFiches(){
+  const L=window._ACAD_FICHES||[],w=window.open('','_blank');if(!w){toast('Autorisez les fenêtres pour imprimer');return;}
+  w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Accès H TECH ACADEMY</title><style>
+    body{font-family:Arial,sans-serif;margin:0;padding:14mm;color:#1E283C}.g{display:grid;grid-template-columns:1fr 1fr;gap:8mm}
+    .f{border:1.5px solid #0A2A66;border-radius:10px;padding:7mm;break-inside:avoid}.t{color:#0A2A66;font-weight:800;font-size:16px}.s{color:#3F8A1E;font-size:10px;letter-spacing:.15em;font-weight:700;margin-bottom:5mm}
+    .l{font-size:10px;color:#606C82;text-transform:uppercase;letter-spacing:.1em;margin-top:3mm}.v{font-family:monospace;font-size:16px;font-weight:700}.n{font-size:10.5px;color:#606C82;margin-top:4mm;line-height:1.4}
+    @media print{body{padding:8mm}}</style></head><body><div class="g">${L.map(a=>`<div class="f"><div class="t">H TECH ACADEMY</div><div class="s">AU CŒUR DE VOS COMPÉTENCES</div>
+    <div style="font-size:15px;font-weight:700">${esc([a.prenom,a.nom].filter(Boolean).join(' '))}</div><div style="font-size:11px;color:#606C82">${a.role==='formateur'?'Espace formateur':'Espace apprenant'}</div>
+    <div class="l">Adresse</div><div style="font-size:12.5px;font-weight:700">${esc(ACAD_URL_SITE)}</div>
+    <div class="l">Identifiant</div><div class="v">${esc(a.identifiant)}</div><div class="l">Mot de passe provisoire</div><div class="v">${esc(a.mot_de_passe)}</div>
+    <div class="n">À votre première connexion, choisissez votre propre mot de passe. Mot de passe oublié : contactez H TECH INNOV au 07 14 94 24 21.</div></div>`).join('')}</div>
+    <script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close();
+}
+// Nouveau mot de passe provisoire (formateur ou apprenant)
+async function acadRenvoyerAcces(cle){
+  let body={action:'reinitialiser'};
+  if(cle&&/^[0-9a-f-]{36}$/i.test(cle))body.user_id=cle;
+  else{const v=cle||prompt('Identifiant ou email du formateur / de l’apprenant :');if(!v)return;body.login=v.trim();}
+  if(!confirm('Générer un nouveau mot de passe provisoire ? L’ancien ne fonctionnera plus.'))return;
+  try{const r=await acadComptes(body);try{logAudit('nouveau_mdp_academy','profiles',r.acces?.identifiant||'',{});}catch(e){}acadFichesAcces([r.acces],'🔑 Nouveau mot de passe provisoire');}
+  catch(e){toast('❌ '+e.message,9000);}
+}
+// Inscription individuelle d'un apprenant
+async function academyInscrireValider(demandeId){
+  const email=(gv('aiEmail')||'').trim(),exp=gv('aiExp');
+  if(!g('aiNom')){toast('❌ Nom requis');return;}
+  if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){toast('❌ Email invalide (ou laissez-le vide)');return;}
+  if(!exp){toast('❌ Choisissez l’expert associé');return;}
+  const b=document.getElementById('aiGo');b.disabled=true;b.textContent='Création de l’accès…';
+  try{
+    const r=await acadComptes({action:'apprenant',email,prenom:g('aiPrenom'),nom:g('aiNom'),telephone:g('aiTel'),formation_ref:gv('aiForm'),formation_titre:acadTitre(gv('aiForm')),session_id:gv('aiSes')||null,
+      expert_id:exp,expert_nom:srcLabel('profiles',exp),financeur:gv('aiFin'),demande_id:demandeId||null,devis_reference:g('aiDevis')||null});
+    try{logAudit('inscription_academy','academy_inscriptions',r.inscription_id,{formation:gv('aiForm')});}catch(e){}
+    if(r.acces)acadFichesAcces([r.acces],'✅ Apprenant inscrit — accès à transmettre');
+    else{toast('✅ Formation ajoutée à l’espace existant de cet apprenant (il garde ses identifiants)',6000);closeModal();}
+    try{v4Render(document.querySelector('.page.active')?.id?.replace('page-','')||'academy-inscriptions');}catch(e){}
+  }catch(e){b.disabled=false;b.textContent='Inscrire et créer l’accès';toast('❌ '+e.message,12000);}
+}
+// Inscription d'un formateur
+function acadFormateurForm(){
+  document.getElementById('modalBox').style.width='min(560px,96vw)';
+  document.getElementById('modalTitle').textContent='Inscrire un formateur';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field"><label for="afPrenom">Prénom *</label><input id="afPrenom"></div>
+    <div class="form-field"><label for="afNom">Nom *</label><input id="afNom"></div>
+    <div class="form-field"><label for="afTel">Téléphone (pour l’envoi WhatsApp)</label><input id="afTel"></div>
+    <div class="form-field"><label for="afEmail">Email (facultatif)</label><input id="afEmail" type="email"></div>
+    <p class="cell-sub full" style="margin:0">Un identifiant et un mot de passe provisoire sont créés immédiatement : vous les transmettez au formateur (WhatsApp, copie ou fiche imprimée). Il se connecte sur ${esc(ACAD_URL_SITE)}, sans accès à l’ERP.</p></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="afGo" onclick="acadFormateurValider()">Inscrire et créer l’accès</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function acadFormateurValider(forcer){
+  const prenom=g('afPrenom')||'',nom=g('afNom')||'',email=(gv('afEmail')||'').trim().toLowerCase(),telephone=g('afTel')||'';
+  if(!prenom||!nom){toast('❌ Prénom et nom requis');return;}
+  if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){toast('❌ Email invalide (ou laissez-le vide)');return;}
+  const b=document.getElementById('afGo');b.disabled=true;b.textContent='Création de l’accès…';
+  try{
+    const r=await acadComptes({action:'formateur',email,prenom,nom,telephone,forcer:!!forcer});
+    if(r?.error==='apprenant_existant'){b.disabled=false;b.textContent='Inscrire et créer l’accès';
+      if(confirm(email+' est déjà inscrit comme apprenant. En faire un formateur ?'))return acadFormateurValider(true);return;}
+    try{logAudit('inscription_formateur','profiles',r.user_id||'',{});}catch(e){}
+    if(r.acces)acadFichesAcces([r.acces],'✅ Formateur inscrit — accès à transmettre');
+    else{toast('✅ Compte existant passé formateur (il garde ses identifiants)',6000);closeModal();}
+    if(document.getElementById('page-academy-formateurs')?.classList.contains('active'))v4Render('academy-formateurs');
+  }catch(e){b.disabled=false;b.textContent='Inscrire et créer l’accès';toast('❌ '+e.message,12000);}
+}
+// Inscription groupée : l'email devient facultatif
+function acadGroupeLire(txt){
+  return String(txt||'').split(/\r?\n/).map(l=>l.trim()).filter(Boolean).map(l=>{
+    const c=l.split(/\s*[;\t,]\s*/).map(x=>x.trim()).filter(Boolean);
+    const email=c.find(x=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))||'';
+    const tel=c.find(x=>x!==email&&/^[+\d][\d\s.-]{6,}$/.test(x))||'';
+    const nomComplet=c.find(x=>x!==email&&x!==tel)||'';
+    const mots=nomComplet.split(/\s+/).filter(Boolean);
+    const maj=mots.filter(m=>m.length>1&&m===m.toUpperCase()&&/[A-Z]/.test(m));
+    const nom=maj.length?maj.join(' '):mots.slice(1).join(' ');
+    const prenom=maj.length?mots.filter(m=>!maj.includes(m)).join(' '):mots[0]||'';
+    return{ligne:l,email:email.toLowerCase(),telephone:tel,prenom,nom:nom||prenom};
+  });
+}
+async function acadGroupeValider(sid){
+  const L=acadGroupeLire(gv('grListe')),exp=gv('grExp');
+  if(!L.length){toast('❌ Collez au moins un participant');return;}
+  const sansNom=L.filter(x=>!x.nom&&!x.prenom);if(sansNom.length){toast('❌ Nom manquant : '+sansNom[0].ligne,9000);return;}
+  if(!exp){toast('❌ Choisissez l’expert associé');return;}
+  const{data:s}=await sb.from('academy_sessions').select('*').eq('id',sid).single();
+  const deja=(ACAD_SES_INFO[sid]?.a||[]).length;
+  if(s?.places&&deja+L.length>s.places&&!confirm(`La session compte ${s.places} places et ${deja} inscrits : vous allez dépasser la capacité (${deja+L.length}). Continuer ?`))return;
+  if(!confirm(`Inscrire ${L.length} participant(s) et créer leurs accès H TECH ACADEMY ?`))return;
+  const b=document.getElementById('grGo');b.disabled=true;
+  const prog=document.getElementById('grProg'),acces=[],ko=[];let existants=0;
+  for(let i=0;i<L.length;i++){const x=L[i];b.textContent=`Inscription ${i+1}/${L.length}…`;
+    prog.innerHTML=`<div class="cell-sub">${i+1} / ${L.length} — ${esc(x.prenom+' '+x.nom)}</div>`;
+    try{const r=await acadComptes({action:'apprenant',email:x.email,prenom:x.prenom,nom:x.nom,telephone:x.telephone,formation_ref:s.formation_ref,formation_titre:acadTitre(s.formation_ref),session_id:sid,
+        expert_id:exp,expert_nom:(window._ACAD_EQUIPE||[]).find(p=>p.id===exp)?.nom||'',financeur:gv('grFin'),devis_reference:g('grDevis')||null});
+      if(r.acces)acces.push(r.acces);else existants++;}
+    catch(e){ko.push(x.ligne+' — '+e.message);}
+  }
+  try{logAudit('inscription_groupe','academy_sessions',sid,{inscrits:acces.length+existants,erreurs:ko.length});}catch(e){}
+  if(ko.length)toast(`⚠️ ${ko.length} échec(s) : ${ko[0]}`,12000);
+  if(acces.length)acadFichesAcces(acces,`✅ ${acces.length+existants} participant(s) inscrit(s) — accès à transmettre`+(existants?` (${existants} avaient déjà un compte)`:''));
+  else{toast(`✅ ${existants} participant(s) inscrit(s), tous avaient déjà un compte`,6000);acadSessionGroupe(sid);}
+}
 
 </script>
 </body>
