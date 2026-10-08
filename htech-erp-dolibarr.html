@@ -15853,7 +15853,7 @@ async function htaValider(){
 async function htaEligibles(){
   const{data:ins}=await sb.from('academy_inscriptions').select('*').neq('statut','abandon');
   const L=(ins||[]);if(!L.length)return[];
-  const{data:certs}=await sb.from('hta_certificats').select('inscription_id').eq('statut','valide');
+  const{data:certs}=await sb.from('hta_certificats').select('inscription_id');
   const dejaC=new Set((certs||[]).map(x=>x.inscription_id));
   const C=L.filter(i=>!dejaC.has(i.id));if(!C.length)return[];
   const refs=[...new Set(C.map(i=>i.formation_ref))];
@@ -15889,7 +15889,7 @@ v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
   await htaSignataires();htaPublierLogo();
   let err=null;try{const r=await sb.from('hta_certificats').select('*').order('created_at',{ascending:false});if(r.error)err=r.error;HTA_ROWS=r.data||[];}catch(e){err=e;HTA_ROWS=[];}
   try{HTA_ELIG=err?[]:await htaEligibles();}catch(e){logErr(e);HTA_ELIG=[];}
-  const st={valide:['Valide','#3F8A1E'],annule:['Annulé','#DC2626']};
+  const st={valide:['Valide','#3F8A1E'],retire:['Retiré','#D97706'],annule:['Annulé','#DC2626']};
   const expire=c=>c.date_validite&&c.date_validite<isoJour();
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🎓 Certificats H TECH ACADEMY</h1><div class="page-sub">Numérotés HTA, vérifiables en ligne et déposés dans l’espace de chaque apprenant</div></div>
     <div class="v4-tools"><a class="btn btn-outline btn-sm" href="${esc(ACAD_URL_SITE+'#/verifier')}" target="_blank">🔍 Page de vérification</a><button class="btn btn-primary btn-sm" onclick="htaForm()">+ Certificat manuel</button></div></div>
@@ -15907,7 +15907,7 @@ v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
   ${HTA_ROWS.map(c=>`<tr><td><code style="font-size:10.5px">${esc(c.numero)}</code></td><td><strong>${esc(c.titulaire)}</strong></td><td style="font-size:12px">${esc(c.formation_titre)}<div class="cell-sub">${esc([c.heures,c.niveau].filter(Boolean).join(' · '))}</div></td>
     <td style="font-size:12px">${fmtD(c.date_obtention)}</td><td style="font-size:12px">${c.date_validite?fmtD(c.date_validite)+(expire(c)?' <span style="color:#D97706">(expiré)</span>':''):'Sans expiration'}</td>
     <td><select onchange="htaStatut('${c.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${(st[c.statut]||st.valide)[1]};font-weight:600">${Object.entries(st).map(([k,v])=>`<option value="${k}" ${k===c.statut?'selected':''}>${v[0]}</option>`).join('')}</select></td>
-    <td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="htaPdf('${c.id}')" title="Télécharger le PDF">📄</button><a class="btn btn-outline btn-sm" href="${esc(htaUrlVerif(c.numero))}" target="_blank" title="Vérifier en ligne">🔗</a></div></td></tr>`).join('')
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="htaModifier('${c.id}')" title="Modifier le certificat">✏️</button><button class="btn btn-outline btn-sm" onclick="htaPdf('${c.id}')" title="Télécharger le PDF">📄</button><a class="btn btn-outline btn-sm" href="${esc(htaUrlVerif(c.numero))}" target="_blank" title="Vérifier en ligne">🔗</a><button class="btn btn-outline btn-sm" onclick="htaSupprimer('${c.id}')" title="Supprimer définitivement">🗑</button></div>${c.motif_statut&&c.statut!=='valide'?`<div class="cell-sub">Motif : ${esc(c.motif_statut)}</div>`:''}${c.modifie_le?`<div class="cell-sub">Modifié le ${fmtD(c.modifie_le)}</div>`:''}</td></tr>`).join('')
     ||'<tr><td colspan="7" style="text-align:center;color:var(--g400);padding:16px">Aucun certificat délivré.</td></tr>'}
   </tbody></table></div></div>
   <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="card-title" style="margin:0">✍️ Signataires</div><button class="btn btn-outline btn-sm" onclick="htaSignForm()">+ Ajouter un signataire</button></div>
@@ -15918,9 +15918,67 @@ v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
   </div>`;
 }});
 async function htaStatut(id,s){
-  if(s==='annule'&&!confirm('Annuler ce certificat ? La page de vérification affichera « Certificat annulé ».')){v4Render('academy-certificats');return;}
-  const{error}=await sb.from('hta_certificats').update({statut:s}).eq('id',id);if(error){toast('❌ '+error.message);return;}
-  try{logAudit('statut_certificat','hta_certificats',id,{statut:s});}catch(e){}toast('Statut mis à jour');v4Render('academy-certificats');
+  const c=HTA_ROWS.find(x=>x.id===id);let motif=null;
+  if(s!=='valide'){
+    const lib=s==='annule'?'Annuler':'Retirer';
+    motif=prompt(`${lib} le certificat ${c?.numero||''} de ${c?.titulaire||''}.\n\nLa page de vérification affichera « Certificat ${s==='annule'?'annulé':'retiré'} » et il disparaîtra de l’espace de l’apprenant.\n\nMotif (conservé dans l’ERP, non publié) :`,c?.motif_statut||'');
+    if(motif===null){v4Render('academy-certificats');return;}
+  }else if(!confirm('Rétablir ce certificat comme valide ?')){v4Render('academy-certificats');return;}
+  const{error}=await sb.from('hta_certificats').update({statut:s,motif_statut:motif||null,modifie_le:new Date().toISOString()}).eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('statut_certificat','hta_certificats',c?.numero||id,{statut:s,motif});}catch(e){}
+  toast({valide:'✅ Certificat rétabli',retire:'Certificat retiré',annule:'Certificat annulé'}[s]);v4Render('academy-certificats');
+}
+// Modification : mêmes numéro et QR code, PDF régénéré et remplacé dans l’espace de l’apprenant
+async function htaModifier(id){
+  const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;await htaSignataires();
+  const opt=(nom)=>{const l=HTA_SIGN.map(s=>`<option value="${esc(s.id)}" ${s.nom===nom?'selected':''}>${esc(s.nom+' — '+(s.fonction||''))}</option>`).join('');
+    const connu=HTA_SIGN.some(s=>s.nom===nom);return (nom&&!connu?`<option value="__actuel" selected>${esc(nom)} (actuel)</option>`:'')+l+`<option value="" ${!nom?'selected':''}>— Aucun —</option>`;};
+  window._HTA_EDIT=c;
+  document.getElementById('modalBox').style.width='min(720px,96vw)';
+  document.getElementById('modalTitle').textContent='✏️ Modifier le certificat '+c.numero;
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #1565C0;margin-bottom:10px;font-size:12.5px">Le numéro et le QR code restent identiques. Le PDF est régénéré et remplace l’ancien dans l’espace de l’apprenant ; la page de vérification affiche aussitôt les nouvelles informations.</div>
+    <div class="form-grid">
+      <div class="form-field full"><label for="heT">Titulaire *</label><input id="heT" value="${esc(c.titulaire||'')}"></div>
+      <div class="form-field full"><label for="heF">Formation *</label><input id="heF" value="${esc(c.formation_titre||'')}"></div>
+      <div class="form-field"><label for="heH">Volume</label><input id="heH" value="${esc(c.heures||'')}"></div>
+      <div class="form-field"><label for="heN">Niveau</label><select id="heN"><option value="">—</option>${HTA_NIVEAUX.map(n=>`<option ${n===c.niveau?'selected':''}>${n}</option>`).join('')}</select></div>
+      <div class="form-field"><label for="heD">Date d’obtention *</label><input id="heD" type="date" value="${esc(c.date_obtention||'')}"></div>
+      <div class="form-field"><label for="heV">Valable jusqu’au (vide = sans expiration)</label><input id="heV" type="date" value="${esc(c.date_validite||'')}"></div>
+      <div class="form-field"><label for="heS1">Signataire de gauche</label><select id="heS1">${opt(c.signataire1_nom)}</select></div>
+      <div class="form-field"><label for="heS2">Signataire de droite</label><select id="heS2">${opt(c.signataire2_nom)}</select></div>
+    </div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="htaModifApercu()">👁 Aperçu</button><button class="btn btn-primary" id="heGo" onclick="htaModifValider()">💾 Enregistrer et régénérer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function htaModifLire(){
+  const c=window._HTA_EDIT,sig=(v,n,f)=>v==='__actuel'?[n,f]:v?[HTA_SIGN.find(s=>s.id===v)?.nom||'',HTA_SIGN.find(s=>s.id===v)?.fonction||'']:['',''];
+  const[s1n,s1f]=sig(gv('heS1'),c.signataire1_nom,c.signataire1_fonction),[s2n,s2f]=sig(gv('heS2'),c.signataire2_nom,c.signataire2_fonction);
+  return{titulaire:g('heT')||'',formation_titre:g('heF')||'',heures:g('heH')||null,niveau:gv('heN')||null,date_obtention:gv('heD')||c.date_obtention,date_validite:gv('heV')||null,
+    signataire1_nom:s1n||null,signataire1_fonction:s1f||null,signataire2_nom:s2n||null,signataire2_fonction:s2f||null};
+}
+async function htaModifApercu(){await htaTelecharger({...window._HTA_EDIT,...htaModifLire()});}
+async function htaModifValider(){
+  const c=window._HTA_EDIT,m=htaModifLire();if(!m.titulaire||!m.formation_titre){toast('❌ Titulaire et formation requis');return;}
+  const b=document.getElementById('heGo');b.disabled=true;b.textContent='Régénération…';
+  try{
+    const{error}=await sb.from('hta_certificats').update({...m,modifie_le:new Date().toISOString()}).eq('id',c.id);if(error)throw new Error(error.message);
+    const n={...c,...m},doc=await htaDessiner(await htaPreparerSignataires({...n}));
+    const chemin=c.fichier_path||('certificats-hta/'+c.numero+'.pdf');
+    const up=await sb.storage.from('documents').upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
+    if(!up.error&&!c.fichier_path)await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',c.id);
+    try{logAudit('modification_certificat','hta_certificats',c.numero,{avant:{titulaire:c.titulaire,formation:c.formation_titre,date_validite:c.date_validite},apres:m});}catch(e){}
+    toast('✅ Certificat '+c.numero+' modifié'+(up.error?' (PDF non remplacé : '+up.error.message+')':' et PDF remplacé'),6000);closeModal();v4Render('academy-certificats');
+  }catch(e){b.disabled=false;b.textContent='💾 Enregistrer et régénérer';toast('❌ '+e.message,9000);}
+}
+// Suppression définitive (le numéro n’est jamais réattribué)
+async function htaSupprimer(id){
+  const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;
+  const saisie=prompt(`Supprimer DÉFINITIVEMENT le certificat ${c.numero} de ${c.titulaire} ?\n\n• Il disparaîtra de l’ERP et de l’espace de l’apprenant.\n• La vérification en ligne répondra « Certificat introuvable ».\n• Le numéro ne sera jamais réattribué.\n\nPour invalider un certificat en gardant une trace, utilisez plutôt « Annulé » ou « Retiré ».\n\nTapez le numéro ${c.numero} pour confirmer :`);
+  if(saisie===null)return;if(saisie.trim().toUpperCase()!==c.numero.toUpperCase()){toast('Numéro différent : suppression abandonnée');return;}
+  if(c.fichier_path){try{await sb.storage.from('documents').remove([c.fichier_path]);}catch(e){logErr(e);}}
+  const{error}=await sb.from('hta_certificats').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('suppression_certificat','hta_certificats',c.numero,{titulaire:c.titulaire,formation:c.formation_titre});}catch(e){}
+  toast('Certificat '+c.numero+' supprimé',5000);v4Render('academy-certificats');
 }
 async function htaPdf(id){
   const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;
