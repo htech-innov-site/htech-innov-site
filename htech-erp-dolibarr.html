@@ -15668,6 +15668,7 @@ async function acadGroupeValider(sid){
 var HTA_SIGN_DEFAUT=[{id:'d1',nom:'Ismaila Remi HIEN',fonction:'Directeur général',ordre:1},{id:'d2',nom:'Koffi Yao',fonction:'Directeur des études',ordre:2}];
 var HTA_NIVEAUX=['Initiation','Intermédiaire','Avancé','Expert'];
 var HTA_SIGN=[],HTA_ROWS=[],HTA_ELIG=[];
+var HTA_BUCKET='certificats'; // stockage privé : PDF, signatures, logo
 function htaUrlVerif(n){return ACAD_URL_SITE+'#/verifier/'+encodeURIComponent(n);}
 async function htaLibs(){
   await ensurePdf();
@@ -15684,7 +15685,7 @@ async function htaSignataires(){
 }
 async function htaImageSignature(path){
   if(!path)return null;
-  try{const u=sb.storage.from('documents').getPublicUrl(path).data?.publicUrl;const r=await fetch(u);if(!r.ok)return null;const b=await r.blob();
+  try{const{data:b,error}=await sb.storage.from(HTA_BUCKET).download(path);if(error||!b)return null;
     return await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res(null);fr.readAsDataURL(b);});}catch(e){return null;}
 }
 
@@ -15775,7 +15776,7 @@ var _HTA_LOGO_OK=false;
 async function htaPublierLogo(){
   if(_HTA_LOGO_OK||!HTI_LOGO||!String(HTI_LOGO).startsWith('data:image/'))return;
   try{const png=HTI_LOGO.startsWith('data:image/png');const b=await (await fetch(HTI_LOGO)).blob();
-    const r=await sb.storage.from('documents').upload('certificats-hta/_logo.'+(png?'png':'jpg'),b,{contentType:png?'image/png':'image/jpeg',upsert:true});
+    const r=await sb.storage.from(HTA_BUCKET).upload('certificats-hta/_logo.'+(png?'png':'jpg'),b,{contentType:png?'image/png':'image/jpeg',upsert:true});
     if(!r.error)_HTA_LOGO_OK=true;}catch(e){logErr(e);}
 }
 // ── Création d'un certificat ──
@@ -15795,7 +15796,7 @@ async function htaCreer(c,opts){
   if(error)throw new Error(error.message);
   const doc=await htaDessiner(await htaPreparerSignataires({...row}));
   const blob=doc.output('blob'),chemin='certificats-hta/'+row.numero+'.pdf';
-  const up=await sb.storage.from('documents').upload(chemin,blob,{contentType:'application/pdf',upsert:true});
+  const up=await sb.storage.from(HTA_BUCKET).upload(chemin,blob,{contentType:'application/pdf',upsert:true});
   if(!up.error)await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',ins.id);
   if(row.inscription_id)await sb.from('academy_inscriptions').update({statut:'terminee',date_fin:row.date_obtention}).eq('id',row.inscription_id);
   try{logAudit('certificat_hta','hta_certificats',row.numero,{titulaire:row.titulaire,formation:row.formation_titre});}catch(e){}
@@ -15964,7 +15965,7 @@ async function htaModifValider(){
     const{error}=await sb.from('hta_certificats').update({...m,modifie_le:new Date().toISOString()}).eq('id',c.id);if(error)throw new Error(error.message);
     const n={...c,...m},doc=await htaDessiner(await htaPreparerSignataires({...n}));
     const chemin=c.fichier_path||('certificats-hta/'+c.numero+'.pdf');
-    const up=await sb.storage.from('documents').upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
+    const up=await sb.storage.from(HTA_BUCKET).upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
     if(!up.error&&!c.fichier_path)await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',c.id);
     try{logAudit('modification_certificat','hta_certificats',c.numero,{avant:{titulaire:c.titulaire,formation:c.formation_titre,date_validite:c.date_validite},apres:m});}catch(e){}
     toast('✅ Certificat '+c.numero+' modifié'+(up.error?' (PDF non remplacé : '+up.error.message+')':' et PDF remplacé'),6000);closeModal();v4Render('academy-certificats');
@@ -15975,15 +15976,20 @@ async function htaSupprimer(id){
   const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;
   const saisie=prompt(`Supprimer DÉFINITIVEMENT le certificat ${c.numero} de ${c.titulaire} ?\n\n• Il disparaîtra de l’ERP et de l’espace de l’apprenant.\n• La vérification en ligne répondra « Certificat introuvable ».\n• Le numéro ne sera jamais réattribué.\n\nPour invalider un certificat en gardant une trace, utilisez plutôt « Annulé » ou « Retiré ».\n\nTapez le numéro ${c.numero} pour confirmer :`);
   if(saisie===null)return;if(saisie.trim().toUpperCase()!==c.numero.toUpperCase()){toast('Numéro différent : suppression abandonnée');return;}
-  if(c.fichier_path){try{await sb.storage.from('documents').remove([c.fichier_path]);}catch(e){logErr(e);}}
+  if(c.fichier_path){try{await sb.storage.from(HTA_BUCKET).remove([c.fichier_path]);}catch(e){logErr(e);}}
   const{error}=await sb.from('hta_certificats').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
   try{logAudit('suppression_certificat','hta_certificats',c.numero,{titulaire:c.titulaire,formation:c.formation_titre});}catch(e){}
   toast('Certificat '+c.numero+' supprimé',5000);v4Render('academy-certificats');
 }
 async function htaPdf(id){
   const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;
-  if(c.fichier_path){const u=sb.storage.from('documents').getPublicUrl(c.fichier_path).data?.publicUrl;if(u){window.open(u,'_blank');return;}}
-  await htaTelecharger(c);
+  if(c.fichier_path){const{data,error}=await sb.storage.from(HTA_BUCKET).createSignedUrl(c.fichier_path,600);if(!error&&data?.signedUrl){window.open(data.signedUrl,'_blank');return;}}
+  // PDF absent (ancien stockage, envoi échoué) : régénération, enregistrement, téléchargement
+  const doc=await htaDessiner(await htaPreparerSignataires({...c})),chemin='certificats-hta/'+c.numero+'.pdf';
+  const up=await sb.storage.from(HTA_BUCKET).upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
+  if(!up.error){await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',c.id);c.fichier_path=chemin;}
+  else toast('⚠️ PDF non enregistré dans le stockage : '+up.error.message+' — exécutez migration-certificats-hta.sql',9000);
+  doc.save(pdfT('Certificat-'+c.numero+'-'+String(c.titulaire||'').replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');
 }
 function htaSignForm(id){
   const s=id?HTA_SIGN.find(x=>x.id===id):{ordre:HTA_SIGN.filter(x=>!String(x.id).startsWith('d')).length+1};
@@ -16002,7 +16008,7 @@ async function htaSignSauver(id){
   const p={nom,fonction,ordre:parseInt(gv('sgO'))||1,actif:true};
   const f=document.getElementById('sgI')?.files?.[0];
   if(f){const chemin='signatures/'+Date.now()+'-'+nom.replace(/[^A-Za-z0-9]+/g,'_')+'.png';
-    const up=await sb.storage.from('documents').upload(chemin,f,{contentType:'image/png'});if(up.error){toast('❌ '+up.error.message);return;}p.signature_path=chemin;}
+    const up=await sb.storage.from(HTA_BUCKET).upload(chemin,f,{contentType:'image/png'});if(up.error){toast('❌ '+up.error.message);return;}p.signature_path=chemin;}
   const{error}=id?await sb.from('hta_signataires').update(p).eq('id',id):await sb.from('hta_signataires').insert(p);
   if(error){toast('❌ '+error.message);return;}toast('✅ Signataire enregistré');closeModal();v4Render('academy-certificats');
 }
