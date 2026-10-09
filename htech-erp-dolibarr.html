@@ -11945,9 +11945,21 @@ async function devisPDF(id){
   }catch(e){toast('❌ '+e.message);}
 }
 // Texte compatible avec les polices standard des PDF (latin-1)
+// Préparation de tout texte destiné aux PDF (devis, factures, BC, contrats, certificats, ordres de mission, fiches…)
+// Conserve la typographie affichable par les polices PDF (« », ’, –, —, …, ™, ®, Œ, •, €, ²…),
+// convertit les lettres « décoratives » collées depuis les réseaux sociaux (𝐁𝐨𝐥𝐝, 𝘐𝘵𝘢𝘭𝘪𝘤, pleine chasse, ①…)
+// et ramène tout autre caractère à sa lettre de base plutôt que de le supprimer.
+var PDF_WINANSI='€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
 function pdfT(s){
-  return String(s??'').replace(/[\u2018\u2019\u02BC]/g,"'").replace(/[\u201C\u201D\u00AB\u00BB]/g,'"').replace(/[\u2013\u2014\u2212]/g,'-')
-    .replace(/[\u00A0\u202F\u2009]/g,' ').replace(/\u2026/g,'...').replace(/[\u00B2]/g,'2').replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u20AC]/g,'').trim();
+  let t=String(s??'');
+  t=t.replace(/[\u{1D400}-\u{1D7FF}\u{FF01}-\u{FF5E}\u{2100}-\u{214F}\u{2460}-\u{24FF}\u{2070}-\u{209F}]/gu,c=>c==='™'?c:c.normalize('NFKC'));
+  t=t.replace(/[\u02BC\u2032]/g,'’').replace(/[\u2212\u2010\u2011\u2043]/g,'-').replace(/[\u202F\u2009\u2007\u200A\u2002\u2003]/g,' ').replace(/[\u200B-\u200D\uFEFF\u00AD]/g,'')
+   .replace(/[\u2192\u27A1\u2794\u279C]/g,'->').replace(/\u2190/g,'<-').replace(/\u2265/g,'>=').replace(/\u2264/g,'<=').replace(/\u2260/g,'<>')
+   .replace(/[\u2713\u2714\u2705\u2611]/g,'+').replace(/[\u2717\u2718\u274C]/g,'x').replace(/[\u25CF\u25AA\u25A0\u2023\u25E6\u2219\u25B8\u25BA]/g,'•');
+  const SPEC={'Đ':'D','đ':'d','Ł':'L','ł':'l','ı':'i','Ħ':'H','ħ':'h','ŋ':'n','Ŋ':'N','ĸ':'k','ŉ':'n','ſ':'s','Ə':'E','ə':'e','Ɛ':'E','ɛ':'e','Ɔ':'O','ɔ':'o','Ɲ':'N','ɲ':'n','Ŧ':'T','ŧ':'t'};
+  t=t.replace(/[ĐđŁłıĦħŋŊĸŉſƏəƐɛƆɔƝɲŦŧ]/g,c=>SPEC[c]);
+  t=t.replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/gu,c=>PDF_WINANSI.includes(c)?c:c.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^\x20-\x7E\xA0-\xFF]/g,''));
+  return t.replace(/[ \t]{2,}/g,' ').trim();
 }
 async function pdfImages(chemins){
   const out={};
@@ -12020,20 +12032,28 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   // Bloc client / fournisseur
   let y=50;
   doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.setLineWidth(0.2);
-  doc.roundedRect(M,y,100,30,2,2,'FD');
-  doc.setFontSize(7.5);color(BLUE,'bold');doc.text(isBC?'FOURNISSEUR':(isDev?'DEVIS ADRESSÉ À':'FACTURÉ À'),M+4,y+6);
-  doc.setFontSize(11);color(NAVY,'bold');
+  // Nom : réduit jusqu'à 8,5 pt puis sur 2 lignes ; coordonnées renvoyées à la ligne (jamais tronquées)
   const nomT=T(tiers?.societe||tiers?.nom||d.client_nom||d.fournisseur_nom||'—');
-  doc.text(doc.splitTextToSize(nomT,92)[0],M+4,y+12.5);
-  doc.setFontSize(8.5);color(GREY,'normal');
-  let yt=y+17.5;
-  [tiers?.societe&&tiers?.nom&&tiers.nom!==tiers.societe?'À l\'attention de '+tiers.nom:'',tiers?.adresse,[tiers?.telephone,tiers?.email].filter(Boolean).join('  |  ')]
-    .filter(Boolean).slice(0,3).forEach(t=>{doc.text(doc.splitTextToSize(T(t),92)[0],M+4,yt);yt+=4.3;});
+  doc.setFont('helvetica','bold');let tn=11;doc.setFontSize(tn);while(doc.getTextWidth(nomT)>92&&tn>8.5){tn-=0.5;doc.setFontSize(tn);}
+  const nomL=doc.splitTextToSize(nomT,92).slice(0,2);
+  const infos=[tiers?.societe&&tiers?.nom&&tiers.nom!==tiers.societe?'À l\'attention de '+tiers.nom:'',tiers?.adresse,[tiers?.telephone,tiers?.email].filter(Boolean).join('  |  ')].filter(Boolean);
+  doc.setFont('helvetica','normal');let tInfo=8.5;doc.setFontSize(tInfo);
+  let infoL=[];infos.forEach(t=>{infoL=infoL.concat(doc.splitTextToSize(T(t),92));});
+  if(infoL.length>3){tInfo=7.5;doc.setFontSize(tInfo);infoL=[];infos.forEach(t=>{infoL=infoL.concat(doc.splitTextToSize(T(t),92));});infoL=infoL.slice(0,5);}
+  const hNom=nomL.length*tn*0.42,hBloc=Math.max(30,12.5+hNom+1.5+infoL.length*tInfo*0.5+2.5);
+  doc.roundedRect(M,y,100,hBloc,2,2,'FD');
+  doc.setFontSize(7.5);color(BLUE,'bold');doc.text(isBC?'FOURNISSEUR':(isDev?'DEVIS ADRESSÉ À':'FACTURÉ À'),M+4,y+6);
+  doc.setFontSize(tn);color(NAVY,'bold');doc.text(nomL,M+4,y+12.5,{lineHeightFactor:1.15});
+  doc.setFontSize(tInfo);color(GREY,'normal');
+  let yt=y+12.5+hNom+1.5;infoL.forEach(t=>{doc.text(t,M+4,yt);yt+=tInfo*0.5;});
+
   // Objet (à droite du bloc client)
   doc.setFontSize(7.5);color(BLUE,'bold');doc.text('OBJET',M+108,y+6);
   doc.setFontSize(10);color(NAVY,'bold');
-  const obj=doc.splitTextToSize(T(d.titre||'—'),W-M-(M+108));
-  doc.text(obj.slice(0,4),M+108,y+12);
+  let obj=doc.splitTextToSize(T(d.titre||'—'),W-M-(M+108));
+  if(obj.length>4){doc.setFontSize(8.5);obj=doc.splitTextToSize(T(d.titre||'—'),W-M-(M+108));}
+  doc.text(obj,M+108,y+12);
+  const debutTableau=Math.max(86,y+hBloc+6,y+12+obj.length*(obj.length>4?3.7:4.4)+4);
 
   // Tableau des lignes : visuel, référence, désignation et description en français (aucun coût ni coefficient)
   const avecUnite=art.some(l=>l.unite&&l.unite!=='u');
@@ -12065,7 +12085,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   cs[ci++]={cellWidth:24,halign:'right'};if(avecRemise){cs[ci++]={cellWidth:13,halign:'right'};}
   cs[ci]={cellWidth:27,halign:'right',fontStyle:'bold',textColor:NAVY};
   doc.autoTable({
-    startY:86,head:[head.map(T)],body,theme:'grid',
+    startY:debutTableau,head:[head.map(T)],body,theme:'grid',
     headStyles:{fillColor:NAVY,textColor:255,fontSize:8.5,fontStyle:'bold',halign:'center',lineWidth:0},
     styles:{fontSize:8,cellPadding:{top:2.2,bottom:2.2,left:2.2,right:2.2},lineColor:LINE,lineWidth:0.15,textColor:[30,40,60],overflow:'linebreak',valign:'middle'},
     alternateRowStyles:{fillColor:[249,251,254]},
@@ -16177,7 +16197,7 @@ async function bienvenuePDF(f,res){
     col(NAVY,'bold',13);doc.text('H TECH ACADEMY',M+26,16.5);col(GREEN,'bold',6.8);espace('AU C\u0152UR DE VOS COMP\u00c9TENCES',0.9,M+26,21);
     col(GREY,'normal',7.5);doc.text(P('Centre de formation de H TECH INNOV · Abidjan'),M+26,25);
     col(NAVY,'bold',15);doc.text('FICHE DE BIENVENUE',W-M,16.5,{align:'right'});
-    col(GREY,'normal',8);doc.text(P('Formateur · '+(f.date_fr||'')+(n?'  ·  page '+n+'/2':'')),W-M,22,{align:'right'});
+    col(GREY,'normal',8);doc.text(P('Formateur · '+(f.date_fr||'')+''),W-M,22,{align:'right'});
     doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.line(M,30,W-M,30);
   };
   const pied=()=>{doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);doc.line(M,283,W-M,283);col(GREY,'normal',7);
@@ -16188,6 +16208,7 @@ async function bienvenuePDF(f,res){
 
   // ───── Page 1 ─────
   entete(1);
+  const BAS1=272;const saut1=h=>{if(y+h>BAS1){doc.addPage();entete(2);y=40;}};
   // Bandeau d'accueil
   let y=36;doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,38,3,3,'FD');
   const cx=M+20,cy=y+19;
@@ -16221,13 +16242,14 @@ async function bienvenuePDF(f,res){
     doc.setLineWidth(0.3);doc.setFillColor(...VERT_CLAIR);doc.setDrawColor(190,220,175);doc.roundedRect(x,y,w,6,3,3,'FD');col(GREEN,'bold',8.2);doc.text(P(c),x+3.5,y+4.1);x+=w+2.5;});
   if((f.competences||[]).length)y+=12;
   const liste=(t,items,yy)=>{if(!items||!items.length)return yy;col(NAVY,'bold',8.6);doc.text(P(t),M,yy);yy+=4.6;col(TXT,'normal',8.8);
-    items.forEach(it=>{const l=doc.splitTextToSize(P(it),W-2*M-6);doc.setFillColor(...BLUE);doc.circle(M+1.3,yy-1.2,0.8,'F');doc.text(l,M+4.5,yy);yy+=l.length*4.3+0.6;});return yy+2;};
-  y=liste('Formations animées',f.formations,y);
+    items.forEach(it=>{const l=doc.splitTextToSize(P(it),W-2*M-6);if(yy+l.length*4.3>BAS1){doc.addPage();entete(2);yy=40;}doc.setFillColor(...BLUE);doc.circle(M+1.3,yy-1.2,0.8,'F');doc.text(l,M+4.5,yy);yy+=l.length*4.3+0.6;});return yy+2;};
+  saut1(10);y=liste('Formations animées',f.formations,y);saut1(10);
   y=liste('Certifications',f.certifications,y);
-  doc.setLineWidth(0.3);doc.setFillColor(255,248,230);doc.setDrawColor(240,215,150);doc.roundedRect(M,y,W-2*M,8,2,2,'FD');
+  saut1(10);doc.setLineWidth(0.3);doc.setFillColor(255,248,230);doc.setDrawColor(240,215,150);doc.roundedRect(M,y,W-2*M,8,2,2,'FD');
   col([150,100,10],'normal',8.2);doc.text(P('Une information à corriger ou à compléter ? Contactez-nous au 27 22 56 28 37 ou sur WhatsApp au 07 14 94 24 21.'),M+4,y+5.2);y+=14;
   }
-  // Accès
+  // Accès (le bloc entier passe à la page suivante s'il ne tient pas)
+  saut1(44);
   y=titre('Vos accès à l’espace formateur'.replace('’',"'"),y);
   doc.setFillColor(...NAVY);doc.roundedRect(M,y,W-2*M,33,3,3,'F');
   const ligneAcc=(l,v,yy,gros)=>{col([170,190,225],'normal',7.4);espace(P(l.toUpperCase()),0.6,M+6,yy);col([255,255,255],'bold',gros?13:10.5);doc.setFont(gros?'courier':'helvetica','bold');doc.text(P(v),M+6,yy+5.4);};
@@ -16241,7 +16263,7 @@ async function bienvenuePDF(f,res){
   pied();
 
   // ───── Page 2 ─────
-  doc.addPage();entete(2);y=40;
+  doc.addPage();entete(2);y=40;const pageEtapes=doc.getNumberOfPages();
   y=titre('Votre espace formateur en 5 étapes',y);
   const etapes=[['Connectez-vous','Sur www.htechinnov.com/academy › « Mon espace », avec votre identifiant. Choisissez votre mot de passe personnel.'],
     ['Retrouvez vos apprenants','Vos apprenants en suivi individuel et les participants de vos sessions de groupe apparaissent automatiquement.'],
@@ -16268,13 +16290,15 @@ async function bienvenuePDF(f,res){
     col(NAVY,'bold',8.8);doc.text(P(t),xx,y+15,{align:'center'});col(GREY,'normal',7.6);doc.text(doc.splitTextToSize(P(d),pw-6),xx,y+19.5,{align:'center'});});
   y+=30;col(TXT,'normal',8.4);y=para('Le certificat H TECH ACADEMY, numéroté et vérifiable en ligne par QR code, est déposé automatiquement dans l’espace de l’apprenant dès que son parcours est complet. Votre suivi régulier est la clé de sa réussite.',M,y,W-2*M,8.4);
   y+=5;y=titre('Vos contacts',y);
-  doc.setLineWidth(0.3);doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,25,2.5,2.5,'FD');
+  doc.setLineWidth(0.3);doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,29,2.5,2.5,'FD');
   const ct=[['Votre interlocuteur',f.signataire||''],['Standard','+225 27 22 56 28 37'],['WhatsApp / mobile','+225 07 14 94 24 21'],
     ['Fonction',f.signataire_fonction||''],['Email','info@htechinnov.com'],['Adresse','Cocody Riviera Jules Verne']];
   const c3=(W-2*M)/3;
-  ct.forEach(([l,v],k)=>{const xx=M+5+(k%3)*c3,yy=y+8+Math.floor(k/3)*10;col(GREY,'normal',7.2);espace(P(l.toUpperCase()),0.5,xx,yy);col(NAVY,'bold',8.8);doc.text(doc.splitTextToSize(P(v),c3-6)[0],xx,yy+4.5);});
-  y+=33;col(GREEN,'bold',11);doc.text(P('Au plaisir de construire ensemble des formations qui font la différence !'),W/2,y,{align:'center'});
+  ct.forEach(([l,v],k)=>{const xx=M+5+(k%3)*c3,yy=y+8+Math.floor(k/3)*10;col(GREY,'normal',7.2);espace(P(l.toUpperCase()),0.5,xx,yy);const lv=doc.splitTextToSize(P(v),c3-6);col(NAVY,'bold',lv.length>1?7.8:8.8);doc.text(doc.splitTextToSize(P(v),c3-6).slice(0,2),xx,yy+4.5,{lineHeightFactor:1.15});});
+  y+=37;col(GREEN,'bold',11);doc.text(P('Au plaisir de construire ensemble des formations qui font la différence !'),W/2,y,{align:'center'});
   pied();
+  const nbp=doc.getNumberOfPages();
+  for(let i=1;i<=nbp;i++){doc.setPage(i);col(GREY,'normal',8);doc.text(P('page '+i+'/'+nbp),W-M,26,{align:'right'});}
   return doc;
 }
 
@@ -16322,7 +16346,7 @@ async function bvForm(id,accesNeuf){
       <div class="form-field"><label for="bvP">Prénom</label><input id="bvP" value="${esc(n.prenom)}"></div>
       <div class="form-field"><label for="bvN">Nom</label><input id="bvN" value="${esc(n.nom)}"></div>
       <div class="form-field full"><label for="bvT">Titre</label><input id="bvT" value="${esc(r?.titre||'')}" placeholder="Data Analyst Senior"></div>
-      <div class="form-field full"><label for="bvDom">Domaine d’expertise (dans le mot d’accueil : « Votre expertise en … »)</label><input id="bvDom" value="${esc((r?.competences||[]).slice(0,2).join(' et ')||'')}"></div>
+      <div class="form-field full"><label for="bvDom">Domaine d’expertise (dans le mot d’accueil : « Votre expertise en … »)</label><input id="bvDom" value="${esc((r?.competences||[]).slice(0,2).map(x=>String(x).normalize('NFKC')).join(' et ')||'')}"></div>
       <div class="form-field"><label for="bvS">Signataire *</label><select id="bvS">${sOpt}</select></div>
       <div class="form-field"><label for="bvD">Formateur depuis le</label><input id="bvD" type="date" value="${esc(String(r?.created_at||prof?.created_at||isoJour()).slice(0,10))}"></div>
       ${accesNeuf?`<div class="form-field full"><label>Accès inclus</label><div style="font-size:13px">Identifiant <code>${esc(accesNeuf.identifiant)}</code> et mot de passe provisoire <code>${esc(accesNeuf.mot_de_passe)}</code></div></div>`
