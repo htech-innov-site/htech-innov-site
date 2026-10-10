@@ -16421,28 +16421,28 @@ async function omPDF(o,res){
   const col=(c,s,sz)=>{doc.setTextColor(...c);if(s)doc.setFont('helvetica',s);if(sz)doc.setFontSize(sz);};
   const entete=(p1)=>{
     doc.setFillColor(...NAVY);doc.rect(0,0,W,4,'F');doc.setFillColor(...BLUE);doc.rect(0,4,W,1,'F');
-    if(!p1){col(NAVY,'bold',9);doc.text('H TECH INNOV',M,12);col(GREY,'normal',9);doc.text(P('ORDRE DE MISSION '+o.numero),W-M,12,{align:'right'});return;}
+    if(!p1){col(NAVY,'bold',9);doc.text('H TECH INNOV',M,12);col(GREY,'normal',9);doc.text(P((o.titre_doc||'ORDRE DE MISSION')+' '+o.numero),W-M,12,{align:'right'});return;}
     try{if(res.logo)doc.addImage(res.logo,'JPEG',M,10,26,19);}catch(e){}
     const x=M+30;col(NAVY,'bold',15);doc.text('H TECH INNOV',x,16);col(GREY,'normal',8);
     ['SARL  |  RCCM CI-ABJ-03-2026-B12-06284',"Cocody Riviera Jules Verne, Abidjan, Côte d'Ivoire",'Standard +225 27 22 56 28 37  /  +225 07 14 94 24 21','info@htechinnov.com  |  www.htechinnov.com'].forEach((t,i)=>doc.text(P(t),x,21.5+i*4));
-    col(NAVY,'bold',19);doc.text('ORDRE DE MISSION',W-M,17,{align:'right'});doc.setDrawColor(...BLUE);doc.setLineWidth(0.8);doc.line(W-M-30,20,W-M,20);
+    const tl=o.titre_lignes||[o.titre_doc||'ORDRE DE MISSION'];col(NAVY,'bold',tl.length>1?15:19);tl.forEach((l,i)=>doc.text(P(l),W-M,(tl.length>1?13:17)+i*5.6,{align:'right'}));doc.setDrawColor(...BLUE);doc.setLineWidth(0.8);doc.line(W-M-30,20+(tl.length>1?1.5:0),W-M,20+(tl.length>1?1.5:0));
     let y=25.5;doc.setFontSize(8.5);
     [['N°',o.numero],['Date',o.date],['Type',o.type_label]].forEach(([k,v])=>{col(GREY,'normal');doc.text(P(k),W-M-56,y);col(NAVY,'bold');doc.text(P(v),W-M,y,{align:'right'});y+=4.6;});
   };
   entete(true);let y=44;
   const saut=h=>{if(y+h>BAS){doc.addPage();entete(false);y=20;}};
-  const section=(t)=>{saut(14);doc.setFillColor(...BLUE);doc.rect(M,y,2.2,6,'F');col(NAVY,'bold',10.5);doc.text(P(t.toUpperCase()),M+5,y+4.6);y+=9.5;};
+  const section=(t)=>{saut(14);doc.setFillColor(...BLUE);doc.rect(M,y,2.2,6,'F');col(NAVY,'bold',10.5);doc.text(P(t.toUpperCase()),M+5,y+4.6);y+=o.compact?8.5:9.5;};
   // Grille label / valeur sur 2 colonnes
   const grille=(items)=>{
     const half=(W-2*M-4)/2;let i=0;
     while(i<items.length){const a=items[i],b=items[i+1];const larg=a[2]||(!b);
-      if(larg){const l=doc.splitTextToSize(P(a[1]||'—'),W-2*M-8);const h=7+l.length*4.2;saut(h+2);
+      if(larg){const l=doc.splitTextToSize(P(a[1]||'—'),W-2*M-8);const h=(o.compact?6.4:7)+l.length*4.2;saut(h+2);
         doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.setLineWidth(0.25);doc.roundedRect(M,y,W-2*M,h,1.5,1.5,'FD');
-        col(GREY,'normal',7.2);doc.text(P(a[0].toUpperCase()),M+4,y+4.6);col(TXT,'bold',9);doc.text(l,M+4,y+9);y+=h+2;i++;continue;}
-      const la=doc.splitTextToSize(P(a[1]||'—'),half-8),lb=doc.splitTextToSize(P(b[1]||'—'),half-8);const h=7+Math.max(la.length,lb.length)*4.2;saut(h+2);
+        col(GREY,'normal',7.2);doc.text(P(a[0].toUpperCase()),M+4,y+4.6);col(TXT,'bold',9);doc.text(l,M+4,y+9);y+=h+(o.compact?1.2:2);i++;continue;}
+      const la=doc.splitTextToSize(P(a[1]||'—'),half-8),lb=doc.splitTextToSize(P(b[1]||'—'),half-8);const h=(o.compact?6.4:7)+Math.max(la.length,lb.length)*4.2;saut(h+2);
       [[a,la,M],[b,lb,M+half+4]].forEach(([it,ln,x])=>{doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.setLineWidth(0.25);doc.roundedRect(x,y,half,h,1.5,1.5,'FD');
         col(GREY,'normal',7.2);doc.text(P(it[0].toUpperCase()),x+4,y+4.6);col(TXT,'bold',9);doc.text(ln,x+4,y+9);});
-      y+=h+2;i+=2;}
+      y+=h+(o.compact?1.2:2);i+=2;}
     y+=2;
   };
   const puces=(items)=>{items.forEach(t=>{const l=doc.splitTextToSize(P(t),W-2*M-8);saut(l.length*4.1+1.5);doc.setFillColor(...BLUE);doc.circle(M+2,y-1.1,0.8,'F');col(TXT,'normal',8.8);doc.text(l,M+5.5,y);y+=l.length*4.1+1.4;});y+=2;};
@@ -16461,16 +16461,19 @@ async function omPDF(o,res){
     if(b.puces)puces(b.puces);
     if(b.tableau)tableau(b.tableau.head,b.tableau.body,b.tableau.widths,b.tableau.foot);
     if(b.texte)texte(b.texte,b.sz);
+    if(b.cases){saut(12);y+=3.5;let x=M;col(TXT,'normal',9.2);b.cases.forEach(c=>{doc.setDrawColor(...NAVY);doc.setLineWidth(0.35);doc.rect(x,y-3.4,4,4);if(c.coche){doc.setLineWidth(0.6);doc.line(x+0.8,y-1.4,x+1.7,y-0.3);doc.line(x+1.7,y-0.3,x+3.3,y-2.9);}doc.text(P(c.l),x+6,y);x+=doc.getTextWidth(P(c.l))+16;});y+=8;}
+    if(b.lignes_vides){for(let i=0;i<b.lignes_vides;i++){saut(8);doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.line(M,y+3,W-M,y+3);y+=8;}y+=2;}
   });
   // Signatures
-  saut(50);y+=2;col(TXT,'normal',8.6);doc.text(P('Fait à Abidjan, le '+o.date+'.'),M,y);y+=5;
+  const hs=o.hauteur_signature||34;
+  saut(hs+11);y+=o.compact?0:2;col(TXT,'normal',8.6);doc.text(P(o.fait_libre?'Fait à ____________________________, le ____________________________':'Fait à Abidjan, le '+o.date+'.'),M,y);y+=5;
   const n=o.signatures.length,sw=(W-2*M-(n-1)*4)/n;
-  o.signatures.forEach((s,k)=>{const x=M+k*(sw+4);doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.roundedRect(x,y,sw,34,2,2,'S');
+  o.signatures.forEach((s,k)=>{const x=M+k*(sw+4);doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.roundedRect(x,y,sw,hs,2,2,'S');
     col(BLUE,'bold',7.8);doc.text(doc.splitTextToSize(P(s.titre.toUpperCase()),sw-6),x+3,y+5.5);
     col(NAVY,'bold',8.6);doc.text(P(s.nom||''),x+3,y+14);col(GREY,'normal',7.6);doc.text(doc.splitTextToSize(P(s.fonction||''),sw-6),x+3,y+18);
-    col(GREY,'italic',7);doc.text(doc.splitTextToSize(P(s.mention||'Date et signature'),sw-6),x+3,y+31);
+    col(GREY,'italic',7);doc.text(doc.splitTextToSize(P(s.mention||'Date et signature'),sw-6),x+3,y+hs-3);
     if(s.cachet&&res.cachet){try{doc.addImage(res.cachet,'PNG',x+sw-27,y+9,24,18);}catch(e){}}});
-  y+=40;
+  y+=hs+6;
   // Pied
   const nb=doc.getNumberOfPages();
   for(let i=1;i<=nb;i++){doc.setPage(i);doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);doc.line(M,282,W-M,282);col(GREY,'normal',7);
@@ -16777,6 +16780,190 @@ async function omSupprimer(id){
     PAGE_LABELS['ordres-mission']='Ordres de mission';
   }catch(e){logErr(e);}
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-ordres-mission')){const d=document.createElement('div');d.className='page';d.id='page-ordres-mission';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
+})();
+
+</script>
+<script>
+
+
+// ══════════════════════════════════════════════════════════════════════
+// ATTESTATIONS DE BONNE EXÉCUTION (ABE) — travaux et formations, à faire signer par le client
+// ══════════════════════════════════════════════════════════════════════
+var ABE_ST={brouillon:['Brouillon','#7A90A8'],envoyee:['À signer','#D97706'],signee:['Signée','#3F8A1E'],annulee:['Annulée','#DC2626']};
+var ABE_ROWS=[],ABE_EDIT=null,ABE_FILTRE={};
+const ABE_APPRECIATIONS=['Très satisfaisant','Satisfaisant','Peu satisfaisant'];
+function abePeriode(r){if(!r.date_debut)return'—';if(!r.date_fin||r.date_fin===r.date_debut)return 'Le '+bvDateFr(r.date_debut);return 'Du '+bvDateFr(r.date_debut)+' au '+bvDateFr(r.date_fin);}
+function abeDocument(r){
+  const d=r.donnees||{},blocs=[],sig=d.signataire_nom||'[Nom du signataire]',fct=d.signataire_fonction||'[fonction]';
+  const hti="la société H TECH INNOV, SARL immatriculée au RCCM d’Abidjan sous le n° CI-ABJ-03-2026-B12-06284, sise à Cocody Riviera Jules Verne, Abidjan";
+  if(r.type==='travaux'){
+    blocs.push({texte:`Je soussigné(e), ${sig}, ${fct}, agissant pour le compte de ${r.client_nom}, atteste que ${hti}, a exécuté pour notre compte les travaux décrits ci-dessous, conformément aux termes du marché et selon les règles de l’art.`,sz:9});
+    const g=[['Client',r.client_nom],['Référence du marché',r.reference||'—'],['Objet des travaux',r.objet,1],['Lieu d’exécution',r.lieu||'—',1],['Période d’exécution',abePeriode(r)]];
+    g.push(['Réception',d.date_reception?('Le '+bvDateFr(d.date_reception)+({sans:', sans réserve',levees:', réserves levées',en_cours:', réserves en cours de levée'}[d.reserves]||'')):'—']);
+    if(d.afficher_montant&&r.montant_ht)g.push(['Montant du marché',fmtF(r.montant_ht)+' FCFA HT',1]);
+    blocs.push({s:'Les travaux',grille:g});
+    if(omLignes(d.prestations).length)blocs.push({s:'Prestations réalisées',puces:omLignes(d.prestations)});
+  }else{
+    blocs.push({texte:`Je soussigné(e), ${sig}, ${fct}, agissant pour le compte de ${r.client_nom}, atteste que H TECH ACADEMY, centre de formation de ${hti}, a dispensé au profit de notre organisation la formation décrite ci-dessous.`,sz:9});
+    const g=[['Formation',r.objet,1],['Client',r.client_nom],['Référence',r.reference||'—'],['Dates',abePeriode(r)],['Durée',d.duree_heures?d.duree_heures+' heures':'—'],
+      ['Modalité',d.modalite||'Présentiel'],['Participants',d.participants?d.participants+' participant(s)':'—'],['Lieu',r.lieu||'—',1]];
+    const fin=[];if(d.formateurs)fin.push(['Formateur(s)',d.formateurs]);if(d.afficher_montant&&r.montant_ht)fin.push(['Montant',fmtF(r.montant_ht)+' FCFA HT']);
+    if(fin.length===1)fin[0].push(1);g.push(...fin);
+    blocs.push({s:'La formation',grille:g});
+    if(omLignes(d.contenus).length)blocs.push({s:'Contenus et objectifs couverts',puces:omLignes(d.contenus)});
+  }
+  blocs.push({s:'Appréciation du client',cases:ABE_APPRECIATIONS.map(l=>({l,coche:d.appreciation===l}))});
+  blocs.push(d.observations?{s:'Observations',texte:d.observations}:{s:'Observations',lignes_vides:2});
+  blocs.push({texte:'La présente attestation est délivrée à la société H TECH INNOV pour servir et valoir ce que de droit.',sz:9});
+  return{numero:r.numero,date:bvDateFr(String(r.created_at||isoJour()).slice(0,10)),type_label:r.type==='travaux'?'Travaux':'Formation',titre_doc:'ATTESTATION DE BONNE EXÉCUTION',
+    titre_lignes:['ATTESTATION DE','BONNE EXÉCUTION'],fait_libre:true,hauteur_signature:33,compact:true,blocs,
+    signatures:[{titre:'Pour le client — '+r.client_nom,nom:d.signataire_nom||'',fonction:d.signataire_fonction||'',mention:'Nom, fonction, date, signature et cachet du client'}]};
+}
+async function abePDF(r){await ensurePdf();return await omPDF(abeDocument(r),{logo:HTI_LOGO,cachet:null});}
+
+v4Def('attestations-be',{titre:'Attestations de bonne exécution',icone:'🏅',custom:async pg=>{
+  let err=null;try{const q=await sb.from('attestations_be').select('*').order('created_at',{ascending:false});if(q.error)err=q.error;ABE_ROWS=q.data||[];}catch(e){err=e;ABE_ROWS=[];}
+  const t=ABE_FILTRE.type||'',s=ABE_FILTRE.statut||'',q=(ABE_FILTRE.q||'').toLowerCase();
+  const vis=ABE_ROWS.filter(r=>(!t||r.type===t)&&(!s||r.statut===s)&&(!q||(r.numero+' '+r.client_nom+' '+r.objet+' '+(r.reference||'')).toLowerCase().includes(q)));
+  const sig=ABE_ROWS.filter(r=>r.statut==='signee'),montant=sig.reduce((a,r)=>a+numIn(r.montant_ht),0);
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🏅 Attestations de bonne exécution</h1><div class="page-sub">ABE à faire signer par vos clients après travaux et formations — vos références pour les appels d’offres</div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="abeReferences()">📋 Liste des références (PDF)</button><button class="btn btn-outline btn-sm" onclick="abeForm('formation')">+ ABE formation</button><button class="btn btn-primary btn-sm" onclick="abeForm('travaux')">+ ABE travaux</button></div></div>
+  ${err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ La table <code>attestations_be</code> n’existe pas encore : exécutez <b>migration-attestations-be.sql</b> dans Supabase.</div>':''}
+  <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-icon blue">🏅</div><div class="kpi-label">Attestations</div><div class="kpi-value">${ABE_ROWS.length}</div></div>
+    <div class="kpi"><div class="kpi-icon amber">✍️</div><div class="kpi-label">À faire signer</div><div class="kpi-value">${ABE_ROWS.filter(r=>r.statut==='envoyee').length}</div></div>
+    <div class="kpi"><div class="kpi-icon green">✅</div><div class="kpi-label">Signées (références)</div><div class="kpi-value">${sig.length}</div></div>
+    <div class="kpi"><div class="kpi-icon blue">💼</div><div class="kpi-label">Montant attesté</div><div class="kpi-value" style="font-size:1.05rem">${fmtF(montant)} FCFA</div></div></div>
+  <div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <input placeholder="Rechercher (n°, client, objet, référence)…" value="${esc(ABE_FILTRE.q||'')}" oninput="ABE_FILTRE.q=this.value;clearTimeout(window._aq);window._aq=setTimeout(()=>v4Render('attestations-be'),300)" style="flex:1;min-width:180px">
+    <select onchange="ABE_FILTRE.type=this.value;v4Render('attestations-be')"><option value="">Travaux et formations</option><option value="travaux" ${t==='travaux'?'selected':''}>Travaux</option><option value="formation" ${t==='formation'?'selected':''}>Formations</option></select>
+    <select onchange="ABE_FILTRE.statut=this.value;v4Render('attestations-be')"><option value="">Tous les statuts</option>${Object.entries(ABE_ST).map(([k,v])=>`<option value="${k}" ${k===s?'selected':''}>${v[0]}</option>`).join('')}</select></div>
+  <div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Objet</th><th>Période</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
+  ${vis.map(r=>`<tr><td><code style="font-size:10.5px">${esc(r.numero)}</code><div class="cell-sub">${r.type==='travaux'?'🛠️ Travaux':'🎓 Formation'}</div></td>
+    <td><strong>${esc(r.client_nom)}</strong><div class="cell-sub">${esc(r.reference||'')}</div></td><td style="font-size:12px">${esc(r.objet)}${r.montant_ht?`<div class="cell-sub">${fmtF(r.montant_ht)} FCFA HT</div>`:''}</td>
+    <td style="font-size:12px">${r.date_debut?fmtD(r.date_debut)+(r.date_fin&&r.date_fin!==r.date_debut?' → '+fmtD(r.date_fin):''):'—'}</td>
+    <td><select onchange="abeStatut('${r.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${ABE_ST[r.statut][1]};font-weight:600">${Object.entries(ABE_ST).map(([k,v])=>`<option value="${k}" ${k===r.statut?'selected':''}>${v[0]}</option>`).join('')}</select>${r.signee_le?`<div class="cell-sub">Signée le ${fmtD(r.signee_le)}</div>`:''}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="abeForm('${r.type}','${r.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="abePdfLigne('${r.id}')" title="PDF à faire signer">📄</button>
+      <button class="btn btn-outline btn-sm" onclick="abeEnvoyer('${r.id}')" title="Transmettre au client">📤</button>
+      <button class="btn btn-outline btn-sm" onclick="openDocs('attestations_be','${r.id}','${jsq(r.numero)}')" title="ABE signée scannée">📎</button>
+      <button class="btn btn-outline btn-sm" onclick="abeSupprimer('${r.id}')" title="Supprimer">🗑</button></div></td></tr>`).join('')
+    ||'<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:18px">Aucune attestation. Créez-en une après chaque chantier ou formation terminés.</td></tr>'}
+  </tbody></table></div></div>`;
+}});
+
+async function abeForm(type,id){
+  const r=id?ABE_ROWS.find(x=>x.id===id):null;ABE_EDIT={type,id:id||null,r};const d=r?.donnees||{};
+  const[{data:dv},{data:ses}]=await Promise.all([sb.from('devis').select('id,reference,titre,client_nom,sous_total,statut').order('created_at',{ascending:false}).limit(80),
+    type==='formation'?sb.from('academy_sessions').select('*').order('date_debut',{ascending:false}).limit(60):Promise.resolve({data:[]})]);
+  window._ABE_DV=dv||[];window._ABE_SES=ses||[];
+  const v=(k,def)=>esc(d[k]??def??'');
+  const inp=(id,l,val,cls,ty,ph)=>`<div class="form-field ${cls||''}"><label for="${id}">${l}</label><input id="${id}" type="${ty||'text'}" value="${val??''}" placeholder="${esc(ph||'')}"></div>`;
+  const ta=(id,l,val,rows,aide)=>`<div class="form-field full"><label for="${id}">${l}</label><textarea id="${id}" rows="${rows||4}">${val}</textarea>${aide?`<div class="cell-sub">${aide}</div>`:''}</div>`;
+  let corps=`<div class="form-grid">
+    <div class="form-field full"><label for="abDevis">Devis lié (préremplit client, objet, montant)</label><select id="abDevis" onchange="abeChoixDevis()"><option value="">— Aucun —</option>${(dv||[]).map(x=>`<option value="${x.id}" ${r?.devis_id===x.id?'selected':''}>${esc(x.reference+' · '+(x.client_nom||'')+' · '+(x.titre||''))}</option>`).join('')}</select></div>
+    ${type==='formation'?`<div class="form-field full"><label for="abSes">Session Academy (préremplit formation, dates, participants, formateurs)</label><select id="abSes" onchange="abeChoixSession()"><option value="">— Aucune —</option>${(ses||[]).map(s=>`<option value="${s.id}" ${r?.session_id===s.id?'selected':''}>${esc((s.titre||acadTitre(s.formation_ref))+' · '+fmtD(s.date_debut))}</option>`).join('')}</select></div>`:''}
+    ${inp('abClient','Client *',esc(r?.client_nom||''))}${inp('abRef','Référence du marché / BC client',esc(r?.reference||''),'','','BC n° 4500-112 · DEV-2026-0210')}
+    ${inp('abObjet',type==='travaux'?'Objet des travaux *':'Intitulé de la formation *',esc(r?.objet||''),'full')}
+    ${inp('abLieu','Lieu',esc(r?.lieu||(type==='formation'?'Salle de formation H TECH INNOV, Cocody Riviera Jules Verne, Abidjan':'')),'full')}
+    ${inp('abDeb','Début *',esc(r?.date_debut||''),'','date')}${inp('abFin','Fin',esc(r?.date_fin||''),'','date')}
+    ${inp('abMt','Montant HT (FCFA)',esc(r?.montant_ht??''),'','number')}
+    <div class="form-field"><label style="display:flex;gap:7px;align-items:center;margin-top:24px"><input type="checkbox" id="abAffMt" ${d.afficher_montant?'checked':''}> Afficher le montant sur l’attestation</label></div>`;
+  if(type==='travaux')corps+=`${inp('abRec','Date de réception',v('date_reception'),'','date')}
+    <div class="form-field"><label for="abRes">Réserves</label><select id="abRes">${[['sans','Sans réserve'],['levees','Réserves levées'],['en_cours','Réserves en cours de levée']].map(([k,l])=>`<option value="${k}" ${d.reserves===k?'selected':''}>${l}</option>`).join('')}</select></div>
+    ${ta('abPrest','Prestations réalisées',v('prestations'),5,'Une ligne par prestation (ex. « Fourniture et pose de 8 caméras IP »).')}`;
+  else corps+=`${inp('abDur','Durée (heures)',v('duree_heures'),'','number')}
+    <div class="form-field"><label for="abMod">Modalité</label><select id="abMod">${['Présentiel','Classe virtuelle','Hybride'].map(m=>`<option ${d.modalite===m?'selected':''}>${m}</option>`).join('')}</select></div>
+    ${inp('abPart','Nombre de participants',v('participants'),'','number')}${inp('abForm','Formateur(s)',v('formateurs'))}
+    ${ta('abCont','Contenus et objectifs couverts',v('contenus'),4,'Une ligne par point (facultatif).')}`;
+  corps+=`<div class="v4-h3 full" style="margin-top:8px">Signataire côté client</div>
+    ${inp('abSig','Nom du signataire',v('signataire_nom'),'','','Laisser vide pour une saisie manuscrite')}${inp('abFct','Fonction',v('signataire_fonction'),'','','Directeur général, DRH…')}
+    <div class="form-field"><label for="abApp">Appréciation (si déjà connue)</label><select id="abApp"><option value="">— Laissée au client —</option>${ABE_APPRECIATIONS.map(a=>`<option ${d.appreciation===a?'selected':''}>${a}</option>`).join('')}</select></div>
+    ${ta('abObs','Observations (sinon : lignes vides pour le client)',v('observations'),2)}</div>`;
+  document.getElementById('modalBox').style.width='min(880px,96vw)';
+  document.getElementById('modalTitle').textContent=(r?'✏️ '+r.numero:'+ Nouvelle ABE')+' — '+(type==='travaux'?'travaux':'formation');
+  document.getElementById('modalBody').innerHTML=corps;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="abeApercu()">👁 Aperçu</button><button class="btn btn-primary" id="abGo" onclick="abeSauver()">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function abeChoixDevis(){const x=(window._ABE_DV||[]).find(y=>y.id===gv('abDevis'));if(!x)return;
+  document.getElementById('abClient').value=x.client_nom||'';if(!g('abObjet'))document.getElementById('abObjet').value=x.titre||'';
+  if(!g('abRef'))document.getElementById('abRef').value=x.reference||'';if(!gv('abMt'))document.getElementById('abMt').value=x.sous_total||'';}
+async function abeChoixSession(){const s=(window._ABE_SES||[]).find(x=>x.id===gv('abSes'));if(!s)return;
+  document.getElementById('abObjet').value=s.titre||acadTitre(s.formation_ref);document.getElementById('abDeb').value=s.date_debut||'';document.getElementById('abFin').value=s.date_fin||'';
+  if(s.lieu)document.getElementById('abLieu').value=s.lieu;
+  try{const[{count},{data:sf}]=await Promise.all([sb.from('academy_inscriptions').select('id',{count:'exact',head:true}).eq('session_id',s.id),sb.from('academy_session_formateurs').select('formateur_id').eq('session_id',s.id)]);
+    if(count)document.getElementById('abPart').value=count;
+    if(sf&&sf.length){const{data:pf}=await sb.from('profiles').select('prenom,nom').in('id',sf.map(x=>x.formateur_id));document.getElementById('abForm').value=(pf||[]).map(p=>[p.prenom,(p.nom||'').toUpperCase()].filter(Boolean).join(' ')).join(', ');}}catch(e){logErr(e);}}
+function abeLire(){
+  const T=ABE_EDIT.type,d={signataire_nom:g('abSig')||'',signataire_fonction:g('abFct')||'',appreciation:gv('abApp')||'',observations:gv('abObs')||'',afficher_montant:!!document.getElementById('abAffMt')?.checked};
+  if(T==='travaux')Object.assign(d,{date_reception:gv('abRec')||null,reserves:gv('abRes'),prestations:gv('abPrest')||''});
+  else Object.assign(d,{duree_heures:gv('abDur')||'',modalite:gv('abMod'),participants:gv('abPart')||'',formateurs:g('abForm')||'',contenus:gv('abCont')||''});
+  return{type:T,client_nom:g('abClient')||'',objet:g('abObjet')||'',reference:g('abRef')||null,lieu:g('abLieu')||null,date_debut:gv('abDeb')||null,date_fin:gv('abFin')||gv('abDeb')||null,
+    montant_ht:gv('abMt')?numIn(gv('abMt')):null,devis_id:gv('abDevis')||null,session_id:document.getElementById('abSes')?(gv('abSes')||null):(ABE_EDIT.r?.session_id||null),donnees:d};
+}
+async function abeApercu(){const p=abeLire();const r={...(ABE_EDIT.r||{}),...p,numero:ABE_EDIT.r?.numero||'ABE-APERÇU',created_at:ABE_EDIT.r?.created_at||isoJour()};(await abePDF(r)).save(pdfT('Apercu-'+r.numero)+'.pdf');}
+async function abeSauver(){
+  const p=abeLire();if(!p.client_nom||!p.objet||!p.date_debut){toast('❌ Client, objet et date de début requis');return;}
+  const b=document.getElementById('abGo');b.disabled=true;
+  try{let res;
+    if(ABE_EDIT.id){p.updated_at=new Date().toISOString();res=await sb.from('attestations_be').update(p).eq('id',ABE_EDIT.id);}
+    else{const{data:num,error:en}=await sb.rpc('abe_prochain_numero');if(en)throw new Error('Numérotation : '+en.message);p.numero=num;p.statut='brouillon';p.created_by=uid();res=await sb.from('attestations_be').insert(p);}
+    if(res.error)throw new Error(res.error.message);
+    try{logAudit(ABE_EDIT.id?'modification':'creation','attestations_be',p.numero||ABE_EDIT.r?.numero,{client:p.client_nom});}catch(e){}
+    toast('✅ Attestation enregistrée');closeModal();v4Render('attestations-be');
+  }catch(e){b.disabled=false;toast('❌ '+e.message,9000);}
+}
+async function abePdfLigne(id){const r=ABE_ROWS.find(x=>x.id===id);if(!r)return;(await abePDF(r)).save(pdfT('ABE-'+r.numero+'-'+r.client_nom.replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');}
+async function abeEnvoyer(id){
+  const r=ABE_ROWS.find(x=>x.id===id);if(!r)return;
+  const doc=await abePDF(r),nomF=pdfT('ABE-'+r.numero)+'.pdf',fichier=new File([doc.output('blob')],nomF,{type:'application/pdf'});
+  if(r.statut==='brouillon'){await sb.from('attestations_be').update({statut:'envoyee',updated_at:new Date().toISOString()}).eq('id',id);r.statut='envoyee';}
+  const msg=`Bonjour,\nSuite à ${r.type==='travaux'?'l’achèvement des travaux':'la formation'} « ${r.objet} »${r.reference?' ('+r.reference+')':''}, nous vous remercions de bien vouloir compléter, signer et revêtir de votre cachet l’attestation de bonne exécution ci-jointe, puis nous la retourner.\nAvec nos remerciements pour votre confiance,\nH TECH INNOV — 27 22 56 28 37 — info@htechinnov.com`;
+  window._ABE_ENVOI={fichier,msg};const partage=!!(navigator.canShare&&navigator.canShare({files:[fichier]}));if(!partage)doc.save(nomF);
+  document.getElementById('modalBox').style.width='min(560px,96vw)';
+  document.getElementById('modalTitle').textContent='📤 '+r.numero+' — à faire signer';
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #D97706;font-size:13px">Statut : <b>À signer</b>. Une fois l’attestation signée reçue, joignez le scan (📎) et passez le statut à « Signée ».</div>
+    <p class="cell-sub" style="margin-top:10px">${partage?'« Partager » envoie le PDF par WhatsApp ou e-mail.':'Le PDF est téléchargé : joignez-le à votre e-mail ou à votre message WhatsApp.'}</p>`;
+  document.getElementById('modalFooter').innerHTML=`${partage?`<button class="btn btn-accent" onclick="navigator.share({files:[window._ABE_ENVOI.fichier],text:window._ABE_ENVOI.msg}).catch(()=>{})">📤 Partager</button>`:''}
+    <a class="btn btn-outline" href="mailto:?subject=${encodeURIComponent('Attestation de bonne exécution — '+r.objet)}&body=${encodeURIComponent(msg)}">✉️ E-mail</a>
+    <button class="btn btn-outline" onclick="navigator.clipboard.writeText(window._ABE_ENVOI.msg).then(()=>toast('Message copié'))">Copier le message</button><button class="btn btn-primary" onclick="closeModal();v4Render('attestations-be')">Terminé</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function abeStatut(id,s){
+  const r=ABE_ROWS.find(x=>x.id===id);if(!r)return;const patch={statut:s,updated_at:new Date().toISOString()};
+  if(s==='signee'){const dt=prompt('Date de signature par le client (AAAA-MM-JJ) :',r.signee_le||isoJour());if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)){v4Render('attestations-be');return;}patch.signee_le=dt;}
+  if(s==='annulee'&&!confirm('Annuler l’attestation '+r.numero+' ?')){v4Render('attestations-be');return;}
+  const{error}=await sb.from('attestations_be').update(patch).eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('statut','attestations_be',r.numero,patch);}catch(e){}
+  toast(s==='signee'?'✅ ABE signée — pensez à joindre le scan (📎)':'Statut : '+ABE_ST[s][0],5000);v4Render('attestations-be');
+}
+async function abeSupprimer(id){
+  const r=ABE_ROWS.find(x=>x.id===id);if(!r)return;
+  if(r.statut==='signee'&&!estAdmin()){toast('❌ Seul un administrateur peut supprimer une ABE signée');return;}
+  if(!confirm('Supprimer définitivement l’attestation '+r.numero+' ?'))return;
+  const{error}=await sb.from('attestations_be').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('suppression','attestations_be',r.numero,{});}catch(e){}toast('Attestation supprimée');v4Render('attestations-be');
+}
+// Liste des références signées : pièce jointe type pour les appels d'offres
+async function abeReferences(){
+  const L=ABE_ROWS.filter(r=>r.statut==='signee').sort((a,b)=>String(b.date_fin||'').localeCompare(String(a.date_fin||'')));
+  if(!L.length){toast('Aucune attestation signée pour le moment');return;}
+  await ensurePdf();
+  const o={numero:'REF-'+isoJour(),date:bvDateFr(isoJour()),type_label:'Références',titre_doc:'LISTE DES RÉFÉRENCES',titre_lignes:['LISTE DES','RÉFÉRENCES'],
+    blocs:[{texte:'Liste des marchés et formations exécutés par H TECH INNOV et attestés par les clients (attestations de bonne exécution signées, disponibles sur demande).',sz:9.2},
+      {tableau:{head:['Client','Objet','Période','Montant HT','ABE'],body:L.map(r=>[r.client_nom,r.objet,abePeriode(r).replace(/^Le |^Du /,''),r.montant_ht?fmtF(r.montant_ht)+' FCFA':'—',r.numero+(r.signee_le?' — '+fmtD(r.signee_le):'')]),
+        foot:['Total','','',fmtF(L.reduce((a,r)=>a+numIn(r.montant_ht),0))+' FCFA',L.length+' ABE'],widths:{3:{halign:'right'}}}}],
+    signatures:[{titre:'Pour H TECH INNOV',nom:(typeof HTA_SIGN!=='undefined'&&HTA_SIGN[0]?.nom)||'',fonction:(typeof HTA_SIGN!=='undefined'&&HTA_SIGN[0]?.fonction)||'',cachet:true,mention:'Date, signature et cachet'}]};
+  try{await htaSignataires();o.signatures[0].nom=HTA_SIGN[0]?.nom||'';o.signatures[0].fonction=HTA_SIGN[0]?.fonction||'';}catch(e){}
+  (await omPDF(o,{logo:HTI_LOGO,cachet:(typeof HTI_STAMP==='string'&&HTI_STAMP.startsWith('data:'))?HTI_STAMP:null})).save('References-H-TECH-INNOV.pdf');
+}
+(function(){
+  try{
+    ['superadmin','admin','directeur','responsable'].forEach(ro=>{const nav=NAV[ro];if(!nav||nav.some(x=>x.id==='attestations-be'))return;const k=nav.findIndex(x=>x.id==='ordres-mission');nav.splice(k<0?nav.length:k+1,0,{id:'attestations-be',i:'🏅',l:'Attestations (ABE)'});});
+    PAGE_LABELS['attestations-be']='Attestations de bonne exécution';
+  }catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-attestations-be')){const d=document.createElement('div');d.className='page';d.id='page-attestations-be';ref.parentNode.appendChild(d);}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
 
