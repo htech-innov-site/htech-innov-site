@@ -17426,6 +17426,184 @@ async function dpExcel(id){try{await loadScript(DP_LIBS.excel);const{r,d,ctx}=aw
   catch(e){logErr(e);toast('❌ Export Excel impossible : '+e.message,8000);}}
 
 </script>
+<script>
+
+// ══════════════════════════════════════════════════════════════════════
+// RÉSERVATIONS — salle de formation, salles de réunion, bureaux, équipements
+// Collaborateurs : réservation directe. Partenaires : demandes depuis le site, à confirmer ici.
+// ══════════════════════════════════════════════════════════════════════
+var RES={onglet:'planning',lundi:null},RES_ESP=[],RES_ROWS=[];
+const RES_JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+const resIso=d=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');};
+const resLundi=d=>{const x=new Date(d);x.setHours(12,0,0,0);x.setDate(x.getDate()-((x.getDay()+6)%7));return resIso(x);};
+const resAjout=(iso,n)=>{const x=new Date(iso+'T12:00:00');x.setDate(x.getDate()+n);return resIso(x);};
+const resHeure=t=>new Date(t).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Abidjan'});
+const resJour=t=>resIso(new Date(new Date(t).toLocaleString('en-US',{timeZone:'Africa/Abidjan'})));
+const resPhoto=p=>p?sb.storage.from('espaces').getPublicUrl(p).data.publicUrl:'';
+const resAdmin=()=>['superadmin','admin'].includes(CP?.role);
+const RES_COUL={confirmee:['#E5EFFB','#1565C0'],en_attente:['#FEF3E2','#B45309'],refusee:['#FDECEC','#B42318'],annulee:['#F1F3F7','#7A90A8']};
+async function resCharger(du,au){
+  const[{data:e},{data:r}]=await Promise.all([sb.from('espaces').select('*').order('ordre').order('nom'),
+    sb.from('reservations').select('*').gte('fin',du+'T00:00:00Z').lt('debut',au+'T23:59:59Z').in('statut',['confirmee','en_attente']).order('debut')]);
+  RES_ESP=e||[];RES_ROWS=r||[];
+}
+v4Def('reservations',{titre:'Réservations',icone:'📅',custom:async pg=>{
+  if(!RES.lundi)RES.lundi=resLundi(new Date());const dim=resAjout(RES.lundi,6);
+  let err=null;try{await resCharger(RES.lundi,dim);}catch(e){err=e;}
+  const{data:att}=await sb.from('reservations').select('id,groupe').eq('statut','en_attente').eq('origine','site');
+  const nbDem=new Set((att||[]).map(x=>x.groupe)).size,adm=resAdmin();
+  const onglets=[['planning','📅 Planning'],['mes','🙋 Mes réservations'],...(adm?[['demandes',`🌐 Demandes du site${nbDem?` <span class="badge badge-amber">${nbDem}</span>`:''}`],['espaces','🏢 Espaces et photos']]:[])];
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">📅 Réservations</h1><div class="page-sub">Salle de formation, salles de réunion, bureaux et équipements</div></div>
+    <div class="v4-tools"><button class="btn btn-primary btn-sm" onclick="resForm()">+ Réserver</button></div></div>
+   ${err||(!RES_ESP.length&&!adm)?'':''}${err?'<div class="card" style="border-left:4px solid #D97706">⚠️ Exécutez <b>migration-reservations.sql</b> dans Supabase.</div>':''}
+   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${onglets.map(([k,l])=>`<button class="btn ${RES.onglet===k?'btn-primary':'btn-outline'} btn-sm" onclick="RES.onglet='${k}';v4Render('reservations')">${l}</button>`).join('')}</div>
+   <div id="resCorps"></div>`;
+  const c=document.getElementById('resCorps');
+  if(RES.onglet==='planning')c.innerHTML=resPlanning(dim);
+  else if(RES.onglet==='mes')c.innerHTML=await resMes();
+  else if(RES.onglet==='demandes'&&adm)c.innerHTML=await resDemandes();
+  else if(RES.onglet==='espaces'&&adm)c.innerHTML=resEspaces();
+}});
+function resPlanning(dim){
+  const jours=[...Array(7)].map((_,i)=>resAjout(RES.lundi,i)),auj=isoJour();
+  const E=RES_ESP.filter(e=>e.actif);
+  if(!E.length)return `<div class="card">Aucun espace n’est encore créé.${resAdmin()?' Ajoutez la salle de formation et les bureaux dans l’onglet « Espaces et photos ».':''}</div>`;
+  return `<div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+     <button class="btn btn-outline btn-sm" onclick="RES.lundi=resAjout(RES.lundi,-7);v4Render('reservations')" aria-label="Semaine précédente">◀</button>
+     <strong>Semaine du ${fmtD(RES.lundi)} au ${fmtD(dim)}</strong>
+     <button class="btn btn-outline btn-sm" onclick="RES.lundi=resAjout(RES.lundi,7);v4Render('reservations')" aria-label="Semaine suivante">▶</button>
+     <button class="btn btn-outline btn-sm" onclick="RES.lundi=resLundi(new Date());v4Render('reservations')">Aujourd’hui</button>
+     <span class="cell-sub" style="margin-left:auto"><span style="color:#1565C0">■</span> confirmée &nbsp; <span style="color:#B45309">■</span> demande en attente</span></div>
+   <div class="table-wrap"><table style="table-layout:fixed;min-width:900px"><thead><tr><th style="width:170px">Espace</th>${jours.map((j,i)=>`<th style="${j===auj?'color:var(--blue)':''}">${RES_JOURS[i]} ${j.slice(8)}/${j.slice(5,7)}</th>`).join('')}</tr></thead><tbody>
+   ${E.map(e=>`<tr><td style="vertical-align:top"><strong>${esc(e.nom)}</strong><div class="cell-sub">${esc(e.type)}${e.capacite?' · '+e.capacite+' pl.':''}</div></td>
+     ${jours.map(j=>{const L=RES_ROWS.filter(r=>r.espace_id===e.id&&resJour(r.debut)===j);
+       return `<td style="vertical-align:top;cursor:${j>=auj?'pointer':'default'};height:70px" onclick="if(event.target===this&&'${j}'>='${auj}')resForm('${e.id}','${j}')" title="${j>=auj?'Cliquer pour réserver':''}">
+        ${L.map(r=>{const c=RES_COUL[r.statut]||RES_COUL.confirmee;return `<div onclick="resDetail('${r.id}')" style="background:${c[0]};border-left:3px solid ${c[1]};border-radius:5px;padding:3px 5px;margin-bottom:3px;font-size:11px;cursor:pointer">
+          <b>${resHeure(r.debut)}–${resHeure(r.fin)}</b><br>${esc(r.origine==='site'?(r.demandeur_societe||r.demandeur_nom||''):(srcLabel('profiles',r.user_id)||r.objet||''))}</div>`;}).join('')}</td>`;}).join('')}</tr>`).join('')}
+   </tbody></table></div><p class="cell-sub">Cliquez sur une case libre pour réserver ce jour-là, ou sur une réservation pour la voir.</p></div>`;
+}
+async function resMes(){
+  const{data}=await sb.from('reservations').select('*').eq('user_id',uid()).gte('fin',new Date().toISOString()).neq('statut','annulee').order('debut');
+  const esp=id=>RES_ESP.find(e=>e.id===id)?.nom||'';
+  return `<div class="card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Horaire</th><th>Espace</th><th>Objet</th><th></th></tr></thead><tbody>
+   ${(data||[]).map(r=>`<tr><td>${fmtD(resJour(r.debut))}</td><td>${resHeure(r.debut)} – ${resHeure(r.fin)}</td><td>${esc(esp(r.espace_id))}</td><td>${esc(r.objet||'')}</td>
+     <td><button class="btn btn-outline btn-sm" onclick="resAnnuler('${r.id}')">Annuler</button></td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--g400)">Aucune réservation à venir.</td></tr>'}</tbody></table></div></div>`;
+}
+async function resDemandes(){
+  const{data}=await sb.from('reservations').select('*').eq('origine','site').in('statut',['en_attente','confirmee']).gte('fin',new Date().toISOString()).order('debut');
+  const G={};(data||[]).forEach(r=>{(G[r.groupe]=G[r.groupe]||[]).push(r);});
+  const groupes=Object.values(G).sort((a,b)=>(a[0].statut==='en_attente'?0:1)-(b[0].statut==='en_attente'?0:1)||a[0].debut.localeCompare(b[0].debut));
+  return groupes.map(L=>{const r=L[0],e=RES_ESP.find(x=>x.id===r.espace_id),pend=L.some(x=>x.statut==='en_attente');
+    return `<div class="card" style="margin-bottom:10px;border-left:4px solid ${pend?'#B45309':'#1565C0'}"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+     <div><strong>${esc(r.demandeur_nom||'')}</strong>${r.demandeur_societe?' — '+esc(r.demandeur_societe):''} <span class="badge" style="background:${pend?'#FEF3E2':'#E5EFFB'};color:${pend?'#B45309':'#1565C0'}">${pend?'En attente':'Confirmée'}</span>
+      <div class="cell-sub">${esc(r.reference||'')} · ${esc(e?.nom||'')} · ${L.length} jour(s) : ${L.map(x=>fmtD(resJour(x.debut))).join(', ')} · ${resHeure(r.debut)} – ${resHeure(r.fin)} · ${r.nb_personnes||'?'} pers.</div>
+      <div class="cell-sub">${esc(r.objet||'')}${r.montant_estime?' · estimation '+fmtF(r.montant_estime)+' FCFA':''} · ${esc(r.demandeur_email||'')} ${esc(r.demandeur_tel||'')}</div></div>
+     <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start">${pend?`<button class="btn btn-accent btn-sm" onclick="resDecider('${r.groupe}','confirmee')">Confirmer</button><button class="btn btn-outline btn-sm" onclick="resDecider('${r.groupe}','refusee')">Refuser</button>`:`<button class="btn btn-outline btn-sm" onclick="resDecider('${r.groupe}','annulee')">Annuler</button>`}</div></div></div>`;}).join('')||'<div class="card">Aucune demande de partenaire à venir.</div>';
+}
+function resMsgPartenaire(L,decision,motif){const r=L[0],e=RES_ESP.find(x=>x.id===r.espace_id);
+  return decision==='confirmee'?`Bonjour ${r.demandeur_nom},\nNous confirmons votre réservation ${r.reference} : ${e?.nom||''}, ${L.map(x=>fmtD(resJour(x.debut))).join(', ')}, de ${resHeure(r.debut)} à ${resHeure(r.fin)}.${r.montant_estime?'\nMontant : '+fmtF(r.montant_estime)+' FCFA (facture à suivre).':''}\nAdresse : Cocody Riviera Jules Verne, Abidjan.\nH TECH INNOV — 27 22 56 28 37`
+   :`Bonjour ${r.demandeur_nom},\nNous ne pouvons malheureusement pas confirmer votre demande ${r.reference}${motif?' : '+motif:''}.\nN’hésitez pas à nous proposer d’autres dates.\nH TECH INNOV — 27 22 56 28 37`;}
+async function resDecider(groupe,decision){
+  let motif=null;if(decision==='refusee'){motif=prompt('Motif du refus (transmis au partenaire) :');if(motif===null)return;}
+  if(decision==='annulee'&&!confirm('Annuler cette réservation confirmée ?'))return;
+  const{data:L}=await sb.from('reservations').select('*').eq('groupe',groupe).order('debut');
+  const{error}=await sb.from('reservations').update({statut:decision,motif_refus:motif}).eq('groupe',groupe);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('reservation_'+decision,'reservations',L?.[0]?.reference||groupe,{});}catch(e){}
+  if(decision!=='annulee'&&L?.length){const r=L[0],msg=resMsgPartenaire(L,decision,motif);window._RES_MSG=msg;const wa=typeof acadTelWa==='function'?acadTelWa(r.demandeur_tel):'';
+    document.getElementById('modalBox').style.width='min(520px,96vw)';document.getElementById('modalTitle').textContent=decision==='confirmee'?'✅ Réservation confirmée':'Demande refusée';
+    document.getElementById('modalBody').innerHTML=`<p>Prévenez ${esc(r.demandeur_nom||'le partenaire')} :</p><pre style="white-space:pre-wrap;font-family:inherit;background:var(--g50,#F4F7FC);padding:10px;border-radius:8px;font-size:13px">${esc(msg)}</pre>`;
+    document.getElementById('modalFooter').innerHTML=`${r.demandeur_email?`<a class="btn btn-outline" href="mailto:${esc(r.demandeur_email)}?subject=${encodeURIComponent('Votre réservation '+(r.reference||''))}&body=${encodeURIComponent(msg)}">E-mail</a>`:''}${wa?`<a class="btn btn-accent" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(msg)}">WhatsApp</a>`:''}<button class="btn btn-primary" onclick="closeModal();v4Render('reservations')">Terminé</button>`;
+    document.getElementById('modalOverlay').classList.add('open');}else{toast('Réservation annulée');v4Render('reservations');}
+}
+function resHeures(sel,min,max){const o=[];const[h0,m0]=String(min||'07:30').split(':').map(Number),[h1,m1]=String(max||'19:00').split(':').map(Number);
+  for(let t=h0*60+m0;t<=h1*60+m1;t+=30){const v=String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');o.push(`<option ${v===sel?'selected':''}>${v}</option>`);}return o.join('');}
+function resForm(espaceId,jour){
+  const E=RES_ESP.filter(e=>e.actif&&e.type!=='Équipement'),Q=RES_ESP.filter(e=>e.actif&&e.type==='Équipement'),j=jour||isoJour();
+  if(!E.length){toast('Aucun espace réservable : demandez à l’administration de les créer');return;}
+  const e0=E.find(e=>e.id===espaceId)||E[0];
+  document.getElementById('modalBox').style.width='min(620px,96vw)';document.getElementById('modalTitle').textContent='Réserver un espace';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+   <div class="form-field full"><label for="rsE">Espace *</label><select id="rsE">${E.map(e=>`<option value="${e.id}" ${e.id===e0.id?'selected':''}>${esc(e.nom)} — ${esc(e.type)}${e.capacite?' ('+e.capacite+' places)':''}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="rsDu">Du *</label><input id="rsDu" type="date" value="${j}" min="${isoJour()}"></div><div class="form-field"><label for="rsAu">Au</label><input id="rsAu" type="date" value="${j}" min="${isoJour()}"></div>
+   <div class="form-field"><label for="rsHd">Heure de début *</label><select id="rsHd">${resHeures('09:00',e0.heure_ouverture?.slice(0,5),e0.heure_fermeture?.slice(0,5))}</select></div>
+   <div class="form-field"><label for="rsHf">Heure de fin *</label><select id="rsHf">${resHeures('10:00',e0.heure_ouverture?.slice(0,5),e0.heure_fermeture?.slice(0,5))}</select></div>
+   <div class="form-field full"><label for="rsO">Objet *</label><input id="rsO" placeholder="Réunion client, formation, entretien…"></div>
+   <div class="form-field"><label for="rsN">Nombre de personnes</label><input id="rsN" type="number" min="1"></div>
+   ${Q.length?`<div class="form-field full"><label>Équipements à réserver en même temps</label><div style="display:flex;gap:10px;flex-wrap:wrap">${Q.map(q=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" class="rsQ" value="${q.id}"> ${esc(q.nom)}</label>`).join('')}</div></div>`:''}
+   <div class="form-field full"><label for="rsNo">Notes</label><textarea id="rsNo" rows="2"></textarea></div></div>
+   <p class="cell-sub">Une période sur plusieurs jours réserve le même horaire chaque jour.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="rsGo" onclick="resSauver()">Réserver</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function resSauver(){
+  const eid=gv('rsE'),du=gv('rsDu'),au=gv('rsAu')||du,hd=gv('rsHd'),hf=gv('rsHf'),obj=g('rsO');
+  if(!eid||!du||!obj){toast('❌ Espace, date et objet requis');return;}if(au<du){toast('❌ La date de fin précède la date de début');return;}if(hf<=hd){toast('❌ L’heure de fin doit suivre l’heure de début');return;}
+  const nbJ=Math.round((new Date(au)-new Date(du))/864e5)+1;if(nbJ>31){toast('❌ 31 jours au plus');return;}
+  const ids=[eid,...[...document.querySelectorAll('.rsQ:checked')].map(c=>c.value)],groupe=crypto.randomUUID(),lignes=[];
+  for(let i=0;i<nbJ;i++){const j=resAjout(du,i);ids.forEach(id=>lignes.push({groupe,espace_id:id,debut:j+'T'+hd+':00Z',fin:j+'T'+hf+':00Z',objet:obj,statut:'confirmee',origine:'interne',user_id:uid(),nb_personnes:gv('rsN')?numIn(gv('rsN')):null,notes:gv('rsNo')||null}));}
+  const b=document.getElementById('rsGo');b.disabled=true;
+  const{error}=await sb.from('reservations').insert(lignes);
+  if(error){b.disabled=false;toast(/chevauchement|exclusion|conflicting/i.test(error.message)?'❌ Créneau déjà réservé sur cette période : consultez le planning et choisissez un autre horaire ou un autre espace.':'❌ '+error.message,9000);return;}
+  try{logAudit('reservation','reservations',groupe,{espace:eid,du,au});}catch(e){}
+  toast('✅ Réservation enregistrée');closeModal();RES.lundi=resLundi(du+'T12:00:00');RES.onglet='planning';v4Render('reservations');
+}
+function resDetail(id){const r=RES_ROWS.find(x=>x.id===id);if(!r)return;const e=RES_ESP.find(x=>x.id===r.espace_id),mien=r.user_id===uid(),adm=resAdmin();
+  document.getElementById('modalBox').style.width='min(480px,96vw)';document.getElementById('modalTitle').textContent=e?.nom||'Réservation';
+  document.getElementById('modalBody').innerHTML=`<p><b>${fmtD(resJour(r.debut))}</b>, de ${resHeure(r.debut)} à ${resHeure(r.fin)}</p>
+   <p>${r.origine==='site'?`Partenaire : <b>${esc(r.demandeur_nom||'')}</b>${r.demandeur_societe?' — '+esc(r.demandeur_societe):''}<br><span class="cell-sub">${esc(r.demandeur_email||'')} ${esc(r.demandeur_tel||'')}</span>`:`Réservé par : <b>${esc(srcLabel('profiles',r.user_id)||'')}</b>`}</p>
+   <p>${esc(r.objet||'')}${r.nb_personnes?' · '+r.nb_personnes+' personne(s)':''}</p>${r.notes?`<p class="cell-sub">${esc(r.notes)}</p>`:''}<p>Statut : <b>${{confirmee:'Confirmée',en_attente:'Demande en attente'}[r.statut]||r.statut}</b></p>`;
+  document.getElementById('modalFooter').innerHTML=`${r.origine==='site'&&r.statut==='en_attente'&&adm?`<button class="btn btn-accent" onclick="closeModal();resDecider('${r.groupe}','confirmee')">Confirmer</button><button class="btn btn-outline" onclick="closeModal();resDecider('${r.groupe}','refusee')">Refuser</button>`:''}
+   ${mien||adm?`<button class="btn btn-outline" onclick="resAnnuler('${r.id}')">Annuler ce créneau</button>`:''}<button class="btn btn-primary" onclick="closeModal()">Fermer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function resAnnuler(id){if(!confirm('Annuler cette réservation ?'))return;const{error}=await sb.from('reservations').update({statut:'annulee'}).eq('id',id);
+  if(error){toast('❌ '+error.message);return;}toast('Réservation annulée');closeModal();v4Render('reservations');}
+// ── Espaces et photos (administration) ──
+function resEspaces(){
+  return `<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn btn-primary btn-sm" onclick="resEspForm()">+ Nouvel espace ou équipement</button></div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${RES_ESP.map(e=>`<div class="card" style="padding:0;overflow:hidden;${e.actif?'':'opacity:.55'}">
+     <div style="height:150px;background:#E3EAF6 center/cover no-repeat;${(e.photos||[])[0]?`background-image:url('${resPhoto(e.photos[0])}')`:''};display:flex;align-items:center;justify-content:center;color:#7A90A8">${(e.photos||[]).length?'':'Aucune photo'}</div>
+     <div style="padding:12px"><strong>${esc(e.nom)}</strong><div class="cell-sub">${esc(e.type)}${e.capacite?' · '+e.capacite+' places':''} · ${e.ouvert_partenaires?'🌐 visible sur le site':'🔒 interne'}</div>
+     <div class="cell-sub">${e.tarif_heure?fmtF(e.tarif_heure)+' FCFA/h':''}${e.tarif_heure&&e.tarif_jour?' · ':''}${e.tarif_jour?fmtF(e.tarif_jour)+' FCFA/jour':''}</div>
+     ${(e.photos||[]).length?`<div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap">${e.photos.map((p,k)=>`<div style="position:relative"><img src="${resPhoto(p)}" alt="" style="width:54px;height:40px;object-fit:cover;border-radius:4px"><button onclick="resPhotoSuppr('${e.id}',${k})" title="Retirer" style="position:absolute;top:-6px;right:-6px;border:0;background:#B42318;color:#fff;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer">×</button></div>`).join('')}</div>`:''}
+     <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><label class="btn btn-outline btn-sm" style="cursor:pointer">📷 Ajouter des photos<input type="file" accept="image/*" multiple style="display:none" onchange="resPhotos('${e.id}',this.files)"></label>
+      <button class="btn btn-outline btn-sm" onclick="resEspForm('${e.id}')">✏️ Modifier</button></div></div></div>`).join('')||'<div class="card">Aucun espace. Commencez par la salle de formation.</div>'}</div>`;
+}
+function resEspForm(id){const e=RES_ESP.find(x=>x.id===id)||{};window._RES_E=id||null;
+  const T=['Salle de formation','Salle de réunion','Bureau','Poste de travail','Équipement'];
+  document.getElementById('modalBox').style.width='min(640px,96vw)';document.getElementById('modalTitle').textContent=id?'Modifier '+e.nom:'Nouvel espace ou équipement';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+   <div class="form-field"><label for="eN">Nom *</label><input id="eN" value="${esc(e.nom||'')}" placeholder="Salle de formation"></div>
+   <div class="form-field"><label for="eT">Type</label><select id="eT">${T.map(t=>`<option ${t===e.type?'selected':''}>${t}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="eC">Capacité (personnes)</label><input id="eC" type="number" min="1" value="${esc(e.capacite??'')}"></div>
+   <div class="form-field"><label for="eO">Ordre d’affichage</label><input id="eO" type="number" value="${esc(e.ordre??0)}"></div>
+   <div class="form-field full"><label for="eQ">Équipements inclus</label><input id="eQ" value="${esc(e.equipements||'')}" placeholder="Vidéoprojecteur, écran, tableau blanc, Wi-Fi, climatisation"></div>
+   <div class="form-field full"><label for="eD">Description</label><textarea id="eD" rows="3">${esc(e.description||'')}</textarea></div>
+   <div class="form-field"><label for="eTh">Tarif horaire partenaires (FCFA)</label><input id="eTh" type="number" value="${esc(e.tarif_heure??'')}"></div>
+   <div class="form-field"><label for="eTj">Tarif journée (FCFA, à partir de 6 h)</label><input id="eTj" type="number" value="${esc(e.tarif_jour??'')}"></div>
+   <div class="form-field"><label for="eHo">Ouverture</label><input id="eHo" type="time" value="${esc((e.heure_ouverture||'07:30').slice(0,5))}"></div>
+   <div class="form-field"><label for="eHf">Fermeture</label><input id="eHf" type="time" value="${esc((e.heure_fermeture||'19:00').slice(0,5))}"></div>
+   <div class="form-field"><label style="display:flex;gap:7px;align-items:center"><input type="checkbox" id="eP" ${e.ouvert_partenaires!==false?'checked':''}> Réservable par les partenaires sur le site</label></div>
+   <div class="form-field"><label style="display:flex;gap:7px;align-items:center"><input type="checkbox" id="eA" ${e.actif!==false?'checked':''}> Actif</label></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="resEspSauver()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function resEspSauver(){if(!g('eN')){toast('❌ Nom requis');return;}
+  const o={nom:g('eN'),type:gv('eT'),capacite:gv('eC')?numIn(gv('eC')):null,ordre:numIn(gv('eO')),equipements:g('eQ')||null,description:gv('eD')||null,tarif_heure:gv('eTh')?numIn(gv('eTh')):null,tarif_jour:gv('eTj')?numIn(gv('eTj')):null,
+    heure_ouverture:gv('eHo')||'07:30',heure_fermeture:gv('eHf')||'19:00',ouvert_partenaires:document.getElementById('eP').checked,actif:document.getElementById('eA').checked,updated_at:new Date().toISOString()};
+  const res=window._RES_E?await sb.from('espaces').update(o).eq('id',window._RES_E):await sb.from('espaces').insert(o);
+  if(res.error){toast('❌ '+res.error.message);return;}toast('✅ Espace enregistré');closeModal();v4Render('reservations');}
+function resRedim(f){return new Promise(ok=>{const im=new Image();im.onload=()=>{const m=1600,k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+  c.getContext('2d').drawImage(im,0,0,c.width,c.height);c.toBlob(b=>ok(b||f),'image/jpeg',.85);URL.revokeObjectURL(im.src);};im.onerror=()=>ok(f);im.src=URL.createObjectURL(f);});}
+async function resPhotos(id,files){const e=RES_ESP.find(x=>x.id===id);if(!files?.length)return;toast('Envoi de '+files.length+' photo(s)…');const L=[...(e.photos||[])];
+  for(const f of files){const b=await resRedim(f),p=id+'/'+crypto.randomUUID()+'.jpg';const{error}=await sb.storage.from('espaces').upload(p,b,{contentType:'image/jpeg'});if(error){toast('❌ '+error.message);return;}L.push(p);}
+  const{error}=await sb.from('espaces').update({photos:L}).eq('id',id);if(error){toast('❌ '+error.message);return;}toast('✅ Photos ajoutées : elles apparaissent aussi sur le site');v4Render('reservations');}
+async function resPhotoSuppr(id,k){if(!confirm('Retirer cette photo ?'))return;const e=RES_ESP.find(x=>x.id===id),L=[...(e.photos||[])],[p]=L.splice(k,1);
+  await sb.storage.from('espaces').remove([p]);const{error}=await sb.from('espaces').update({photos:L}).eq('id',id);if(error){toast('❌ '+error.message);return;}v4Render('reservations');}
+(function(){try{Object.entries(NAV).forEach(([ro,nav])=>{if(!nav||['client','apprenant','formateur'].includes(ro)||nav.some(x=>x.id==='reservations'))return;
+    const k=nav.findIndex(x=>x.id==='agenda');nav.splice(k<0?Math.min(2,nav.length):k+1,0,{id:'reservations',i:'📅',l:'Réservations'});});PAGE_LABELS['reservations']='Réservations';}catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-reservations')){const d=document.createElement('div');d.className='page';d.id='page-reservations';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
+
+</script>
 </body>
 </html>
 
