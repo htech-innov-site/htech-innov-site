@@ -11982,7 +11982,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   const E=getEntreprise();
   const NAVY=[10,42,102],BLUE=[21,101,192],GREEN=[63,138,30],GREY=[96,108,130],LIGHT=[244,247,252],LINE=[213,224,240],RED=[198,40,40];
   const W=210,M=14,BAS=276;
-  const isAv=labelTitre==='AVOIR',isDev=labelTitre==='DEVIS',isFac=labelTitre==='FACTURE'||isAv,isBC=labelTitre==='BON DE COMMANDE';
+  const isAv=labelTitre==='AVOIR',isDev=labelTitre==='DEVIS',isFac=labelTitre==='FACTURE'||isAv,isBC=labelTitre==='BON DE COMMANDE',isDP=labelTitre==='DEMANDE DE PRIX';
   const fm=n=>fmtF(n);
   const T=pdfT;
   const lignes=Array.isArray(d.lignes)?d.lignes:[];
@@ -12021,6 +12021,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
     if(isFac&&d.devis_reference&&!isAv)infos.push(['Réf. devis',d.devis_reference]);
     if(isAv&&d.facture_origine)infos.push(['Facture d\'origine',d.facture_origine]);
     if(isBC&&d.date_echeance)infos.push(['Livraison prévue',fmtD(d.date_echeance)]);
+    if(isDP&&d.date_limite)infos.push(['Réponse avant',fmtD(d.date_limite)]);
     if(isBC&&d.type_commande)infos.push(['Nature',{fourniture:'Fourniture',prestation:'Sous-traitance',mixte:'Mixte',autre:'Autre'}[d.type_commande]||'']);
     if(isDev&&d.type_devis)infos.push(['Nature',{materiel:'Matériel',prestation:'Prestation',mixte:'Mixte',formation:'Formation'}[d.type_devis]||'']);
     let y=26;
@@ -12042,7 +12043,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   if(infoL.length>3){tInfo=7.5;doc.setFontSize(tInfo);infoL=[];infos.forEach(t=>{infoL=infoL.concat(doc.splitTextToSize(T(t),92));});infoL=infoL.slice(0,5);}
   const hNom=nomL.length*tn*0.42,hBloc=Math.max(30,12.5+hNom+1.5+infoL.length*tInfo*0.5+2.5);
   doc.roundedRect(M,y,100,hBloc,2,2,'FD');
-  doc.setFontSize(7.5);color(BLUE,'bold');doc.text(isBC?'FOURNISSEUR':(isDev?'DEVIS ADRESSÉ À':'FACTURÉ À'),M+4,y+6);
+  doc.setFontSize(7.5);color(BLUE,'bold');doc.text(isDP?'DESTINATAIRE':isBC?'FOURNISSEUR':(isDev?'DEVIS ADRESSÉ À':'FACTURÉ À'),M+4,y+6);
   doc.setFontSize(tn);color(NAVY,'bold');doc.text(nomL,M+4,y+12.5,{lineHeightFactor:1.15});
   doc.setFontSize(tInfo);color(GREY,'normal');
   let yt=y+12.5+hNom+1.5;infoL.forEach(t=>{doc.text(t,M+4,yt);yt+=tInfo*0.5;});
@@ -12056,8 +12057,8 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   const debutTableau=Math.max(86,y+hBloc+6,y+12+obj.length*(obj.length>4?3.7:4.4)+4);
 
   // Tableau des lignes : visuel, référence, désignation et description en français (aucun coût ni coefficient)
-  const avecUnite=art.some(l=>l.unite&&l.unite!=='u');
-  const avecRemise=art.some(l=>numIn(l.remise)>0);
+  const avecUnite=isDP||art.some(l=>l.unite&&l.unite!=='u');
+  const avecRemise=!isDP&&art.some(l=>numIn(l.remise)>0);
   const refsSansImg=art.filter(l=>!(typeof l.image==='string'&&l.image.indexOf('data:image/')===0)&&l.ref&&!PRODUITS_CACHE.some(p=>p.reference===l.ref)).map(l=>l.ref);
   if(refsSansImg.length){try{const{data}=await sb.from('produits').select('id,reference,image_data,image_url').in('reference',[...new Set(refsSansImg)]);(data||[]).forEach(p=>{if(!PRODUITS_CACHE.some(x=>x.reference===p.reference))PRODUITS_CACHE.push(p);});}catch(e){logErr(e);}}
   art.forEach(l=>{l._img=imgArticle(l);});
@@ -12073,9 +12074,9 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
     const txt=[l.ref?'Réf. '+l.ref:'',l.designation||'',l.description||''].filter(Boolean).map(T).join('\n');
     const row=[String(n)];if(avecImg)row.push('');row.push(txt,fmtQte(l.qte));
     if(avecUnite)row.push(T(l.unite||''));
-    row.push(fm(l.pu));
+    row.push(isDP?'':fm(l.pu));
     if(avecRemise)row.push(numIn(l.remise)?numIn(l.remise)+' %':'');
-    row.push(fm(totalLigne(l)));
+    row.push(isDP?'':fm(totalLigne(l)));
     return row;
   }):[['','Aucun article','','','']];
   const cs={0:{cellWidth:8,halign:'center',textColor:GREY}};let ci=1;
@@ -12120,6 +12121,12 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   y=doc.lastAutoTable.finalY+6;
   const place=(h)=>{if(y+h>BAS){doc.addPage();entete(false);y=22;}};
 
+  if(isDP){
+    place(30);doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.setLineWidth(0.2);
+    const txt=doc.splitTextToSize(T('Merci de nous transmettre votre meilleure offre en indiquant les prix unitaires HT, le délai de livraison ou d’exécution, la validité de l’offre et vos conditions de paiement'+(d.date_limite?', au plus tard le '+fmtD(d.date_limite):'')+', par e-mail à '+(E.email||'info@htechinnov.com')+' ou par WhatsApp au '+(E.tel||'+225 07 14 94 24 21')+'.'),W-2*M-10);
+    const hb=10+txt.length*4.2;doc.roundedRect(M,y,W-2*M,hb,2,2,'FD');doc.setFontSize(8);color(BLUE,'bold');doc.text('MODALITÉS DE RÉPONSE',M+5,y+6);
+    doc.setFontSize(9);color(NAVY,'normal');doc.text(txt,M+5,y+11.5);y+=hb+6;
+  }else{
   // Totaux
   const rows=[];
   if(remMt>0){rows.push(['Total brut HT',fm(brut)]);rows.push(['Remise'+(remPct?' ('+String(remPct).replace('.',',')+' %)':''),'- '+fm(remMt)]);}
@@ -12156,13 +12163,16 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   }
   y=Math.max(yy,yl)+4;
 
+  }
   // Conditions, notes, règlement
   const blocs=[];
   if(isDev)blocs.push(['Validité de l\'offre',(d.validite_jours||30)+' jours, jusqu\'au '+fmtD(ajoutJours(dateDoc,d.validite_jours||30))]);
-  if(!isBC&&(d.conditions_paiement||E.paiement))blocs.push(['Conditions de paiement',d.conditions_paiement||('Paiement à '+(E.delai||30)+' jours')]);
+  if(isDP&&d.lieu)blocs.push(['Lieu d’exécution',d.lieu]);
+  if(isDP&&d.conditions)blocs.push(['Conditions particulières',d.conditions]);
+  if(!isBC&&!isDP&&(d.conditions_paiement||E.paiement))blocs.push(['Conditions de paiement',d.conditions_paiement||('Paiement à '+(E.delai||30)+' jours')]);
   if(d.notes)blocs.push(['Notes',d.notes]);
   const regl=[];
-  if(!isBC){
+  if(!isBC&&!isDP){
     if(E.banque||E.rib)regl.push([E.banque,E.benef_banque?'Titulaire : '+E.benef_banque:'',E.rib?'Compte : '+E.rib:'',E.swift?'SWIFT : '+E.swift:''].filter(Boolean).join('  |  '));
     const mm=[E.orange?'Orange Money '+E.orange:'',E.mtn?'MTN MoMo '+E.mtn:'',E.wave?'Wave '+E.wave:''].filter(Boolean);
     if(mm.length)regl.push(mm.join('  |  ')+(E.mm_benef?'  (bénéficiaire : '+E.mm_benef+')':''));
@@ -12225,7 +12235,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   const contact=T([E.tel,E.email,E.web].filter(Boolean).join('  |  '));
   for(let i=1;i<=nb;i++){
     doc.setPage(i);
-    if(d.statut==='brouillon'&&!isBC){
+    if(d.statut==='brouillon'&&!isBC&&!isDP){
       try{doc.setGState(new doc.GState({opacity:0.07}));}catch(e){}
       doc.setFontSize(70);color(NAVY,'bold');doc.text('BROUILLON',W/2,175,{align:'center',angle:30});
       try{doc.setGState(new doc.GState({opacity:1}));}catch(e){}
@@ -12241,7 +12251,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   const insBC=(isBC||isDev)&&Array.isArray(d._annexes)?d._annexes.filter(a=>a._src&&a._pages).map(a=>({bytes:a._src.bytes,pages:a._pages})):[];
   if(insBC.length){try{mdTelecharger(await mdIncruster(doc,insBC),T(prefixFichier+'-'+(d.reference||'document'))+'.pdf');}catch(e){logErr(e);toast('❌ Annexe PDF : '+e.message);return;}}
   else doc.save(T(prefixFichier+'-'+(d.reference||'document'))+'.pdf');
-  toast('✅ '+(isDev?'Devis':isAv?'Avoir':isFac?'Facture':'Bon de commande')+' PDF téléchargé');
+  toast('✅ '+(isDP?'Demande de prix':isDev?'Devis':isAv?'Avoir':isFac?'Facture':'Bon de commande')+' PDF téléchargé');
 }
 function fmtQte(q){const n=numIn(q);return Number.isInteger(n)?String(n):String(n).replace('.',',');}
 
@@ -16966,6 +16976,405 @@ async function abeReferences(){
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-attestations-be')){const d=document.createElement('div');d.className='page';d.id='page-attestations-be';ref.parentNode.appendChild(d);}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
+
+</script>
+<script>
+
+// ══════════════════════════════════════════════════════════════════════
+// COLLABORATEURS ET DROITS PAR MODULE  ·  DEMANDES DE PRIX
+// ══════════════════════════════════════════════════════════════════════
+const ERP_TOUJOURS=['dashboard','settings'];
+const ERP_ROLES_EQUIPE=['admin','directeur','responsable','chef_projet','comptable','administrateur','collaborateur'];
+function erpModules(){const vus={},L=[];Object.entries(NAV).forEach(([r,items])=>{if(['client','formateur','apprenant'].includes(r))return;(items||[]).forEach(n=>{if(n.id&&!ERP_TOUJOURS.includes(n.id)&&!vus[n.id]){vus[n.id]=1;L.push({id:n.id,l:n.l,i:n.i});}});});return L;}
+function droitDe(id){if(!CP||!CP.droits||CP.role==='superadmin'||ERP_TOUJOURS.includes(id))return'ecriture';return CP.droits[id]||'aucun';}
+const ERP_MODELES={
+ 'Commercial':{crm:'ecriture',finance:'ecriture',agenda:'ecriture',messagerie:'ecriture',emails:'ecriture',partage:'ecriture',catalogue:'lecture','stock-produits':'lecture',projets:'lecture',relances:'ecriture'},
+ 'Technicien':{interventions:'ecriture',parc:'ecriture',tickets:'ecriture',projets:'ecriture',agenda:'ecriture',messagerie:'ecriture',partage:'ecriture','stock-produits':'lecture','ordres-mission':'lecture',kb:'ecriture'},
+ 'Comptable':{finance:'ecriture',comptabilite:'ecriture',etats:'ecriture',achats:'ecriture','demandes-prix':'lecture',frais:'ecriture',relances:'ecriture',rh:'lecture',messagerie:'ecriture',emails:'ecriture',partage:'ecriture'},
+ 'Acheteur / logistique':{achats:'ecriture','demandes-prix':'ecriture','stock-produits':'ecriture',stock:'ecriture',catalogue:'ecriture',messagerie:'ecriture',emails:'ecriture',partage:'ecriture',finance:'lecture'},
+ 'Formation (H TECH ACADEMY)':{formations:'ecriture',certificats:'ecriture',agenda:'ecriture',messagerie:'ecriture',partage:'ecriture','academy-sessions':'ecriture','academy-formateurs':'ecriture','academy-formations':'ecriture','academy-demandes':'ecriture','academy-contenus':'ecriture','academy-certificats':'ecriture'}};
+function erpDroitsModele(nom){const m=ERP_MODELES[nom]||{};const d={};erpModules().forEach(x=>{d[x.id]=m[x.id]||'aucun';});
+  Object.keys(m).filter(k=>k.startsWith('academy-')).forEach(k=>{if(!(k in d))d[k]=m[k];});return d;}
+
+// ── Application des droits : menus, accès aux pages, consultation seule ──
+(function(){
+  const st=document.createElement('style');
+  st.textContent=`.page.lecture-seule .btn-primary,.page.lecture-seule .btn-danger,.page.lecture-seule .btn-accent,.page.lecture-seule button[title="Modifier"],.page.lecture-seule button[title="Supprimer"],
+  .page.lecture-seule button[onclick*="upprimer"],.page.lecture-seule button[onclick*="Form("],.page.lecture-seule button[onclick*="formulaire("],.page.lecture-seule button[onclick*="nouveau"],.page.lecture-seule button[onclick*="Nouveau"]{display:none!important}
+  .page.lecture-seule::before{content:"🔒 Consultation seule : vous pouvez voir ce module mais pas le modifier.";display:block;margin:0 0 12px;padding:8px 12px;border-radius:8px;background:#FEF3E2;color:#92400E;font-size:13px;font-weight:600}`;
+  document.head.appendChild(st);
+  const _bn=buildNav;buildNav=function(){_bn.apply(this,arguments);if(!CP?.droits||CP.role==='superadmin')return;
+    document.querySelectorAll('#sbNav .nav-item').forEach(el=>{if(droitDe(el.id.replace('nav-',''))==='aucun')el.remove();});
+    const enf=[...document.querySelectorAll('#sbNav > *')];enf.forEach((el,i)=>{if(el.classList.contains('sb-cat')&&(!enf[i+1]||enf[i+1].classList.contains('sb-cat')))el.remove();});};
+  if(typeof buildModGrid==='function'){const _bg=buildModGrid;buildModGrid=function(){_bg.apply(this,arguments);if(!CP?.droits||CP.role==='superadmin')return;
+    document.querySelectorAll('#moduleGrid .module-card').forEach(c=>{const m=/showPage\('([^']+)'\)/.exec(c.getAttribute('onclick')||'');if(m&&droitDe(m[1])==='aucun')c.remove();});};}
+  const _sp=showPage;showPage=function(id){if(droitDe(id)==='aucun'){toast('🔒 Accès non autorisé à ce module');return;}
+    const r=_sp.apply(this,arguments);document.querySelectorAll('.page.lecture-seule').forEach(p=>p.classList.remove('lecture-seule'));
+    const pg=document.getElementById('page-'+id);if(pg&&droitDe(id)==='lecture')pg.classList.add('lecture-seule');return r;};
+  const _sa=showApp;showApp=function(){
+    if(CP&&CP.actif===false){sessionStorage.setItem('hti_desactive','1');sb.auth.signOut().finally(()=>location.reload());return;}
+    const r=_sa.apply(this,arguments);if(CU?.user_metadata?.mdp_provisoire)setTimeout(erpMdpObligatoire,300);return r;};
+  const msg=()=>{if(sessionStorage.getItem('hti_desactive')){sessionStorage.removeItem('hti_desactive');try{showErr('loginErr','Votre compte est désactivé. Contactez l’administration de H TECH INNOV.');}catch(e){toast('Votre compte est désactivé.');}}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',msg);else msg();
+})();
+function erpMdpObligatoire(){
+  if(document.getElementById('mdpObl'))return;const d=document.createElement('div');d.id='mdpObl';
+  d.style.cssText='position:fixed;inset:0;background:rgba(6,28,72,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  d.innerHTML=`<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:24px"><h3 style="margin:0 0 6px;color:var(--navy)">Choisissez votre mot de passe</h3>
+   <p style="font-size:13.5px;color:#5E6B82;margin:0 0 14px">Votre mot de passe provisoire a fonctionné. Remplacez-le par un mot de passe personnel d’au moins 8 caractères.</p>
+   <div class="form-field"><label for="mo1">Nouveau mot de passe</label><input id="mo1" type="password" autocomplete="new-password"></div>
+   <div class="form-field"><label for="mo2">Confirmation</label><input id="mo2" type="password" autocomplete="new-password"></div>
+   <div id="moErr" style="color:#B42318;font-size:13px;min-height:18px"></div><button class="btn btn-primary" style="width:100%;margin-top:6px" onclick="erpMdpEnregistrer()">Enregistrer</button></div>`;
+  document.body.appendChild(d);setTimeout(()=>document.getElementById('mo1')?.focus(),50);
+}
+async function erpMdpEnregistrer(){const a=document.getElementById('mo1').value,b=document.getElementById('mo2').value,e=document.getElementById('moErr');
+  if(a.length<8){e.textContent='Au moins 8 caractères.';return;}if(a!==b){e.textContent='Les deux mots de passe sont différents.';return;}
+  const{data,error}=await sb.auth.updateUser({password:a,data:{mdp_provisoire:false}});
+  if(error){e.textContent=/same|different/i.test(error.message)?'Choisissez un mot de passe différent du mot de passe provisoire.':error.message;return;}
+  if(data?.user)CU=data.user;document.getElementById('mdpObl').remove();toast('✅ Mot de passe enregistré');}
+
+// ── Page « Collaborateurs et accès » ──
+async function erpUtil(body){const{data,error}=await sb.functions.invoke('erp-utilisateurs',{body});let det=data;
+  if(error){try{if(error.context&&typeof error.context.json==='function')det=await error.context.json();}catch(_){}if(!det)throw new Error(/Failed to send|FunctionsFetch/i.test(error.message||'')?'La fonction « erp-utilisateurs » n’est pas déployée sur Supabase.':error.message);}
+  if(det?.error)throw new Error(det.error);return det;}
+var UT_ROWS=[];
+v4Def('utilisateurs',{titre:'Collaborateurs et accès',icone:'👥',custom:async pg=>{
+  const{data,error}=await sb.from('profiles').select('*').order('nom');
+  UT_ROWS=(data||[]).filter(p=>!['client','apprenant','formateur'].includes(p.role));
+  const mods=erpModules(),moi=CP?.role;
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">👥 Collaborateurs et accès</h1><div class="page-sub">Comptes de l’équipe, droits par module, désactivation des départs</div></div>
+    <div class="v4-tools"><button class="btn btn-primary btn-sm" onclick="utForm()">+ Nouveau collaborateur</button></div></div>
+  ${error?`<div class="card" style="border-left:4px solid #D97706">⚠️ ${esc(error.message)}</div>`:''}
+  ${UT_ROWS.some(p=>p.actif===undefined)?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:12px">⚠️ Exécutez <b>migration-collaborateurs-demandes-prix.sql</b> pour activer la désactivation et les droits par module.</div>':''}
+  <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-icon green">🟢</div><div class="kpi-label">Comptes actifs</div><div class="kpi-value">${UT_ROWS.filter(p=>p.actif!==false).length}</div></div>
+    <div class="kpi"><div class="kpi-icon red">⛔</div><div class="kpi-label">Désactivés</div><div class="kpi-value">${UT_ROWS.filter(p=>p.actif===false).length}</div></div>
+    <div class="kpi"><div class="kpi-icon blue">🔐</div><div class="kpi-label">Droits personnalisés</div><div class="kpi-value">${UT_ROWS.filter(p=>p.droits).length}</div></div>
+    <div class="kpi"><div class="kpi-icon amber">🧩</div><div class="kpi-label">Modules</div><div class="kpi-value">${mods.length}</div></div></div>
+  <div class="card"><div class="table-wrap"><table><thead><tr><th>Collaborateur</th><th>Rôle</th><th>Droits</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
+  ${UT_ROWS.map(p=>{const nb=p.droits?Object.values(p.droits).filter(v=>v!=='aucun').length:null,soi=p.id===CU?.id,protege=p.role==='superadmin'||(p.role==='admin'&&moi!=='superadmin');
+    return `<tr style="${p.actif===false?'opacity:.55':''}"><td><strong>${esc([p.prenom,p.nom].filter(Boolean).join(' ')||p.email)}</strong><div class="cell-sub">${esc(p.email||'')}${p.poste?' · '+esc(p.poste):''}</div></td>
+    <td>${esc((typeof RL!=='undefined'&&RL[p.role])||p.role)}</td><td style="font-size:12px">${p.role==='superadmin'?'Tous':nb===null?'Selon le rôle':nb+' module(s)'}</td>
+    <td>${p.actif===false?'<span class="badge" style="background:#FDECEC;color:#B42318">Désactivé</span>':'<span class="badge" style="background:#EDF6E8;color:#3F8A1E">Actif</span>'}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap">${soi||protege?'<span class="cell-sub">—</span>':`<button class="btn btn-outline btn-sm" onclick="utDroits('${p.id}')" title="Droits par module">🔐 Droits</button>
+      <button class="btn btn-outline btn-sm" onclick="utAction('reinitialiser','${p.id}')" title="Nouveau mot de passe provisoire">🔑</button>
+      ${p.actif===false?`<button class="btn btn-outline btn-sm" onclick="utAction('reactiver','${p.id}')">Réactiver</button>`:`<button class="btn btn-outline btn-sm" onclick="utAction('desactiver','${p.id}')">Désactiver</button>`}
+      ${moi==='superadmin'?`<button class="btn btn-outline btn-sm" onclick="utSupprimer('${p.id}')" title="Supprimer définitivement">🗑</button>`:''}`}</div></td></tr>`;}).join('')||'<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--g400)">Aucun collaborateur.</td></tr>'}
+  </tbody></table></div></div>
+  <p class="cell-sub" style="margin-top:8px">« Désactiver » coupe l’accès immédiatement et conserve l’historique (devis, interventions, journal). La suppression définitive est réservée au super administrateur et n’est possible que si aucun document n’est rattaché au compte.</p>`;
+}});
+function utForm(){
+  const roles=ERP_ROLES_EQUIPE.filter(r=>r!=='admin'||CP?.role==='superadmin');
+  document.getElementById('modalBox').style.width='min(620px,96vw)';document.getElementById('modalTitle').textContent='Nouveau collaborateur';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+   <div class="form-field"><label for="utPr">Prénom *</label><input id="utPr" oninput="utEmailAuto()"></div><div class="form-field"><label for="utNo">Nom *</label><input id="utNo" oninput="utEmailAuto()"></div>
+   <div class="form-field full"><label for="utEm">Adresse e-mail professionnelle * (identifiant de connexion)</label><input id="utEm" type="email" placeholder="prenom.nom@htechinnov.com" oninput="this.dataset.manuel=1"><div class="cell-sub">Créez d’abord cette boîte chez votre fournisseur de messagerie si elle n’existe pas.</div></div>
+   <div class="form-field"><label for="utTe">Téléphone</label><input id="utTe"></div><div class="form-field"><label for="utPo">Poste</label><input id="utPo" placeholder="Technicien, commercial…"></div>
+   <div class="form-field"><label for="utRo">Rôle</label><select id="utRo">${roles.map(r=>`<option value="${r}" ${r==='collaborateur'?'selected':''}>${esc((typeof RL!=='undefined'&&RL[r])||r)}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="utMo">Droits</label><select id="utMo"><option value="">Selon le rôle</option>${Object.keys(ERP_MODELES).map(m=>`<option>${esc(m)}</option>`).join('')}<option value="__perso">Personnalisés (à choisir ensuite)</option></select></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="utGo" onclick="utCreer()">Créer le compte</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function utEmailAuto(){const e=document.getElementById('utEm');if(e.dataset.manuel)return;const s=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+  const p=s(gv('utPr').split(' ')[0]),n=s(gv('utNo'));e.value=p&&n?p+'.'+n+'@htechinnov.com':'';}
+async function utCreer(){
+  const b=document.getElementById('utGo');if(!g('utPr')||!g('utNo')||!g('utEm')){toast('❌ Prénom, nom et e-mail requis');return;}
+  const mo=gv('utMo'),droits=mo&&mo!=='__perso'?erpDroitsModele(mo):(mo==='__perso'?erpDroitsModele(''):null);
+  b.disabled=true;b.textContent='Création…';
+  try{const r=await erpUtil({action:'creer',prenom:g('utPr'),nom:g('utNo'),email:g('utEm'),telephone:g('utTe'),poste:g('utPo'),role:gv('utRo'),droits});
+    try{logAudit('creation_compte','profiles',r.user_id,{email:r.acces.email});}catch(e){}
+    utAfficherAcces(r.acces,g('utTe'));if(mo==='__perso')window._UT_APRES=r.user_id;}
+  catch(e){b.disabled=false;b.textContent='Créer le compte';toast('❌ '+e.message,9000);}
+}
+function utAfficherAcces(a,tel){
+  const url=location.origin+location.pathname,msg=`Bonjour ${a.nom},\nVotre accès à l’ERP H TECH INNOV :\n${url}\nIdentifiant : ${a.email}\nMot de passe provisoire : ${a.mot_de_passe}\nÀ la première connexion, vous choisirez votre propre mot de passe.`;
+  window._UT_MSG=msg;const wa=typeof acadTelWa==='function'?acadTelWa(tel):'';
+  document.getElementById('modalBox').style.width='min(560px,96vw)';document.getElementById('modalTitle').textContent='🔑 Accès à transmettre';
+  document.getElementById('modalBody').innerHTML=`<p><b>${esc(a.nom)}</b></p><p>Identifiant : <code style="font-size:14px">${esc(a.email)}</code></p><p>Mot de passe provisoire : <code style="font-size:14px;font-weight:700">${esc(a.mot_de_passe)}</code></p>
+   <div class="card" style="border-left:4px solid #D97706;font-size:12.5px">Transmettez ces informations maintenant : le mot de passe ne sera plus affiché. Il devra être changé à la première connexion.</div>`;
+  document.getElementById('modalFooter').innerHTML=`${wa?`<a class="btn btn-accent" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(msg)}">WhatsApp</a>`:''}<a class="btn btn-outline" href="mailto:${esc(a.email)}?subject=${encodeURIComponent('Votre accès à l’ERP H TECH INNOV')}&body=${encodeURIComponent(msg)}">E-mail</a>
+   <button class="btn btn-outline" onclick="navigator.clipboard.writeText(window._UT_MSG).then(()=>toast('Message copié'))">Copier</button><button class="btn btn-primary" onclick="closeModal();v4Render('utilisateurs');if(window._UT_APRES){const u=window._UT_APRES;window._UT_APRES=null;setTimeout(()=>utDroits(u),400);}">Terminé</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function utAction(action,id){
+  const p=UT_ROWS.find(x=>x.id===id),nom=[p?.prenom,p?.nom].filter(Boolean).join(' ')||p?.email;
+  const q={reinitialiser:'Générer un nouveau mot de passe provisoire pour '+nom+' ?',desactiver:'Désactiver le compte de '+nom+' ? Son accès sera coupé immédiatement ; son historique est conservé.',reactiver:'Réactiver le compte de '+nom+' ?'}[action];
+  if(!confirm(q))return;
+  try{const r=await erpUtil({action,user_id:id});try{logAudit(action+'_compte','profiles',id,{});}catch(e){}
+    if(action==='reinitialiser')utAfficherAcces(r.acces,p?.telephone);else{toast(action==='desactiver'?'⛔ Compte désactivé':'✅ Compte réactivé');v4Render('utilisateurs');}}
+  catch(e){toast('❌ '+e.message,9000);}
+}
+async function utSupprimer(id){const p=UT_ROWS.find(x=>x.id===id);
+  const s=prompt('Suppression définitive de '+(p?.email||'')+'.\nPréférez « Désactiver » pour conserver l’historique.\n\nTapez l’adresse e-mail pour confirmer :');if(!s)return;
+  if(s.trim().toLowerCase()!==(p?.email||'').toLowerCase()){toast('Adresse différente : suppression annulée');return;}
+  try{await erpUtil({action:'supprimer',user_id:id});try{logAudit('suppression_compte','profiles',id,{email:p?.email});}catch(e){}toast('🗑 Compte supprimé');v4Render('utilisateurs');}catch(e){toast('❌ '+e.message,10000);}}
+function utDroits(id){
+  const p=UT_ROWS.find(x=>x.id===id)||{},mods=erpModules(),d=p.droits||{};window._UT_ID=id;
+  const sel=(m,v)=>`<select data-m="${m}" style="font-size:12.5px;padding:3px 6px">${[['aucun','Aucun accès'],['lecture','Consultation'],['ecriture','Modification']].map(([k,l])=>`<option value="${k}" ${v===k?'selected':''}>${l}</option>`).join('')}</select>`;
+  document.getElementById('modalBox').style.width='min(720px,96vw)';document.getElementById('modalTitle').textContent='🔐 Droits — '+([p.prenom,p.nom].filter(Boolean).join(' ')||p.email||'');
+  document.getElementById('modalBody').innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center"><span class="cell-sub">Partir d’un modèle :</span>
+    ${Object.keys(ERP_MODELES).map(m=>`<button class="btn btn-outline btn-sm" onclick="utAppliquerModele('${jsq(m)}')">${esc(m)}</button>`).join('')}</div>
+   ${p.droits?'':'<div class="card" style="border-left:4px solid #1565C0;font-size:12.5px;margin-bottom:10px">Actuellement : accès selon le rôle. Enregistrer ces droits les remplace par un réglage module par module.</div>'}
+   <div class="table-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Module</th><th>Accès</th></tr></thead><tbody>${mods.map(m=>`<tr><td>${m.i||''} ${esc(m.l)}</td><td>${sel(m.id,p.droits?(d[m.id]||'aucun'):'ecriture')}</td></tr>`).join('')}</tbody></table></div>
+   <p class="cell-sub">Le tableau de bord et les paramètres personnels restent toujours accessibles. Les droits s’appliquent à la prochaine ouverture de l’ERP par le collaborateur.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="utDroitsRole()">Revenir aux droits du rôle</button><button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="utDroitsEnregistrer()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function utAppliquerModele(nom){const d=erpDroitsModele(nom);document.querySelectorAll('#modalBody select[data-m]').forEach(s=>{s.value=d[s.dataset.m]||'aucun';});toast('Modèle « '+nom+' » appliqué : ajustez si besoin, puis enregistrez');}
+async function utDroitsEnregistrer(){const d={};document.querySelectorAll('#modalBody select[data-m]').forEach(s=>{d[s.dataset.m]=s.value;});
+  Object.entries(ERP_MODELES).forEach(()=>{});const{error}=await sb.from('profiles').update({droits:d}).eq('id',window._UT_ID);
+  if(error){toast('❌ '+error.message,9000);return;}try{logAudit('droits','profiles',window._UT_ID,d);}catch(e){}toast('✅ Droits enregistrés');closeModal();v4Render('utilisateurs');}
+async function utDroitsRole(){if(!confirm('Revenir aux droits définis par le rôle ?'))return;const{error}=await sb.from('profiles').update({droits:null}).eq('id',window._UT_ID);
+  if(error){toast('❌ '+error.message);return;}toast('Droits selon le rôle');closeModal();v4Render('utilisateurs');}
+
+// ── Demandes de prix ──
+const DP_ST={brouillon:['Brouillon','#7A90A8'],envoyee:['Envoyée','#D97706'],offre_recue:['Offre reçue','#1565C0'],retenue:['Retenue','#3F8A1E'],non_retenue:['Non retenue','#7C3AED'],annulee:['Annulée','#B42318']};
+var DP_ROWS=[],DP_FOURN=[],DP_EDIT=null,DP_FILTRE={};
+async function dpFournisseurs(){if(!DP_FOURN.length){const{data}=await sb.from('fournisseurs').select('*').order('nom');DP_FOURN=data||[];}return DP_FOURN;}
+v4Def('demandes-prix',{titre:'Demandes de prix',icone:'📨',custom:async pg=>{
+  let err=null;try{const q=await sb.from('demandes_prix').select('*').order('created_at',{ascending:false});if(q.error)err=q.error;DP_ROWS=q.data||[];}catch(e){err=e;DP_ROWS=[];}
+  const s=DP_FILTRE.statut||'',q=(DP_FILTRE.q||'').toLowerCase(),auj=isoJour();
+  const vis=DP_ROWS.filter(r=>(!s||r.statut===s)&&(!q||(r.reference+' '+r.fournisseur_nom+' '+r.objet).toLowerCase().includes(q)));
+  const nbGroupe=g=>DP_ROWS.filter(r=>r.groupe===g).length;
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">📨 Demandes de prix</h1><div class="page-sub">Consultations envoyées aux fournisseurs et partenaires : ils répondent par e-mail ou WhatsApp</div></div>
+    <div class="v4-tools"><button class="btn btn-primary btn-sm" onclick="dpForm()">+ Nouvelle demande de prix</button></div></div>
+  ${err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ Exécutez <b>migration-collaborateurs-demandes-prix.sql</b> dans Supabase.</div>':''}
+  <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-icon amber">⏳</div><div class="kpi-label">En attente de réponse</div><div class="kpi-value">${DP_ROWS.filter(r=>r.statut==='envoyee').length}</div></div>
+    <div class="kpi"><div class="kpi-icon red">⏰</div><div class="kpi-label">Date limite dépassée</div><div class="kpi-value">${DP_ROWS.filter(r=>r.statut==='envoyee'&&r.date_limite&&r.date_limite<auj).length}</div></div>
+    <div class="kpi"><div class="kpi-icon blue">📥</div><div class="kpi-label">Offres reçues</div><div class="kpi-value">${DP_ROWS.filter(r=>r.statut==='offre_recue').length}</div></div>
+    <div class="kpi"><div class="kpi-icon green">✅</div><div class="kpi-label">Retenues</div><div class="kpi-value">${DP_ROWS.filter(r=>r.statut==='retenue').length}</div></div></div>
+  <div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <input placeholder="Rechercher (n°, fournisseur, objet)…" value="${esc(DP_FILTRE.q||'')}" oninput="DP_FILTRE.q=this.value;clearTimeout(window._dq);window._dq=setTimeout(()=>v4Render('demandes-prix'),300)" style="flex:1;min-width:180px">
+    <select onchange="DP_FILTRE.statut=this.value;v4Render('demandes-prix')"><option value="">Tous les statuts</option>${Object.entries(DP_ST).map(([k,v])=>`<option value="${k}" ${k===s?'selected':''}>${v[0]}</option>`).join('')}</select></div>
+  <div class="table-wrap"><table><thead><tr><th>N°</th><th>Fournisseur</th><th>Objet</th><th>Réponse avant</th><th>Offre</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
+  ${vis.map(r=>`<tr><td><code style="font-size:10.5px">${esc(r.reference)}</code>${nbGroupe(r.groupe)>1?`<div class="cell-sub">${nbGroupe(r.groupe)} fournisseurs consultés</div>`:''}</td>
+    <td><strong>${esc(r.fournisseur_nom)}</strong></td><td style="font-size:12px">${esc(r.objet)}<div class="cell-sub">${(r.lignes||[]).length} ligne(s)</div></td>
+    <td style="font-size:12px;${r.statut==='envoyee'&&r.date_limite&&r.date_limite<auj?'color:#B42318;font-weight:600':''}">${r.date_limite?fmtD(r.date_limite):'—'}</td>
+    <td style="font-size:12px">${r.montant_offre!=null?fmtF(r.montant_offre)+' FCFA':'—'}${r.delai_offre?`<div class="cell-sub">${esc(r.delai_offre)}</div>`:''}</td>
+    <td><span class="badge" style="background:${DP_ST[r.statut][1]}22;color:${DP_ST[r.statut][1]}">${DP_ST[r.statut][0]}</span></td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="dpForm('${r.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="dpPdf('${r.id}')" title="Télécharger en PDF">📄</button><button class="btn btn-outline btn-sm" onclick="dpWord('${r.id}')" title="Télécharger en Word (.docx)" style="font-weight:700;color:#2B579A">W</button><button class="btn btn-outline btn-sm" onclick="dpExcel('${r.id}')" title="Télécharger en Excel (.xlsx) — le fournisseur peut y saisir ses prix" style="font-weight:700;color:#217346">X</button>
+      <button class="btn btn-outline btn-sm" onclick="dpEnvoyer('${r.id}')" title="Transmettre au fournisseur">📤</button><button class="btn btn-outline btn-sm" onclick="dpOffre('${r.id}')" title="Enregistrer l’offre reçue">📥</button>
+      <button class="btn btn-outline btn-sm" onclick="openDocs('demandes_prix','${r.id}','${jsq(r.reference)}')" title="Offre du fournisseur (pièce jointe)">📎</button>
+      <button class="btn btn-outline btn-sm" onclick="dpDupliquer('${r.id}')" title="Consulter un autre fournisseur">⧉</button>
+      ${nbGroupe(r.groupe)>1?`<button class="btn btn-outline btn-sm" onclick="dpComparer('${r.groupe}')" title="Comparer les offres">⚖️</button>`:''}
+      ${['offre_recue','envoyee'].includes(r.statut)?`<button class="btn btn-outline btn-sm" onclick="dpRetenir('${r.id}')" title="Retenir et créer le bon de commande">✅</button>`:''}
+      <button class="btn btn-outline btn-sm" onclick="dpSupprimer('${r.id}')" title="Supprimer">🗑</button></div></td></tr>`).join('')
+    ||'<tr><td colspan="7" style="text-align:center;color:var(--g400);padding:18px">Aucune demande de prix.</td></tr>'}
+  </tbody></table></div></div>`;
+}});
+function dpLigneHTML(l){return `<tr><td style="padding:2px"><input data-k="designation" value="${esc(l.designation||'')}" placeholder="Désignation" style="width:100%"></td>
+  <td style="padding:2px"><input data-k="description" value="${esc(l.description||'')}" placeholder="Spécifications, marque, référence…" style="width:100%"></td>
+  <td style="padding:2px;width:80px"><input data-k="qte" type="number" step="any" min="0" value="${esc(l.qte??1)}" style="width:100%"></td>
+  <td style="padding:2px;width:90px"><input data-k="unite" value="${esc(l.unite||'u')}" style="width:100%"></td>
+  <td style="padding:2px;width:34px"><button type="button" class="btn btn-outline btn-sm" onclick="this.closest('tr').remove()">✕</button></td></tr>`;}
+async function dpForm(id){
+  const r=id?DP_ROWS.find(x=>x.id===id):null;DP_EDIT={id:id||null,r};const F=await dpFournisseurs();
+  document.getElementById('modalBox').style.width='min(900px,96vw)';document.getElementById('modalTitle').textContent=r?'✏️ '+r.reference:'+ Nouvelle demande de prix';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+   <div class="form-field"><label for="dpF">Fournisseur / partenaire *</label><select id="dpF"><option value="">— Choisir —</option>${F.map(f=>`<option value="${f.id}" ${r?.fournisseur_id===f.id?'selected':''}>${esc(f.nom||f.raison_sociale||'')}</option>`).join('')}<option value="__libre" ${r&&!r.fournisseur_id?'selected':''}>Autre (saisie libre)</option></select></div>
+   <div class="form-field"><label for="dpFn">Nom affiché (si saisie libre)</label><input id="dpFn" value="${esc(r&&!r.fournisseur_id?r.fournisseur_nom:'')}"></div>
+   <div class="form-field full"><label for="dpO">Objet *</label><input id="dpO" value="${esc(r?.objet||'')}" placeholder="Fourniture de caméras IP pour le site de…"></div>
+   <div class="form-field"><label for="dpD">Réponse attendue avant</label><input id="dpD" type="date" value="${esc(r?.date_limite||'')}"></div>
+   <div class="form-field"><label for="dpL">Lieu de livraison / d’exécution</label><input id="dpL" value="${esc(r?.lieu||'')}"></div>
+   <div class="form-field full"><label>Désignations demandées *</label><div class="table-wrap"><table id="dpLignes"><thead><tr><th>Désignation</th><th>Spécifications</th><th>Qté</th><th>Unité</th><th></th></tr></thead><tbody>${((r?.lignes)||[{}]).map(dpLigneHTML).join('')}</tbody></table></div>
+     <button type="button" class="btn btn-outline btn-sm" style="margin-top:4px" onclick="document.querySelector('#dpLignes tbody').insertAdjacentHTML('beforeend',dpLigneHTML({}))">+ Ligne</button></div>
+   <div class="form-field full"><label for="dpC">Conditions particulières</label><textarea id="dpC" rows="2" placeholder="Garantie exigée, délai souhaité, visite de site…">${esc(r?.conditions||'')}</textarea></div>
+   <div class="form-field full"><label for="dpN">Notes</label><textarea id="dpN" rows="2">${esc(r?.notes||'')}</textarea></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="dpGo" onclick="dpSauver()">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function dpSauver(){
+  const fid=gv('dpF'),F=await dpFournisseurs(),f=F.find(x=>x.id===fid);
+  const lignes=[...document.querySelectorAll('#dpLignes tbody tr')].map(tr=>{const o={};tr.querySelectorAll('input[data-k]').forEach(i=>o[i.dataset.k]=i.value.trim());o.qte=numIn(o.qte)||1;return o;}).filter(l=>l.designation);
+  const nom=f?(f.nom||f.raison_sociale):g('dpFn');
+  if(!fid||!nom||!g('dpO')||!lignes.length){toast('❌ Fournisseur, objet et au moins une désignation requis');return;}
+  const p={fournisseur_id:f?f.id:null,fournisseur_nom:nom,objet:g('dpO'),lignes,date_limite:gv('dpD')||null,lieu:g('dpL')||null,conditions:gv('dpC')||null,notes:gv('dpN')||null};
+  const b=document.getElementById('dpGo');b.disabled=true;
+  try{let res;if(DP_EDIT.id){p.updated_at=new Date().toISOString();res=await sb.from('demandes_prix').update(p).eq('id',DP_EDIT.id);}
+    else{const{data:num,error:en}=await sb.rpc('dp_prochain_numero');if(en)throw new Error('Numérotation : '+en.message);p.reference=num;res=await sb.from('demandes_prix').insert(p);}
+    if(res.error)throw new Error(res.error.message);try{logAudit(DP_EDIT.id?'modification':'creation','demandes_prix',p.reference||DP_EDIT.r?.reference,{fournisseur:nom});}catch(e){}
+    toast('✅ Demande de prix enregistrée');closeModal();v4Render('demandes-prix');}
+  catch(e){b.disabled=false;toast('❌ '+e.message,9000);}
+}
+async function dpTiers(r){let f={nom:r.fournisseur_nom};if(r.fournisseur_id){const{data}=await sb.from('fournisseurs').select('*').eq('id',r.fournisseur_id).maybeSingle();if(data)f=data;}return f;}
+async function dpPdf(id){const r=DP_ROWS.find(x=>x.id===id);if(!r)return;
+  await docPDF({reference:r.reference,titre:r.objet,created_at:r.created_at,date_document:String(r.created_at).slice(0,10),date_limite:r.date_limite,lieu:r.lieu,conditions:r.conditions,notes:r.notes,
+    lignes:(r.lignes||[]).map(l=>({designation:l.designation,description:l.description,qte:l.qte,unite:l.unite})),statut:r.statut==='brouillon'?'brouillon':'emise'},'DEMANDE DE PRIX','DemandePrix',await dpTiers(r));}
+async function dpEnvoyer(id){
+  const r=DP_ROWS.find(x=>x.id===id);if(!r)return;const f=await dpTiers(r),E=getEntreprise();
+  await dpPdf(id);
+  if(r.statut==='brouillon'){await sb.from('demandes_prix').update({statut:'envoyee',updated_at:new Date().toISOString()}).eq('id',id);r.statut='envoyee';}
+  const msg=`Bonjour,\nNous vous prions de bien vouloir nous transmettre votre meilleure offre pour : ${r.objet} (demande de prix ${r.reference}, détail en pièce jointe)${r.date_limite?', avant le '+fmtD(r.date_limite):''}.\nMerci de préciser les prix unitaires HT, le délai, la validité de l’offre et vos conditions de paiement.\nCordialement,\n${E.responsable||''}${E.fonction?' — '+E.fonction:''}\n${E.nom||'H TECH INNOV'} — ${E.tel||'27 22 56 28 37'} — ${E.email||'info@htechinnov.com'}`;
+  window._DP_MSG=msg;const tel=f.telephone||f.tel||f.mobile||'',wa=typeof acadTelWa==='function'?acadTelWa(tel):'';
+  document.getElementById('modalBox').style.width='min(560px,96vw)';document.getElementById('modalTitle').textContent='📤 Transmettre '+r.reference;
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #D97706;font-size:13px">Le PDF est téléchargé : joignez-le à votre e-mail ou à votre message WhatsApp. Vous pouvez aussi joindre la version Excel, dans laquelle le fournisseur saisit directement ses prix. Statut : <b>Envoyée</b>.</div>
+   <p class="cell-sub" style="margin-top:10px">Quand le fournisseur répond, enregistrez son offre (📥) et joignez-la (📎).</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="dpWord('${r.id}')">Word</button><button class="btn btn-outline" onclick="dpExcel('${r.id}')">Excel</button><a class="btn btn-outline" href="mailto:${esc(f.email||'')}?subject=${encodeURIComponent('Demande de prix '+r.reference+' — '+r.objet)}&body=${encodeURIComponent(msg)}">✉️ E-mail</a>
+   ${wa?`<a class="btn btn-accent" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(msg)}">WhatsApp</a>`:''}<button class="btn btn-outline" onclick="navigator.clipboard.writeText(window._DP_MSG).then(()=>toast('Message copié'))">Copier</button><button class="btn btn-primary" onclick="closeModal();v4Render('demandes-prix')">Terminé</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function dpOffre(id){const r=DP_ROWS.find(x=>x.id===id);window._DP_ID=id;
+  document.getElementById('modalBox').style.width='min(520px,96vw)';document.getElementById('modalTitle').textContent='📥 Offre reçue — '+r.fournisseur_nom;
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="form-field"><label for="ofM">Montant de l’offre (FCFA HT)</label><input id="ofM" type="number" step="any" value="${esc(r.montant_offre??'')}"></div>
+   <div class="form-field"><label for="ofD">Délai proposé</label><input id="ofD" value="${esc(r.delai_offre||'')}" placeholder="15 jours après commande"></div>
+   <div class="form-field full"><label for="ofC">Commentaire (validité, conditions de paiement…)</label><textarea id="ofC" rows="3">${esc(r.commentaire_offre||'')}</textarea></div></div>
+   <p class="cell-sub">Pensez à joindre l’offre du fournisseur (📎) pour la garder avec la demande.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="dpOffreSauver()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function dpOffreSauver(){const{error}=await sb.from('demandes_prix').update({montant_offre:gv('ofM')===''?null:numIn(gv('ofM')),delai_offre:g('ofD')||null,commentaire_offre:gv('ofC')||null,statut:'offre_recue',updated_at:new Date().toISOString()}).eq('id',window._DP_ID);
+  if(error){toast('❌ '+error.message);return;}toast('✅ Offre enregistrée');closeModal();v4Render('demandes-prix');}
+async function dpDupliquer(id){const r=DP_ROWS.find(x=>x.id===id),F=await dpFournisseurs();window._DP_ID=id;
+  document.getElementById('modalBox').style.width='min(520px,96vw)';document.getElementById('modalTitle').textContent='⧉ Consulter un autre fournisseur';
+  document.getElementById('modalBody').innerHTML=`<p class="cell-sub">Même objet et mêmes désignations que ${esc(r.reference)}. Les offres pourront être comparées.</p>
+   <div class="form-field"><label for="duF">Fournisseurs</label><select id="duF" multiple size="8" style="width:100%">${F.filter(f=>f.id!==r.fournisseur_id).map(f=>`<option value="${f.id}">${esc(f.nom||'')}</option>`).join('')}</select><div class="cell-sub">Ctrl ou Cmd pour en choisir plusieurs.</div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="dpDupliquerOk()">Créer les demandes</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function dpDupliquerOk(){const r=DP_ROWS.find(x=>x.id===window._DP_ID),ids=[...document.getElementById('duF').selectedOptions].map(o=>o.value);if(!ids.length){toast('Choisissez au moins un fournisseur');return;}
+  for(const fid of ids){const f=DP_FOURN.find(x=>x.id===fid);const{data:num,error:en}=await sb.rpc('dp_prochain_numero');if(en){toast('❌ '+en.message);return;}
+    const{error}=await sb.from('demandes_prix').insert({reference:num,groupe:r.groupe,fournisseur_id:fid,fournisseur_nom:f?.nom||'',objet:r.objet,lignes:r.lignes,date_limite:r.date_limite,lieu:r.lieu,conditions:r.conditions,notes:r.notes});
+    if(error){toast('❌ '+error.message);return;}}
+  toast('✅ '+ids.length+' demande(s) créée(s)');closeModal();v4Render('demandes-prix');}
+function dpComparer(groupe){const L=DP_ROWS.filter(r=>r.groupe===groupe),offres=L.filter(r=>r.montant_offre!=null),min=offres.length?Math.min(...offres.map(r=>numIn(r.montant_offre))):null;
+  document.getElementById('modalBox').style.width='min(760px,96vw)';document.getElementById('modalTitle').textContent='⚖️ Comparaison — '+L[0].objet;
+  document.getElementById('modalBody').innerHTML=`<div class="table-wrap"><table><thead><tr><th>Fournisseur</th><th>Offre HT</th><th>Délai</th><th>Commentaire</th><th>Statut</th><th></th></tr></thead><tbody>
+   ${L.sort((a,b)=>(a.montant_offre??1e18)-(b.montant_offre??1e18)).map(r=>`<tr style="${r.montant_offre!=null&&numIn(r.montant_offre)===min?'background:#EDF6E8':''}"><td><strong>${esc(r.fournisseur_nom)}</strong><div class="cell-sub">${esc(r.reference)}</div></td>
+    <td>${r.montant_offre!=null?fmtF(r.montant_offre)+' FCFA'+(numIn(r.montant_offre)===min?' <b style="color:#3F8A1E">· moins-disant</b>':''):'—'}</td><td>${esc(r.delai_offre||'—')}</td><td style="font-size:12px">${esc(r.commentaire_offre||'')}</td>
+    <td>${DP_ST[r.statut][0]}</td><td>${['offre_recue','envoyee'].includes(r.statut)?`<button class="btn btn-primary btn-sm" onclick="dpRetenir('${r.id}')">Retenir</button>`:''}</td></tr>`).join('')}</tbody></table></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-primary" onclick="closeModal()">Fermer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function dpRetenir(id){
+  const r=DP_ROWS.find(x=>x.id===id);if(!confirm('Retenir l’offre de '+r.fournisseur_nom+' et créer le bon de commande ?\nLes autres fournisseurs consultés passeront « Non retenue ».'))return;
+  try{const ref=await nextNumero('BC'),type='fourniture';
+    const{error}=await dbSave('bons_commande',{reference:ref,fournisseur_id:r.fournisseur_id,fournisseur_nom:r.fournisseur_nom,
+      lignes:(r.lignes||[]).map(l=>({designation:l.designation,description:l.description||'',qte:numIn(l.qte)||1,unite:l.unite||'u',pu:0})),exonere_tva:false,
+      montant_ht:0,tva_pct:18,tva_montant:0,montant_ttc:0,titre:r.objet,
+      notes:`Offre retenue (${r.reference})${r.montant_offre!=null?' : '+fmtF(r.montant_offre)+' FCFA HT':''}${r.delai_offre?', délai '+r.delai_offre:''}. Prix unitaires à reporter depuis l’offre du fournisseur.`,
+      type_commande:type,annexes:await bcAnnexesFigees(type),statut:'brouillon',created_by:uid()});
+    if(error)throw new Error(error.message);
+    const{data:bc}=await sb.from('bons_commande').select('id').eq('reference',ref).maybeSingle();
+    await sb.from('demandes_prix').update({statut:'retenue',bc_id:bc?.id||null,updated_at:new Date().toISOString()}).eq('id',id);
+    for(const o of DP_ROWS.filter(x=>x.groupe===r.groupe&&x.id!==id&&!['annulee','non_retenue'].includes(x.statut)))await sb.from('demandes_prix').update({statut:'non_retenue',updated_at:new Date().toISOString()}).eq('id',o.id);
+    try{logAudit('retenue','demandes_prix',r.reference,{bc:ref});}catch(e){}
+    toast('✅ Bon de commande '+ref+' créé en brouillon : reportez les prix de l’offre dans Achats',8000);closeModal();v4Render('demandes-prix');}
+  catch(e){toast('❌ '+e.message,9000);}
+}
+async function dpSupprimer(id){const r=DP_ROWS.find(x=>x.id===id);if(!confirm('Supprimer la demande de prix '+r.reference+' ?'))return;
+  const{error}=await sb.from('demandes_prix').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}try{logAudit('suppression','demandes_prix',r.reference,{});}catch(e){}toast('Demande supprimée');v4Render('demandes-prix');}
+(function(){
+  try{
+    Object.entries(NAV).forEach(([ro,nav])=>{if(!nav)return;
+      const k=nav.findIndex(x=>x.id==='achats');if(k>=0&&!nav.some(x=>x.id==='demandes-prix'))nav.splice(k+1,0,{id:'demandes-prix',i:'📨',l:'Demandes de prix'});
+      if(['superadmin','admin'].includes(ro)&&!nav.some(x=>x.id==='utilisateurs')){const a=nav.findIndex(x=>x.id==='admin');nav.splice(a<0?nav.length:a+1,0,{id:'utilisateurs',i:'👥',l:'Collaborateurs et accès'});}});
+    PAGE_LABELS['demandes-prix']='Demandes de prix';PAGE_LABELS['utilisateurs']='Collaborateurs et accès';
+  }catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(!ref)return;['demandes-prix','utilisateurs'].forEach(id=>{if(!document.getElementById('page-'+id)){const d=document.createElement('div');d.className='page';d.id='page-'+id;ref.parentNode.appendChild(d);}});};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
+})();
+
+</script>
+<script>
+
+// ── Demandes de prix : export Word (.docx) et Excel (.xlsx) à la charte H TECH INNOV ──
+const DP_LIBS={docx:'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js',excel:'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'};
+function dpTexteReponse(d,E){return 'Merci de nous transmettre votre meilleure offre en indiquant les prix unitaires HT, le délai de livraison ou d’exécution, la validité de l’offre et vos conditions de paiement'+(d.date_limite?', au plus tard le '+dpDateFr(d.date_limite):'')+', par e-mail à '+(E.email||'info@htechinnov.com')+' ou par WhatsApp au '+(E.tel||'+225 07 14 94 24 21')+'.';}
+function dpDateFr(x){if(!x)return'';const p=String(x).slice(0,10).split('-');return p[2]+'/'+p[1]+'/'+p[0];}
+function dpEntLignes(E){return[E.forme?E.forme+(E.rccm?'  |  RCCM '+E.rccm:''):(E.rccm?'RCCM '+E.rccm:''),[E.adresse,E.ville].filter(Boolean).join(', '),[E.tel,E.tel2].filter(Boolean).join(' / '),[E.email,E.web].filter(Boolean).join('  |  ')].filter(Boolean);}
+// Word
+function dpConstruireDocx(D,d,ctx){
+  const{E,f,logo,cachet}=ctx,NAVY='0A2A66',BLUE='1565C0',GREY='606C82',LIGHT='F4F7FC',LINE='D5E0F0',F='Arial';
+  const t=(text,o={})=>new D.TextRun({text:String(text??''),font:F,size:o.size||18,bold:o.bold,color:o.color||'1E283C',italics:o.it});
+  const p=(runs,o={})=>new D.Paragraph({children:Array.isArray(runs)?runs:[runs],alignment:o.align,spacing:{before:o.before||0,after:o.after??60}});
+  const sansBord={top:{style:D.BorderStyle.NONE,size:0,color:'FFFFFF'},bottom:{style:D.BorderStyle.NONE,size:0,color:'FFFFFF'},left:{style:D.BorderStyle.NONE,size:0,color:'FFFFFF'},right:{style:D.BorderStyle.NONE,size:0,color:'FFFFFF'}};
+  const bord={top:{style:D.BorderStyle.SINGLE,size:4,color:LINE},bottom:{style:D.BorderStyle.SINGLE,size:4,color:LINE},left:{style:D.BorderStyle.SINGLE,size:4,color:LINE},right:{style:D.BorderStyle.SINGLE,size:4,color:LINE}};
+  const cell=(children,o={})=>new D.TableCell({children,width:o.w?{size:o.w,type:D.WidthType.DXA}:undefined,borders:o.bord||sansBord,shading:o.fond?{type:D.ShadingType.CLEAR,color:'auto',fill:o.fond}:undefined,
+    margins:{top:o.m??60,bottom:o.m??60,left:100,right:100},verticalAlign:o.v||D.VerticalAlign.TOP,columnSpan:o.span});
+  const W=9600;
+  // En-tête : logo + société | titre + cartouche
+  const gauche=[logo?new D.Paragraph({children:[new D.ImageRun({data:logo,transformation:{width:92,height:68}})]}):p(t(''))];
+  const centre=[p(t(E.nom||'H TECH INNOV',{size:28,bold:true,color:NAVY})),...dpEntLignes(E).map(l=>p(t(l,{size:15,color:GREY}),{after:10}))];
+  const droite=[p(t('DEMANDE DE PRIX',{size:34,bold:true,color:NAVY}),{align:D.AlignmentType.RIGHT,after:100}),
+    ...[['N°',d.reference],['Date',dpDateFr(d.date_document||d.created_at)],['Réponse avant',dpDateFr(d.date_limite)]].filter(x=>x[1]).map(([k,v])=>p([t(k+'   ',{size:16,color:GREY}),t(v,{size:16,bold:true,color:NAVY})],{align:D.AlignmentType.RIGHT,after:20}))];
+  const entete=new D.Table({width:{size:W,type:D.WidthType.DXA},columnWidths:[1500,4300,3800],rows:[new D.TableRow({children:[cell(gauche,{w:1500}),cell(centre,{w:4300}),cell(droite,{w:3800})]})]});
+  const barre=new D.Paragraph({border:{bottom:{style:D.BorderStyle.SINGLE,size:12,color:BLUE,space:4}},spacing:{after:200},children:[]});
+  // Destinataire et objet
+  const dest=[p(t('DESTINATAIRE',{size:14,bold:true,color:BLUE})),p(t(f.nom||f.raison_sociale||'',{size:21,bold:true,color:NAVY})),
+    ...[f.adresse,[f.telephone||f.tel,f.email].filter(Boolean).join('  |  ')].filter(Boolean).map(l=>p(t(l,{size:16,color:GREY}),{after:10}))];
+  const obj=[p(t('OBJET',{size:14,bold:true,color:BLUE})),p(t(d.titre||'',{size:20,bold:true,color:NAVY}))];
+  const blocs=new D.Table({width:{size:W,type:D.WidthType.DXA},columnWidths:[4700,200,4700],rows:[new D.TableRow({children:[cell(dest,{w:4700,fond:LIGHT,bord,m:120}),cell([p(t(''))],{w:200}),cell(obj,{w:4700,m:120})]})]});
+  // Tableau des désignations
+  const cw=[500,4400,800,900,1500,1500],hd=['N°','Désignation','Qté','Unité','P.U. HT','Total HT'];
+  const rows=[new D.TableRow({tableHeader:true,children:hd.map((h,i)=>cell([p(t(h,{size:16,bold:true,color:'FFFFFF'}),{align:i>=2?D.AlignmentType.CENTER:undefined,after:0})],{w:cw[i],fond:NAVY,bord,v:D.VerticalAlign.CENTER}))})];
+  (d.lignes||[]).forEach((l,k)=>rows.push(new D.TableRow({children:[
+    cell([p(t(k+1,{size:16,color:GREY}),{align:D.AlignmentType.CENTER,after:0})],{w:cw[0],bord}),
+    cell([p(t(l.designation,{size:17,bold:true,color:NAVY}),{after:l.description?20:0}),...(l.description?[p(t(l.description,{size:15,color:GREY}),{after:0})]:[])],{w:cw[1],bord}),
+    cell([p(t(l.qte,{size:17}),{align:D.AlignmentType.CENTER,after:0})],{w:cw[2],bord}),cell([p(t(l.unite||'u',{size:17}),{align:D.AlignmentType.CENTER,after:0})],{w:cw[3],bord}),
+    cell([p(t(''))],{w:cw[4],bord}),cell([p(t(''))],{w:cw[5],bord})]})));
+  const tab=new D.Table({width:{size:W,type:D.WidthType.DXA},columnWidths:cw,rows});
+  const modal=new D.Table({width:{size:W,type:D.WidthType.DXA},columnWidths:[W],rows:[new D.TableRow({children:[cell([p(t('MODALITÉS DE RÉPONSE',{size:14,bold:true,color:BLUE})),p(t(dpTexteReponse(d,E),{size:17,color:NAVY}),{after:0})],{w:W,fond:LIGHT,bord,m:140})]})]});
+  const infos=[['Lieu d’exécution',d.lieu],['Conditions particulières',d.conditions],['Notes',d.notes]].filter(x=>x[1]).map(([k,v])=>p([t(k+' : ',{size:17,bold:true,color:BLUE}),t(v,{size:17})],{after:60}));
+  const sig=[p(t('POUR '+(E.nom||'H TECH INNOV').toUpperCase(),{size:15,bold:true,color:BLUE})),p(t(E.responsable||'',{size:17,bold:true,color:NAVY}),{after:0}),p(t(E.fonction||'',{size:15,color:GREY})),
+    ...(cachet?[new D.Paragraph({alignment:D.AlignmentType.RIGHT,children:[new D.ImageRun({data:cachet,transformation:{width:110,height:82}})]})]:[p(t('Signature et cachet',{size:15,color:GREY,it:true}),{before:500})])];
+  const signature=new D.Table({width:{size:W,type:D.WidthType.DXA},columnWidths:[5200,4400],rows:[new D.TableRow({children:[cell([p(t(''))],{w:5200}),cell(sig,{w:4400,bord,m:140})]})]});
+  const pied=new D.Footer({children:[new D.Paragraph({alignment:D.AlignmentType.CENTER,border:{top:{style:D.BorderStyle.SINGLE,size:6,color:BLUE,space:4}},children:[t([E.nom||'H TECH INNOV',E.forme,E.rccm?'RCCM '+E.rccm:'',[E.adresse,E.ville].filter(Boolean).join(', ')].filter(Boolean).join('  |  '),{size:13,color:GREY})]}),
+    new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[t([E.tel,E.email,E.web].filter(Boolean).join('  |  '),{size:13,color:GREY})]})]});
+  return new D.Document({creator:E.nom||'H TECH INNOV',title:'Demande de prix '+d.reference,
+    sections:[{properties:{page:{size:{width:11906,height:16838},margin:{top:800,bottom:900,left:1150,right:1150}}},footers:{default:pied},
+      children:[entete,barre,blocs,p(t(''),{after:120}),tab,p(t(''),{after:160}),modal,p(t(''),{after:120}),...infos,p(t(''),{after:160}),signature]}]});
+}
+// Excel (le fournisseur peut saisir ses prix : totaux calculés automatiquement)
+async function dpConstruireXlsx(ExcelJS,d,ctx){
+  const{E,f,logo}=ctx,NAVY='FF0A2A66',BLUE='FF1565C0',GREY='FF606C82',LIGHT='FFF4F7FC',LINE='FFD5E0F0',SAISIE='FFFFF8E1';
+  const wb=new ExcelJS.Workbook();wb.creator=E.nom||'H TECH INNOV';
+  const ws=wb.addWorksheet('Demande de prix',{pageSetup:{paperSize:9,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.4,right:.4,top:.5,bottom:.5,header:.2,footer:.2}},views:[{showGridLines:false}]});
+  ws.columns=[{width:6},{width:38},{width:34},{width:9},{width:10},{width:16},{width:18}];
+  const font=(o={})=>({name:'Arial',size:o.size||10,bold:!!o.bold,italic:!!o.it,color:{argb:o.color||'FF1E283C'}});
+  const fill=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});const b={style:'thin',color:{argb:LINE}},bords={top:b,bottom:b,left:b,right:b};
+  ws.getRow(1).height=8;ws.mergeCells('A1:G1');ws.getCell('A1').fill=fill(NAVY);
+  if(logo){const id=wb.addImage({buffer:logo,extension:'jpeg'});ws.addImage(id,{tl:{col:0.15,row:1.4},ext:{width:110,height:80}});}
+  const xE=logo?'C':'B';ws.getCell(xE+'3').value=E.nom||'H TECH INNOV';ws.getCell(xE+'3').font=font({size:16,bold:true,color:NAVY});
+  dpEntLignes(E).forEach((l,i)=>{const c=ws.getCell(xE+(4+i));c.value=l;c.font=font({size:8.5,color:GREY});});
+  ws.mergeCells('E2:G3');const ti=ws.getCell('E2');ti.value='DEMANDE DE PRIX';ti.font=font({size:18,bold:true,color:NAVY});ti.alignment={horizontal:'right',vertical:'middle'};
+  [['N°',d.reference],['Date',dpDateFr(d.date_document||d.created_at)],['Réponse avant',dpDateFr(d.date_limite)]].filter(x=>x[1]).forEach(([k,v],i)=>{const r=4+i;
+    ws.getCell('E'+r).value=k;ws.getCell('E'+r).font=font({size:9,color:GREY});ws.mergeCells(`F${r}:G${r}`);const c=ws.getCell('F'+r);c.value=v;c.font=font({size:9.5,bold:true,color:NAVY});c.alignment={horizontal:'right'};});
+  let r=9;ws.getRow(8).height=6;
+  ws.getCell('A'+r).value='DESTINATAIRE';ws.getCell('A'+r).font=font({size:8,bold:true,color:BLUE});ws.getCell('D'+r).value='OBJET';ws.getCell('D'+r).font=font({size:8,bold:true,color:BLUE});
+  ws.mergeCells(`A${r+1}:C${r+1}`);ws.getCell('A'+(r+1)).value=f.nom||f.raison_sociale||'';ws.getCell('A'+(r+1)).font=font({size:12,bold:true,color:NAVY});
+  ws.mergeCells(`D${r+1}:G${r+2}`);const ob=ws.getCell('D'+(r+1));ob.value=d.titre||'';ob.font=font({size:11,bold:true,color:NAVY});ob.alignment={wrapText:true,vertical:'top'};
+  ws.mergeCells(`A${r+2}:C${r+2}`);ws.getCell('A'+(r+2)).value=[f.adresse,f.telephone||f.tel,f.email].filter(Boolean).join('  |  ');ws.getCell('A'+(r+2)).font=font({size:9,color:GREY});
+  for(let i=r;i<=r+2;i++)for(const c of['A','B','C'])ws.getCell(c+i).fill=fill(LIGHT);
+  r+=4;const h0=r;
+  ['N°','Désignation','Spécifications','Qté','Unité','P.U. HT (FCFA)','Total HT (FCFA)'].forEach((h,i)=>{const c=ws.getRow(r).getCell(i+1);c.value=h;c.font=font({size:9.5,bold:true,color:'FFFFFFFF'});c.fill=fill(NAVY);c.alignment={horizontal:'center',vertical:'middle',wrapText:true};c.border=bords;});
+  ws.getRow(r).height=22;
+  (d.lignes||[]).forEach((l,k)=>{r++;const row=ws.getRow(r);row.values=[k+1,l.designation,l.description||'',Number(l.qte)||1,l.unite||'u',null,{formula:`IF(F${r}="","",D${r}*F${r})`}];
+    row.eachCell({includeEmpty:true},(c,i)=>{if(i>7)return;c.border=bords;c.font=font({size:9.5,bold:i===2,color:i===2?NAVY:undefined});c.alignment={vertical:'top',wrapText:true,horizontal:[1,4,5].includes(i)?'center':undefined};});
+    row.getCell(6).fill=fill(SAISIE);row.getCell(6).numFmt='#,##0';row.getCell(7).numFmt='#,##0';});
+  r++;ws.mergeCells(`A${r}:F${r}`);const tl=ws.getCell('A'+r);tl.value='Total HT';tl.font=font({bold:true,color:NAVY});tl.alignment={horizontal:'right'};
+  const tt=ws.getCell('G'+r);tt.value={formula:`IF(COUNT(F${h0+1}:F${r-1})=0,"",SUM(G${h0+1}:G${r-1}))`};tt.font=font({bold:true,color:NAVY});tt.numFmt='#,##0';tt.border=bords;tt.fill=fill(LIGHT);
+  r+=1;ws.getCell('F'+r).value='Cellules jaunes : à compléter par le fournisseur';ws.getCell('F'+r).font=font({size:8,it:true,color:GREY});
+  r+=2;ws.mergeCells(`A${r}:G${r}`);ws.getCell('A'+r).value='MODALITÉS DE RÉPONSE';ws.getCell('A'+r).font=font({size:8.5,bold:true,color:BLUE});ws.getCell('A'+r).fill=fill(LIGHT);
+  r++;ws.mergeCells(`A${r}:G${r}`);const mr=ws.getCell('A'+r);mr.value=dpTexteReponse(d,E);mr.font=font({size:9.5,color:NAVY});mr.alignment={wrapText:true,vertical:'top'};mr.fill=fill(LIGHT);ws.getRow(r).height=42;
+  [['Lieu d’exécution',d.lieu],['Conditions particulières',d.conditions],['Notes',d.notes]].filter(x=>x[1]).forEach(([k,v])=>{r+=2;ws.getCell('A'+r).value=k;ws.getCell('A'+r).font=font({size:9,bold:true,color:BLUE});
+    ws.mergeCells(`C${r}:G${r}`);ws.getCell('C'+r).value=v;ws.getCell('C'+r).font=font({size:9.5});ws.getCell('C'+r).alignment={wrapText:true};});
+  r+=3;ws.getCell('E'+r).value='POUR '+(E.nom||'H TECH INNOV').toUpperCase();ws.getCell('E'+r).font=font({size:9,bold:true,color:BLUE});
+  ws.getCell('E'+(r+1)).value=E.responsable||'';ws.getCell('E'+(r+1)).font=font({size:10,bold:true,color:NAVY});ws.getCell('E'+(r+2)).value=E.fonction||'';ws.getCell('E'+(r+2)).font=font({size:9,color:GREY});
+  ws.headerFooter.oddFooter='&8&K606C82'+[E.nom||'H TECH INNOV',E.rccm?'RCCM '+E.rccm:'',E.tel,E.email].filter(Boolean).join('  |  ')+'   —   page &P / &N';
+  ws.pageSetup.printArea=`A1:G${r+3}`;
+  return wb;
+}
+// Lancement depuis l'ERP
+async function dpOctets(src){if(!src)return null;try{if(String(src).startsWith('data:')){const b=atob(src.split(',')[1]);const u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;}
+  const rp=await fetch(src);return rp.ok?new Uint8Array(await rp.arrayBuffer()):null;}catch(e){return null;}}
+function dpTelecharger(blob,nom){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nom;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
+async function dpDonnees(id){const r=DP_ROWS.find(x=>x.id===id);return{r,d:{reference:r.reference,titre:r.objet,created_at:r.created_at,date_document:String(r.created_at).slice(0,10),date_limite:r.date_limite,lieu:r.lieu,conditions:r.conditions,notes:r.notes,lignes:r.lignes||[]},
+  ctx:{E:getEntreprise(),f:await dpTiers(r),logo:await dpOctets(typeof HTI_LOGO==='string'?HTI_LOGO:null),cachet:await dpOctets(typeof HTI_STAMP==='string'?HTI_STAMP:null)}};}
+async function dpWord(id){try{await loadScript(DP_LIBS.docx);const{r,d,ctx}=await dpDonnees(id);
+  const blob=await window.docx.Packer.toBlob(dpConstruireDocx(window.docx,d,ctx));dpTelecharger(blob,'Demande-de-prix-'+r.reference+'.docx');toast('✅ Demande de prix Word téléchargée');}
+  catch(e){logErr(e);toast('❌ Export Word impossible : '+e.message,8000);}}
+async function dpExcel(id){try{await loadScript(DP_LIBS.excel);const{r,d,ctx}=await dpDonnees(id);
+  const wb=await dpConstruireXlsx(window.ExcelJS,d,ctx),buf=await wb.xlsx.writeBuffer();
+  dpTelecharger(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Demande-de-prix-'+r.reference+'.xlsx');toast('✅ Demande de prix Excel téléchargée');}
+  catch(e){logErr(e);toast('❌ Export Excel impossible : '+e.message,8000);}}
 
 </script>
 </body>
