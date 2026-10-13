@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Réservez votre espace de travail — H TECH INNOV</title>
+<meta name="description" content="Salle de formation, salle de réunion et bureaux équipés à Cocody Riviera Jules Verne, Abidjan. Réservez en ligne votre espace de travail chez H TECH INNOV.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--navy:#0A2A66;--blue:#1565C0;--green:#3F8A1E;--green-l:#EDF6E8;--light:#F4F7FC;--line:#D5E0F0;--txt:#1E283C;--grey:#5E6B82;--amber:#B45309;--red:#B42318}
+*{box-sizing:border-box}html,body{margin:0}body{font-family:'Source Sans 3',system-ui,sans-serif;color:var(--txt);background:#fff;font-size:16px;line-height:1.55}
+h1,h2,h3{font-family:Montserrat,system-ui,sans-serif;color:var(--navy);margin:0;line-height:1.2}a{color:var(--blue)}button,input,select,textarea{font:inherit}
+:focus-visible{outline:3px solid #9CC3F5;outline-offset:2px}
+.barre{height:5px;background:linear-gradient(90deg,var(--navy) 0 85%,var(--green) 85%)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+header{border-bottom:1px solid var(--line);background:#fff}header .wrap{display:flex;justify-content:space-between;align-items:center;min-height:66px;gap:12px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}.logo b{font-family:Montserrat;font-weight:800;color:var(--navy);font-size:18px}.logo span{display:block;font-size:12px;color:var(--grey)}
+.hero{background:var(--navy);color:#fff;padding:52px 0 44px}.hero h1{color:#fff;font-size:clamp(28px,4vw,40px);max-width:720px}.hero p{color:#C8D4EA;max-width:640px;font-size:18px;margin:12px 0 0}
+.etapes{display:flex;gap:22px;flex-wrap:wrap;margin-top:22px;color:#E3EAF6;font-size:15px}.etapes b{color:#fff;font-family:Montserrat;margin-right:6px}
+main{padding:36px 0 60px}
+.grille{display:grid;grid-template-columns:1fr 400px;gap:28px;align-items:start}
+.espaces{display:grid;gap:18px}
+.esp{border:1px solid var(--line);border-radius:12px;overflow:hidden;display:grid;grid-template-columns:260px 1fr;background:#fff}
+.esp.choisi{border-color:var(--blue);box-shadow:0 0 0 2px #CFE0F7}
+.photos{position:relative;background:#E3EAF6;min-height:190px}.photos img{width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0}
+.photos .nav{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;gap:5px}.photos .nav button{width:9px;height:9px;border-radius:50%;border:0;background:#ffffff99;padding:0;cursor:pointer}.photos .nav button[aria-current=true]{background:#fff}
+.photos .vide{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#7A90A8;font-size:14px}
+.esp .info{padding:16px 18px}.esp p{margin:6px 0;color:var(--grey);font-size:15px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.tag{font-size:13px;font-weight:600;padding:2px 9px;border-radius:12px;background:var(--light);color:var(--navy)}
+.prix{font-family:Montserrat;font-weight:700;color:var(--navy);font-size:15px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--navy);padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer;text-decoration:none}
+.btn.p{background:var(--navy);border-color:var(--navy);color:#fff}.btn.p:hover{background:var(--blue)}.btn.g{background:var(--green);border-color:var(--green);color:#fff}.btn[disabled]{opacity:.55;cursor:not-allowed}
+.panneau{position:sticky;top:16px;border:1px solid var(--line);border-radius:12px;padding:20px;background:var(--light)}
+label{display:block;font-weight:600;font-size:14px;color:var(--navy);margin:12px 0 4px}
+.in{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.deux{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dispo{margin-top:12px;padding:10px 12px;border-radius:8px;font-size:14.5px}.dispo.ok{background:var(--green-l);color:var(--green)}.dispo.ko{background:#FDECEC;color:var(--red)}.dispo.info{background:#fff;color:var(--grey);border:1px dashed var(--line)}
+.err{color:var(--red);font-size:14.5px;min-height:20px;margin-top:8px}.note{color:var(--grey);font-size:13.5px}
+.merci{border:1px solid var(--line);border-left:4px solid var(--green);border-radius:12px;padding:22px;background:#fff}
+footer{background:var(--light);border-top:1px solid var(--line);padding:22px 0;color:var(--grey);font-size:14px}
+@media (max-width:900px){.grille{grid-template-columns:1fr}.panneau{position:static}.esp{grid-template-columns:1fr}.photos{min-height:200px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="barre"></div>
+<header><div class="wrap"><a class="logo" href="/"><svg width="34" height="22" viewBox="0 0 34 22" aria-hidden="true"><g fill="none" stroke="#0A2A66" stroke-width="3.2" stroke-linecap="round"><path d="M3 20a14 14 0 0128 0"/><path d="M9 20a8 8 0 0116 0"/><path d="M14.5 20a2.5 2.5 0 015 0"/></g></svg><div><b>H TECH INNOV</b><span>Au cœur de vos projets</span></div></a>
+<a class="btn" href="/">← Retour au site</a></div></header>
+<section class="hero"><div class="wrap"><h1>Réservez votre espace de travail</h1>
+<p>Salle de formation, salle de réunion et bureaux équipés, à Cocody Riviera Jules Verne. Choisissez votre espace et votre créneau : nous confirmons votre réservation rapidement.</p>
+<div class="etapes"><span><b>1</b>Choisissez l’espace</span><span><b>2</b>Indiquez la période et les horaires</span><span><b>3</b>Recevez la confirmation</span></div></div></section>
+<main class="wrap"><div class="grille">
+ <section aria-labelledby="tEsp"><h2 id="tEsp" style="font-size:22px;margin-bottom:14px">Nos espaces</h2><div class="espaces" id="liste"><p class="note">Chargement des espaces…</p></div></section>
+ <aside class="panneau" id="panneau" aria-labelledby="tRes"></aside>
+</div></main>
+<footer><div class="wrap">H TECH INNOV · Cocody Riviera Jules Verne, Abidjan · Standard 27 22 56 28 37 · WhatsApp 07 14 94 24 21 · info@htechinnov.com</div></footer>
+<script>
+const SUPABASE_URL='https://mgdpbngmjybqphonshsl.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZHBibmdtanlicXBob25zaHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzk4NTUsImV4cCI6MjA5Njk1NTg1NX0.Xe0cONWJBxIltu7WlAq_aGGbQ5MoRZk1zhmrCIn3XWA';
+const WHATSAPP='2250714942421';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+let E=[],CHOIX=null,IDX={};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fcfa=n=>Math.round(n).toLocaleString('fr-FR').replace(/\u202f|\u00a0/g,' ')+' FCFA';
+const photo=p=>sb.storage.from('espaces').getPublicUrl(p).data.publicUrl;
+const dfr=iso=>new Date(iso+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+const auj=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const plus=(iso,n)=>{const d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+async function charger(){
+  const{data,error}=await sb.from('espaces').select('*').order('ordre').order('nom');
+  E=(data||[]).filter(e=>e.type!=='Équipement');
+  if(error||!E.length){$('#liste').innerHTML='<p class="note">Aucun espace n’est réservable en ligne pour le moment. Contactez-nous au 27 22 56 28 37.</p>';return;}
+  CHOIX=E[0].id;rendreListe();rendrePanneau();
+}
+function rendreListe(){
+  $('#liste').innerHTML=E.map(e=>{const P=e.photos||[],i=IDX[e.id]||0;
+    return `<article class="esp ${e.id===CHOIX?'choisi':''}" aria-label="${esc(e.nom)}">
+     <div class="photos">${P.length?`<img src="${photo(P[i])}" alt="${esc(e.nom)} — photo ${i+1} sur ${P.length}" loading="lazy">${P.length>1?`<div class="nav">${P.map((_,k)=>`<button type="button" aria-label="Photo ${k+1}" aria-current="${k===i}" onclick="IDX['${e.id}']=${k};rendreListe()"></button>`).join('')}</div>`:''}`:'<div class="vide">Photos à venir</div>'}</div>
+     <div class="info"><h3>${esc(e.nom)}</h3><div class="tags"><span class="tag">${esc(e.type)}</span>${e.capacite?`<span class="tag">${e.capacite} personnes</span>`:''}<span class="tag">${esc((e.heure_ouverture||'').slice(0,5))} – ${esc((e.heure_fermeture||'').slice(0,5))}</span></div>
+      ${e.description?`<p>${esc(e.description)}</p>`:''}${e.equipements?`<p><b style="color:var(--navy)">Équipements :</b> ${esc(e.equipements)}</p>`:''}
+      <p class="prix">${e.tarif_heure?fcfa(e.tarif_heure)+' / heure':''}${e.tarif_heure&&e.tarif_jour?' · ':''}${e.tarif_jour?fcfa(e.tarif_jour)+' / journée':''}${!e.tarif_heure&&!e.tarif_jour?'Tarif sur demande':''}</p>
+      <button class="btn ${e.id===CHOIX?'p':''}" type="button" onclick="choisir('${e.id}')">${e.id===CHOIX?'✓ Espace choisi':'Choisir cet espace'}</button></div></article>`;}).join('');
+}
+function choisir(id){CHOIX=id;rendreListe();rendrePanneau();if(innerWidth<900)$('#panneau').scrollIntoView({behavior:'smooth'});}
+function heures(sel,min,max){const o=[];const[a,b]=(min||'07:30').split(':').map(Number),[c,d]=(max||'19:00').split(':').map(Number);
+  for(let t=a*60+b;t<=c*60+d;t+=30){const v=String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0');o.push(`<option ${v===sel?'selected':''}>${v}</option>`);}return o.join('');}
+function rendrePanneau(){
+  const e=E.find(x=>x.id===CHOIX),d=plus(auj(),1),o=(e.heure_ouverture||'07:30').slice(0,5),f=(e.heure_fermeture||'19:00').slice(0,5);
+  $('#panneau').innerHTML=`<h2 id="tRes" style="font-size:20px">Votre réservation</h2><p class="note" style="margin:4px 0 0">${esc(e.nom)}</p>
+   <form onsubmit="event.preventDefault();envoyer()">
+   <div class="deux"><div><label for="du">Du</label><input class="in" id="du" type="date" min="${auj()}" value="${d}" required onchange="if($('#au').value<this.value)$('#au').value=this.value;verifier()"></div>
+   <div><label for="au">Au</label><input class="in" id="au" type="date" min="${auj()}" value="${d}" required onchange="verifier()"></div></div>
+   <div class="deux"><div><label for="hd">Début</label><select class="in" id="hd" onchange="verifier()">${heures('09:00',o,f)}</select></div><div><label for="hf">Fin</label><select class="in" id="hf" onchange="verifier()">${heures('12:00',o,f)}</select></div></div>
+   <div id="dispo" class="dispo info" aria-live="polite">Vérification de la disponibilité…</div>
+   <label for="nb">Nombre de personnes</label><input class="in" id="nb" type="number" min="1" ${e.capacite?`max="${e.capacite}"`:''} value="1">
+   <label for="nom">Nom et prénom *</label><input class="in" id="nom" autocomplete="name" required>
+   <label for="soc">Société / organisation</label><input class="in" id="soc" autocomplete="organization">
+   <div class="deux"><div><label for="em">E-mail *</label><input class="in" id="em" type="email" autocomplete="email" required></div><div><label for="tel">Téléphone</label><input class="in" id="tel" type="tel" autocomplete="tel"></div></div>
+   <label for="obj">Objet de la réservation</label><input class="in" id="obj" placeholder="Formation, réunion, entretien…">
+   <div id="estim" class="note" style="margin-top:10px"></div><div class="err" id="err"></div>
+   <button class="btn p" id="go" style="width:100%;margin-top:6px">Envoyer ma demande</button>
+   <p class="note">Votre demande est confirmée par notre équipe, par e-mail ou WhatsApp. Le montant affiché est indicatif.</p></form>`;
+  verifier();
+}
+async function verifier(){
+  const du=$('#du').value,au=$('#au').value,hd=$('#hd').value,hf=$('#hf').value,el=$('#dispo'),e=E.find(x=>x.id===CHOIX);
+  if(!du||!au||hf<=hd||au<du){el.className='dispo ko';el.textContent=hf<=hd?'L’heure de fin doit suivre l’heure de début.':'Vérifiez les dates.';$('#go').disabled=true;return;}
+  const nbJ=Math.round((new Date(au)-new Date(du))/864e5)+1;if(nbJ>31){el.className='dispo ko';el.textContent='31 jours au plus par demande.';$('#go').disabled=true;return;}
+  const{data,error}=await sb.rpc('espaces_occupation',{p_du:du,p_au:au});if(error){el.className='dispo info';el.textContent='Disponibilité vérifiée à l’envoi.';$('#go').disabled=false;return;}
+  const occ=(data||[]).filter(o=>o.espace_id===CHOIX),pris=[];
+  for(let i=0;i<nbJ;i++){const j=plus(du,i),a=new Date(j+'T'+hd+':00Z'),b=new Date(j+'T'+hf+':00Z');if(occ.some(o=>new Date(o.debut)<b&&new Date(o.fin)>a))pris.push(j);}
+  if(pris.length){el.className='dispo ko';el.innerHTML='Déjà réservé : '+pris.map(dfr).join(', ')+'. Choisissez un autre horaire ou un autre espace.';$('#go').disabled=true;}
+  else{el.className='dispo ok';el.textContent='✓ Disponible sur '+(nbJ>1?'les '+nbJ+' jours':'ce créneau');$('#go').disabled=false;}
+  const h=(Number(hf.slice(0,2))*60+Number(hf.slice(3))-Number(hd.slice(0,2))*60-Number(hd.slice(3)))/60;
+  const m=nbJ*(e.tarif_jour&&h>=6?e.tarif_jour:e.tarif_heure?e.tarif_heure*h:0);$('#estim').textContent=m?'Estimation : '+fcfa(m)+' ('+nbJ+' jour'+(nbJ>1?'s':'')+' × '+h+' h)':'';
+}
+async function envoyer(){
+  const b=$('#go');b.disabled=true;$('#err').textContent='';
+  const p={p_espace:CHOIX,p_du:$('#du').value,p_au:$('#au').value,p_heure_debut:$('#hd').value,p_heure_fin:$('#hf').value,p_nom:$('#nom').value.trim(),p_societe:$('#soc').value.trim(),p_email:$('#em').value.trim(),p_tel:$('#tel').value.trim(),p_nb:parseInt($('#nb').value)||null,p_objet:$('#obj').value.trim()};
+  const{data,error}=await sb.rpc('demander_reservation',p);
+  if(error){$('#err').textContent=(error.message||'').replace(/^.*?:\s(?=[A-ZÉ])/,'');b.disabled=false;verifier();return;}
+  const e=E.find(x=>x.id===CHOIX),msg=`Bonjour H TECH INNOV, je viens de demander la réservation ${data} : ${e.nom}, du ${p.p_du} au ${p.p_au}, de ${p.p_heure_debut} à ${p.p_heure_fin}.`;
+  $('#panneau').innerHTML=`<div class="merci" role="status"><h2 style="font-size:20px">Demande envoyée ✓</h2><p>Référence <b>${esc(data)}</b><br>${esc(e.nom)}<br>${p.p_du===p.p_au?'Le '+dfr(p.p_du):'Du '+dfr(p.p_du)+' au '+dfr(p.p_au)}, de ${p.p_heure_debut} à ${p.p_heure_fin}</p>
+   <p class="note">Le créneau vous est réservé en attendant notre confirmation, par e-mail ou WhatsApp.</p>
+   <a class="btn g" style="width:100%" target="_blank" rel="noopener" href="https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}">Nous écrire sur WhatsApp</a>
+   <button class="btn" style="width:100%;margin-top:8px" onclick="rendrePanneau()">Nouvelle demande</button></div>`;
+}
+charger();
+</script>
+</body>
+</html>
