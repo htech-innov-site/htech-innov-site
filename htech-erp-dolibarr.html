@@ -4912,7 +4912,7 @@ async function commandePDF(id){
       created_at:c.created_at,date_echeance:c.date_livraison_prevue,
       lignes:c.lignes,exonere_tva:c.exonere_tva,
       sous_total:c.montant_ht,tva_pct:c.tva_pct,tva_montant:c.tva_montant,total_ttc:c.montant_ttc,
-      notes:c.notes,statut:c.statut,type_commande:bcTypeNorm(c.type_commande)
+      notes:c.notes,statut:c.statut,type_commande:bcTypeNorm(c.type_commande),validation_statut:c.validation_statut
     };
     const figees=c.annexes||{};
     docData._annexes=await Promise.all(BC_TYPE_ANNEXES[docData.type_commande].map(async k=>({...(await annexeVersion(k,figees[k])),code:k})));
@@ -12235,7 +12235,11 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   const contact=T([E.tel,E.email,E.web].filter(Boolean).join('  |  '));
   for(let i=1;i<=nb;i++){
     doc.setPage(i);
-    if(d.statut==='brouillon'&&!isBC&&!isDP){
+    if(d.validation_statut==='a_valider'||d.validation_statut==='refuse'){
+      try{doc.setGState(new doc.GState({opacity:0.08}));}catch(e){}
+      doc.setFontSize(d.validation_statut==='refuse'?80:62);color(d.validation_statut==='refuse'?RED:NAVY,'bold');doc.text(d.validation_statut==='refuse'?'REFUSÉ':'À VALIDER',W/2,175,{align:'center',angle:30});
+      try{doc.setGState(new doc.GState({opacity:1}));}catch(e){}
+    }else if(d.statut==='brouillon'&&!isBC&&!isDP){
       try{doc.setGState(new doc.GState({opacity:0.07}));}catch(e){}
       doc.setFontSize(70);color(NAVY,'bold');doc.text('BROUILLON',W/2,175,{align:'center',angle:30});
       try{doc.setGState(new doc.GState({opacity:1}));}catch(e){}
@@ -16980,6 +16984,7 @@ async function abeReferences(){
 </script>
 <script>
 
+
 // ══════════════════════════════════════════════════════════════════════
 // COLLABORATEURS ET DROITS PAR MODULE  ·  DEMANDES DE PRIX
 // ══════════════════════════════════════════════════════════════════════
@@ -17037,41 +17042,68 @@ async function erpMdpEnregistrer(){const a=document.getElementById('mo1').value,
 async function erpUtil(body){const{data,error}=await sb.functions.invoke('erp-utilisateurs',{body});let det=data;
   if(error){try{if(error.context&&typeof error.context.json==='function')det=await error.context.json();}catch(_){}if(!det)throw new Error(/Failed to send|FunctionsFetch/i.test(error.message||'')?'La fonction « erp-utilisateurs » n’est pas déployée sur Supabase.':error.message);}
   if(det?.error)throw new Error(det.error);return det;}
-var UT_ROWS=[];
-v4Def('utilisateurs',{titre:'Collaborateurs et accès',icone:'👥',custom:async pg=>{
-  const{data,error}=await sb.from('profiles').select('*').order('nom');
-  UT_ROWS=(data||[]).filter(p=>!['client','apprenant','formateur'].includes(p.role));
-  const mods=erpModules(),moi=CP?.role;
-  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">👥 Collaborateurs et accès</h1><div class="page-sub">Comptes de l’équipe, droits par module, désactivation des départs</div></div>
+var UT_ROWS=[],UT_FILTRE='equipe';
+const UT_ROLES=['superadmin','admin','directeur','responsable','chef_projet','comptable','administrateur','collaborateur','formateur','apprenant','client'];
+const utNomRole=r=>(typeof RL!=='undefined'&&RL[r])||{chef_projet:'Chef de projet',administrateur:'Administrateur',apprenant:'Apprenant',directeur:'Directeur',comptable:'Comptable'}[r]||r;
+// Modules de l'ERP regroupés comme dans le menu
+function erpSections(){const src=NAV.superadmin||[],out=[];let cur={s:'Général',items:[]};const vus={};
+  src.forEach(n=>{if(n.s){if(cur.items.length)out.push(cur);cur={s:n.s,items:[]};return;}if(n.id&&!ERP_TOUJOURS.includes(n.id)&&!['admin','utilisateurs'].includes(n.id)&&!vus[n.id]){vus[n.id]=1;cur.items.push(n);}});
+  if(cur.items.length)out.push(cur);const autres=erpModules().filter(m=>!vus[m.id]&&!['admin','utilisateurs'].includes(m.id));if(autres.length)out.push({s:'Autres',items:autres});return out;}
+function grilleDroits(d){
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><span class="cell-sub">Modèles :</span>${Object.keys(ERP_MODELES).map(m=>`<button type="button" class="btn btn-outline btn-sm" onclick="grilleModele('${jsq(m)}')">${esc(m)}</button>`).join('')}
+    <button type="button" class="btn btn-outline btn-sm" onclick="grilleTout(true)">Tout cocher</button><button type="button" class="btn btn-outline btn-sm" onclick="grilleTout(false)">Tout décocher</button></div>
+   <div id="grilleDroits" style="max-height:46vh;overflow:auto;border:1px solid var(--g200);border-radius:10px;padding:6px 12px">${erpSections().map(sec=>`<div style="margin:8px 0 4px;font-weight:700;color:var(--navy);font-size:12.5px;text-transform:uppercase;letter-spacing:.04em">${esc(sec.s)}</div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:4px 14px">${sec.items.map(m=>{const v=d?(d[m.id]||'aucun'):'aucun';
+     return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0"><label style="display:flex;align-items:center;gap:7px;flex:1;cursor:pointer;font-size:13px"><input type="checkbox" data-m="${m.id}" ${v!=='aucun'?'checked':''} onchange="this.closest('div').querySelector('select').disabled=!this.checked"> ${m.i||''} ${esc(m.l)}</label>
+       <select data-n="${m.id}" ${v==='aucun'?'disabled':''} style="font-size:11.5px;padding:2px 4px" aria-label="Niveau d’accès ${esc(m.l)}"><option value="ecriture" ${v!=='lecture'?'selected':''}>Modification</option><option value="lecture" ${v==='lecture'?'selected':''}>Consultation</option></select></div>`;}).join('')}</div>`).join('')}</div>
+   <p class="cell-sub">Le tableau de bord et les paramètres personnels restent toujours accessibles. Les devis, factures, bons de commande et demandes de prix créés ou modifiés par ce collaborateur passeront par la validation d’un super administrateur.</p>`;}
+function lireGrille(){const d={};document.querySelectorAll('#grilleDroits input[data-m]').forEach(c=>{d[c.dataset.m]=c.checked?(document.querySelector(`#grilleDroits select[data-n="${c.dataset.m}"]`).value):'aucun';});return d;}
+function grilleModele(nom){const d=erpDroitsModele(nom);document.querySelectorAll('#grilleDroits input[data-m]').forEach(c=>{const v=d[c.dataset.m]||'aucun';c.checked=v!=='aucun';const s=document.querySelector(`#grilleDroits select[data-n="${c.dataset.m}"]`);s.disabled=!c.checked;if(c.checked)s.value=v;});}
+function grilleTout(on){document.querySelectorAll('#grilleDroits input[data-m]').forEach(c=>{c.checked=on;document.querySelector(`#grilleDroits select[data-n="${c.dataset.m}"]`).disabled=!on;});}
+function utRafraichir(){const a=document.getElementById('page-admin');if(a&&a.classList.contains('active'))loadAdmin();else if(typeof v4Render==='function')v4Render('utilisateurs');}
+async function utRendre(pg){
+  const{data,error}=await sb.from('profiles').select('*').order('created_at',{ascending:false});const tous=data||[];
+  const groupe=p=>['client'].includes(p.role)?'clients':['formateur','apprenant'].includes(p.role)?'academy':'equipe';
+  UT_ROWS=tous.filter(p=>UT_FILTRE==='tous'||groupe(p)===UT_FILTRE);const moi=CP?.role;
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🛡️ Administration — comptes et accès</h1><div class="page-sub">Créer, fermer ou supprimer un compte, choisir les modules accessibles</div></div>
     <div class="v4-tools"><button class="btn btn-primary btn-sm" onclick="utForm()">+ Nouveau collaborateur</button></div></div>
   ${error?`<div class="card" style="border-left:4px solid #D97706">⚠️ ${esc(error.message)}</div>`:''}
-  ${UT_ROWS.some(p=>p.actif===undefined)?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:12px">⚠️ Exécutez <b>migration-collaborateurs-demandes-prix.sql</b> pour activer la désactivation et les droits par module.</div>':''}
+  ${tous.length&&tous[0].actif===undefined?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:12px">⚠️ Exécutez <b>migration-collaborateurs-demandes-prix.sql</b> pour activer la fermeture des comptes, les droits par module et la validation.</div>':''}
   <div class="grid-4" style="margin-bottom:.9rem">
-    <div class="kpi"><div class="kpi-icon green">🟢</div><div class="kpi-label">Comptes actifs</div><div class="kpi-value">${UT_ROWS.filter(p=>p.actif!==false).length}</div></div>
-    <div class="kpi"><div class="kpi-icon red">⛔</div><div class="kpi-label">Désactivés</div><div class="kpi-value">${UT_ROWS.filter(p=>p.actif===false).length}</div></div>
-    <div class="kpi"><div class="kpi-icon blue">🔐</div><div class="kpi-label">Droits personnalisés</div><div class="kpi-value">${UT_ROWS.filter(p=>p.droits).length}</div></div>
-    <div class="kpi"><div class="kpi-icon amber">🧩</div><div class="kpi-label">Modules</div><div class="kpi-value">${mods.length}</div></div></div>
-  <div class="card"><div class="table-wrap"><table><thead><tr><th>Collaborateur</th><th>Rôle</th><th>Droits</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
-  ${UT_ROWS.map(p=>{const nb=p.droits?Object.values(p.droits).filter(v=>v!=='aucun').length:null,soi=p.id===CU?.id,protege=p.role==='superadmin'||(p.role==='admin'&&moi!=='superadmin');
-    return `<tr style="${p.actif===false?'opacity:.55':''}"><td><strong>${esc([p.prenom,p.nom].filter(Boolean).join(' ')||p.email)}</strong><div class="cell-sub">${esc(p.email||'')}${p.poste?' · '+esc(p.poste):''}</div></td>
-    <td>${esc((typeof RL!=='undefined'&&RL[p.role])||p.role)}</td><td style="font-size:12px">${p.role==='superadmin'?'Tous':nb===null?'Selon le rôle':nb+' module(s)'}</td>
-    <td>${p.actif===false?'<span class="badge" style="background:#FDECEC;color:#B42318">Désactivé</span>':'<span class="badge" style="background:#EDF6E8;color:#3F8A1E">Actif</span>'}</td>
-    <td><div style="display:flex;gap:4px;flex-wrap:wrap">${soi||protege?'<span class="cell-sub">—</span>':`<button class="btn btn-outline btn-sm" onclick="utDroits('${p.id}')" title="Droits par module">🔐 Droits</button>
+    <div class="kpi"><div class="kpi-icon blue">👤</div><div class="kpi-label">Comptes</div><div class="kpi-value">${tous.length}</div></div>
+    <div class="kpi"><div class="kpi-icon green">🟢</div><div class="kpi-label">Actifs</div><div class="kpi-value">${tous.filter(p=>p.actif!==false).length}</div></div>
+    <div class="kpi"><div class="kpi-icon red">⛔</div><div class="kpi-label">Fermés</div><div class="kpi-value">${tous.filter(p=>p.actif===false).length}</div></div>
+    <div class="kpi"><div class="kpi-icon amber">🛡️</div><div class="kpi-label">Administrateurs</div><div class="kpi-value">${tous.filter(p=>['superadmin','admin'].includes(p.role)).length}</div></div></div>
+  <div class="card"><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${[['equipe','Équipe'],['academy','Formateurs et apprenants'],['clients','Clients'],['tous','Tous']].map(([k,l])=>`<button class="btn ${UT_FILTRE===k?'btn-primary':'btn-outline'} btn-sm" onclick="UT_FILTRE='${k}';utRafraichir()">${l} (${k==='tous'?tous.length:tous.filter(p=>groupe(p)===k).length})</button>`).join('')}</div>
+  <div class="table-wrap"><table><thead><tr><th>Compte</th><th>Rôle</th><th>Accès</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
+  ${UT_ROWS.map(p=>{const nb=p.droits?Object.values(p.droits).filter(v=>v!=='aucun').length:null,soi=p.id===CU?.id,protege=p.role==='superadmin'&&moi!=='superadmin'||(p.role==='admin'&&moi!=='superadmin');
+    const roles=UT_ROLES.filter(r=>r!=='superadmin'||moi==='superadmin');
+    return `<tr style="${p.actif===false?'opacity:.55':''}"><td><strong>${esc([p.prenom,p.nom].filter(Boolean).join(' ')||p.email)}</strong><div class="cell-sub">${esc(p.email||'')}${p.poste?' · '+esc(p.poste):''} · créé le ${p.created_at?new Date(p.created_at).toLocaleDateString('fr-FR'):'—'}</div></td>
+    <td>${soi||protege?`<span class="badge role-${esc(p.role)}">${esc(utNomRole(p.role))}</span>`:`<select onchange="utRole('${p.id}',this.value,this)" style="font-size:11.5px;padding:3px 6px" aria-label="Rôle">${(roles.includes(p.role)?roles:[p.role,...roles]).map(r=>`<option value="${r}" ${r===p.role?'selected':''}>${esc(utNomRole(r))}</option>`).join('')}</select>`}</td>
+    <td style="font-size:12px">${p.role==='superadmin'?'Tous les modules':['client','formateur','apprenant'].includes(p.role)?'Selon le rôle':nb===null?'Selon le rôle':nb+' module(s)'}</td>
+    <td>${p.actif===false?'<span class="badge" style="background:#FDECEC;color:#B42318">Fermé</span>':'<span class="badge" style="background:#EDF6E8;color:#3F8A1E">Actif</span>'}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap">${soi||protege?'<span class="cell-sub">—</span>':`${['client','formateur','apprenant'].includes(p.role)?'':`<button class="btn btn-outline btn-sm" onclick="utDroits('${p.id}')">🔐 Modules</button>`}
       <button class="btn btn-outline btn-sm" onclick="utAction('reinitialiser','${p.id}')" title="Nouveau mot de passe provisoire">🔑</button>
-      ${p.actif===false?`<button class="btn btn-outline btn-sm" onclick="utAction('reactiver','${p.id}')">Réactiver</button>`:`<button class="btn btn-outline btn-sm" onclick="utAction('desactiver','${p.id}')">Désactiver</button>`}
-      ${moi==='superadmin'?`<button class="btn btn-outline btn-sm" onclick="utSupprimer('${p.id}')" title="Supprimer définitivement">🗑</button>`:''}`}</div></td></tr>`;}).join('')||'<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--g400)">Aucun collaborateur.</td></tr>'}
+      ${p.actif===false?`<button class="btn btn-outline btn-sm" onclick="utAction('reactiver','${p.id}')">Rouvrir</button>`:`<button class="btn btn-outline btn-sm" onclick="utAction('desactiver','${p.id}')">Fermer</button>`}
+      ${moi==='superadmin'?`<button class="btn btn-outline btn-sm" onclick="utSupprimer('${p.id}')" title="Supprimer définitivement" style="color:#B42318">🗑 Supprimer</button>`:''}`}</div></td></tr>`;}).join('')||'<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--g400)">Aucun compte.</td></tr>'}
   </tbody></table></div></div>
-  <p class="cell-sub" style="margin-top:8px">« Désactiver » coupe l’accès immédiatement et conserve l’historique (devis, interventions, journal). La suppression définitive est réservée au super administrateur et n’est possible que si aucun document n’est rattaché au compte.</p>`;
-}});
+  <p class="cell-sub" style="margin-top:8px">« Fermer » coupe l’accès immédiatement et conserve l’historique. « Supprimer » efface le compte définitivement (super administrateur uniquement, si aucun document n’y est rattaché).</p>`;
+}
+v4Def('utilisateurs',{titre:'Collaborateurs et accès',icone:'👥',custom:utRendre});
+loadAdmin=async function(){const pg=document.getElementById('page-admin');if(pg)await utRendre(pg);};
+async function utRole(id,role,sel){const p=UT_ROWS.find(x=>x.id===id);
+  if(!confirm('Changer le rôle de '+([p?.prenom,p?.nom].filter(Boolean).join(' ')||p?.email)+' en « '+utNomRole(role)+' » ?')){sel.value=p.role;return;}
+  const{error}=await sb.from('profiles').update({role}).eq('id',id);if(error){toast('❌ '+error.message,8000);sel.value=p.role;return;}
+  try{logAudit('changement_role','profiles',id,{role});}catch(e){}toast('✅ Rôle modifié');utRafraichir();}
 function utForm(){
   const roles=ERP_ROLES_EQUIPE.filter(r=>r!=='admin'||CP?.role==='superadmin');
-  document.getElementById('modalBox').style.width='min(620px,96vw)';document.getElementById('modalTitle').textContent='Nouveau collaborateur';
+  document.getElementById('modalBox').style.width='min(860px,96vw)';document.getElementById('modalTitle').textContent='Nouveau collaborateur';
   document.getElementById('modalBody').innerHTML=`<div class="form-grid">
    <div class="form-field"><label for="utPr">Prénom *</label><input id="utPr" oninput="utEmailAuto()"></div><div class="form-field"><label for="utNo">Nom *</label><input id="utNo" oninput="utEmailAuto()"></div>
    <div class="form-field full"><label for="utEm">Adresse e-mail professionnelle * (identifiant de connexion)</label><input id="utEm" type="email" placeholder="prenom.nom@htechinnov.com" oninput="this.dataset.manuel=1"><div class="cell-sub">Créez d’abord cette boîte chez votre fournisseur de messagerie si elle n’existe pas.</div></div>
    <div class="form-field"><label for="utTe">Téléphone</label><input id="utTe"></div><div class="form-field"><label for="utPo">Poste</label><input id="utPo" placeholder="Technicien, commercial…"></div>
-   <div class="form-field"><label for="utRo">Rôle</label><select id="utRo">${roles.map(r=>`<option value="${r}" ${r==='collaborateur'?'selected':''}>${esc((typeof RL!=='undefined'&&RL[r])||r)}</option>`).join('')}</select></div>
-   <div class="form-field"><label for="utMo">Droits</label><select id="utMo"><option value="">Selon le rôle</option>${Object.keys(ERP_MODELES).map(m=>`<option>${esc(m)}</option>`).join('')}<option value="__perso">Personnalisés (à choisir ensuite)</option></select></div></div>`;
+   <div class="form-field"><label for="utRo">Rôle</label><select id="utRo">${roles.map(r=>`<option value="${r}" ${r==='collaborateur'?'selected':''}>${esc(utNomRole(r))}</option>`).join('')}</select></div></div>
+   <h3 class="v4-h3" style="margin:14px 0 6px">Modules auxquels il a accès</h3>${grilleDroits(null)}`;
   document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="utGo" onclick="utCreer()">Créer le compte</button>`;
   document.getElementById('modalOverlay').classList.add('open');
 }
@@ -17079,11 +17111,10 @@ function utEmailAuto(){const e=document.getElementById('utEm');if(e.dataset.manu
   const p=s(gv('utPr').split(' ')[0]),n=s(gv('utNo'));e.value=p&&n?p+'.'+n+'@htechinnov.com':'';}
 async function utCreer(){
   const b=document.getElementById('utGo');if(!g('utPr')||!g('utNo')||!g('utEm')){toast('❌ Prénom, nom et e-mail requis');return;}
-  const mo=gv('utMo'),droits=mo&&mo!=='__perso'?erpDroitsModele(mo):(mo==='__perso'?erpDroitsModele(''):null);
+  const droits=lireGrille();if(!Object.values(droits).some(v=>v!=='aucun')&&!confirm('Aucun module coché : le collaborateur ne verra que son tableau de bord. Continuer ?'))return;
   b.disabled=true;b.textContent='Création…';
   try{const r=await erpUtil({action:'creer',prenom:g('utPr'),nom:g('utNo'),email:g('utEm'),telephone:g('utTe'),poste:g('utPo'),role:gv('utRo'),droits});
-    try{logAudit('creation_compte','profiles',r.user_id,{email:r.acces.email});}catch(e){}
-    utAfficherAcces(r.acces,g('utTe'));if(mo==='__perso')window._UT_APRES=r.user_id;}
+    try{logAudit('creation_compte','profiles',r.user_id,{email:r.acces.email});}catch(e){}utAfficherAcces(r.acces,g('utTe'));}
   catch(e){b.disabled=false;b.textContent='Créer le compte';toast('❌ '+e.message,9000);}
 }
 function utAfficherAcces(a,tel){
@@ -17093,39 +17124,56 @@ function utAfficherAcces(a,tel){
   document.getElementById('modalBody').innerHTML=`<p><b>${esc(a.nom)}</b></p><p>Identifiant : <code style="font-size:14px">${esc(a.email)}</code></p><p>Mot de passe provisoire : <code style="font-size:14px;font-weight:700">${esc(a.mot_de_passe)}</code></p>
    <div class="card" style="border-left:4px solid #D97706;font-size:12.5px">Transmettez ces informations maintenant : le mot de passe ne sera plus affiché. Il devra être changé à la première connexion.</div>`;
   document.getElementById('modalFooter').innerHTML=`${wa?`<a class="btn btn-accent" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(msg)}">WhatsApp</a>`:''}<a class="btn btn-outline" href="mailto:${esc(a.email)}?subject=${encodeURIComponent('Votre accès à l’ERP H TECH INNOV')}&body=${encodeURIComponent(msg)}">E-mail</a>
-   <button class="btn btn-outline" onclick="navigator.clipboard.writeText(window._UT_MSG).then(()=>toast('Message copié'))">Copier</button><button class="btn btn-primary" onclick="closeModal();v4Render('utilisateurs');if(window._UT_APRES){const u=window._UT_APRES;window._UT_APRES=null;setTimeout(()=>utDroits(u),400);}">Terminé</button>`;
+   <button class="btn btn-outline" onclick="navigator.clipboard.writeText(window._UT_MSG).then(()=>toast('Message copié'))">Copier</button><button class="btn btn-primary" onclick="closeModal();utRafraichir()">Terminé</button>`;
   document.getElementById('modalOverlay').classList.add('open');
 }
 async function utAction(action,id){
   const p=UT_ROWS.find(x=>x.id===id),nom=[p?.prenom,p?.nom].filter(Boolean).join(' ')||p?.email;
-  const q={reinitialiser:'Générer un nouveau mot de passe provisoire pour '+nom+' ?',desactiver:'Désactiver le compte de '+nom+' ? Son accès sera coupé immédiatement ; son historique est conservé.',reactiver:'Réactiver le compte de '+nom+' ?'}[action];
+  const q={reinitialiser:'Générer un nouveau mot de passe provisoire pour '+nom+' ?',desactiver:'Fermer le compte de '+nom+' ? Son accès sera coupé immédiatement ; son historique est conservé.',reactiver:'Rouvrir le compte de '+nom+' ?'}[action];
   if(!confirm(q))return;
   try{const r=await erpUtil({action,user_id:id});try{logAudit(action+'_compte','profiles',id,{});}catch(e){}
-    if(action==='reinitialiser')utAfficherAcces(r.acces,p?.telephone);else{toast(action==='desactiver'?'⛔ Compte désactivé':'✅ Compte réactivé');v4Render('utilisateurs');}}
+    if(action==='reinitialiser')utAfficherAcces(r.acces,p?.telephone);else{toast(action==='desactiver'?'⛔ Compte fermé':'✅ Compte rouvert');utRafraichir();}}
   catch(e){toast('❌ '+e.message,9000);}
 }
 async function utSupprimer(id){const p=UT_ROWS.find(x=>x.id===id);
-  const s=prompt('Suppression définitive de '+(p?.email||'')+'.\nPréférez « Désactiver » pour conserver l’historique.\n\nTapez l’adresse e-mail pour confirmer :');if(!s)return;
+  const s=prompt('Suppression définitive de '+(p?.email||'')+'.\nPréférez « Fermer » pour conserver l’historique.\n\nTapez l’adresse e-mail pour confirmer :');if(!s)return;
   if(s.trim().toLowerCase()!==(p?.email||'').toLowerCase()){toast('Adresse différente : suppression annulée');return;}
-  try{await erpUtil({action:'supprimer',user_id:id});try{logAudit('suppression_compte','profiles',id,{email:p?.email});}catch(e){}toast('🗑 Compte supprimé');v4Render('utilisateurs');}catch(e){toast('❌ '+e.message,10000);}}
+  try{await erpUtil({action:'supprimer',user_id:id});try{logAudit('suppression_compte','profiles',id,{email:p?.email});}catch(e){}toast('🗑 Compte supprimé');utRafraichir();}catch(e){toast('❌ '+e.message,10000);}}
 function utDroits(id){
-  const p=UT_ROWS.find(x=>x.id===id)||{},mods=erpModules(),d=p.droits||{};window._UT_ID=id;
-  const sel=(m,v)=>`<select data-m="${m}" style="font-size:12.5px;padding:3px 6px">${[['aucun','Aucun accès'],['lecture','Consultation'],['ecriture','Modification']].map(([k,l])=>`<option value="${k}" ${v===k?'selected':''}>${l}</option>`).join('')}</select>`;
-  document.getElementById('modalBox').style.width='min(720px,96vw)';document.getElementById('modalTitle').textContent='🔐 Droits — '+([p.prenom,p.nom].filter(Boolean).join(' ')||p.email||'');
-  document.getElementById('modalBody').innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center"><span class="cell-sub">Partir d’un modèle :</span>
-    ${Object.keys(ERP_MODELES).map(m=>`<button class="btn btn-outline btn-sm" onclick="utAppliquerModele('${jsq(m)}')">${esc(m)}</button>`).join('')}</div>
-   ${p.droits?'':'<div class="card" style="border-left:4px solid #1565C0;font-size:12.5px;margin-bottom:10px">Actuellement : accès selon le rôle. Enregistrer ces droits les remplace par un réglage module par module.</div>'}
-   <div class="table-wrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Module</th><th>Accès</th></tr></thead><tbody>${mods.map(m=>`<tr><td>${m.i||''} ${esc(m.l)}</td><td>${sel(m.id,p.droits?(d[m.id]||'aucun'):'ecriture')}</td></tr>`).join('')}</tbody></table></div>
-   <p class="cell-sub">Le tableau de bord et les paramètres personnels restent toujours accessibles. Les droits s’appliquent à la prochaine ouverture de l’ERP par le collaborateur.</p>`;
+  const p=UT_ROWS.find(x=>x.id===id)||{};window._UT_ID=id;
+  document.getElementById('modalBox').style.width='min(860px,96vw)';document.getElementById('modalTitle').textContent='🔐 Modules — '+([p.prenom,p.nom].filter(Boolean).join(' ')||p.email||'');
+  document.getElementById('modalBody').innerHTML=`${p.droits?'':'<div class="card" style="border-left:4px solid #1565C0;font-size:12.5px;margin-bottom:10px">Actuellement : accès selon le rôle. Cochez les modules autorisés : seuls ceux-ci seront accessibles.</div>'}${grilleDroits(p.droits)}`;
   document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="utDroitsRole()">Revenir aux droits du rôle</button><button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="utDroitsEnregistrer()">Enregistrer</button>`;
   document.getElementById('modalOverlay').classList.add('open');
 }
-function utAppliquerModele(nom){const d=erpDroitsModele(nom);document.querySelectorAll('#modalBody select[data-m]').forEach(s=>{s.value=d[s.dataset.m]||'aucun';});toast('Modèle « '+nom+' » appliqué : ajustez si besoin, puis enregistrez');}
-async function utDroitsEnregistrer(){const d={};document.querySelectorAll('#modalBody select[data-m]').forEach(s=>{d[s.dataset.m]=s.value;});
-  Object.entries(ERP_MODELES).forEach(()=>{});const{error}=await sb.from('profiles').update({droits:d}).eq('id',window._UT_ID);
-  if(error){toast('❌ '+error.message,9000);return;}try{logAudit('droits','profiles',window._UT_ID,d);}catch(e){}toast('✅ Droits enregistrés');closeModal();v4Render('utilisateurs');}
+async function utDroitsEnregistrer(){const d=lireGrille();const{error}=await sb.from('profiles').update({droits:d}).eq('id',window._UT_ID);
+  if(error){toast('❌ '+error.message,9000);return;}try{logAudit('droits','profiles',window._UT_ID,d);}catch(e){}toast('✅ Modules enregistrés');closeModal();utRafraichir();}
 async function utDroitsRole(){if(!confirm('Revenir aux droits définis par le rôle ?'))return;const{error}=await sb.from('profiles').update({droits:null}).eq('id',window._UT_ID);
-  if(error){toast('❌ '+error.message);return;}toast('Droits selon le rôle');closeModal();v4Render('utilisateurs');}
+  if(error){toast('❌ '+error.message);return;}toast('Droits selon le rôle');closeModal();utRafraichir();}
+
+// ── Validation des documents (super administrateur) ──
+const VAL_DOCS=[{t:'devis',l:'Devis',ref:'reference',tiers:'client_nom',titre:'titre',mt:'total_ttc',pdf:'devisPDF'},{t:'factures',l:'Factures',ref:'reference',tiers:'client_nom',titre:'titre',mt:'total_ttc',pdf:'facturePDF'},
+  {t:'bons_commande',l:'Bons de commande',ref:'reference',tiers:'fournisseur_nom',titre:'titre',mt:'montant_ttc',pdf:'commandePDF'},{t:'demandes_prix',l:'Demandes de prix',ref:'reference',tiers:'fournisseur_nom',titre:'objet',mt:null,pdf:'valDpPdf'}];
+const estSuper=()=>CP?.role==='superadmin';
+const badgeValidation=r=>r?.validation_statut==='a_valider'?'<span class="badge" style="background:#FEF3E2;color:#B45309">À valider</span>':r?.validation_statut==='refuse'?`<span class="badge" style="background:#FDECEC;color:#B42318" title="${esc(r.validation_motif||'')}">Refusé</span>`:'';
+async function valDpPdf(id){if(!DP_ROWS.some(x=>x.id===id)){const{data}=await sb.from('demandes_prix').select('*').eq('id',id).single();if(data)DP_ROWS.push(data);}return dpPdf(id);}
+async function valBlocs(){
+  const res=await Promise.all(VAL_DOCS.map(d=>sb.from(d.t).select('*').eq('validation_statut','a_valider').order('updated_at',{ascending:false}).then(x=>({d,rows:x.data||[],err:x.error}))));
+  await v4Src('profiles');const sup=estSuper();
+  return `<div class="card" style="margin-top:14px;border-left:4px solid #B45309"><h3 class="v4-h3">Documents à valider ${sup?'':'<span class="cell-sub">(validation réservée aux super administrateurs)</span>'}</h3>
+   ${res.map(({d,rows,err})=>err?'':`<h4 style="margin:12px 0 6px;color:var(--navy)">${d.l} <span class="badge ${rows.length?'badge-amber':'badge-gray'}">${rows.length}</span></h4>${rows.length?`<div class="table-wrap"><table><tbody>${rows.map(r=>`<tr>
+     <td><div class="cell-main">${esc(r[d.ref]||'')} — ${esc(r[d.tiers]||'')}</div><div class="cell-sub">${esc(r[d.titre]||'')}${d.mt&&r[d.mt]!=null?' · '+esc(fmtF(r[d.mt]))+' FCFA TTC':''} · par ${esc(srcLabel('profiles',r.created_by)||'—')}${r.updated_at?' · modifié le '+esc(fmtD(r.updated_at)):''}</div></td>
+     <td><div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">${typeof window[d.pdf]==='function'?`<button class="btn btn-outline btn-sm" onclick="${d.pdf}('${r.id}')">PDF</button>`:''}
+       ${sup?`<button class="btn btn-accent btn-sm" onclick="validerDoc('${d.t}','${r.id}','valide')">Valider</button><button class="btn btn-outline btn-sm" onclick="validerDoc('${d.t}','${r.id}','refuse')">Refuser</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`:'<p class="cell-sub">Rien à valider.</p>'}`).join('')}</div>`;
+}
+async function validerDoc(table,id,decision){
+  if(!estSuper()){toast('🔒 Validation réservée aux super administrateurs');return;}
+  let motif=null;if(decision==='refuse'){motif=prompt('Motif du refus (transmis à l’auteur) :');if(motif===null)return;}
+  const{error}=await sb.from(table).update({validation_statut:decision,validation_motif:motif}).eq('id',id);
+  if(error){toast('❌ '+error.message,8000);return;}try{logAudit(decision==='valide'?'validation':'refus',table,id,{motif});}catch(e){}
+  toast(decision==='valide'?'✅ Document validé':'Document refusé');v4Render('validations');}
+(function(){try{const V=V4.validations;if(!V)return;const orig=V.custom;
+  V.custom=async pg=>{if(estAdmin()){await orig(pg);}else{pg.innerHTML='<div class="v4-head"><div><h1 class="page-title">✅ Validations</h1></div></div>';}pg.insertAdjacentHTML('beforeend',await valBlocs());};}catch(e){logErr(e);}})();
 
 // ── Demandes de prix ──
 const DP_ST={brouillon:['Brouillon','#7A90A8'],envoyee:['Envoyée','#D97706'],offre_recue:['Offre reçue','#1565C0'],retenue:['Retenue','#3F8A1E'],non_retenue:['Non retenue','#7C3AED'],annulee:['Annulée','#B42318']};
@@ -17152,8 +17200,8 @@ v4Def('demandes-prix',{titre:'Demandes de prix',icone:'📨',custom:async pg=>{
     <td><strong>${esc(r.fournisseur_nom)}</strong></td><td style="font-size:12px">${esc(r.objet)}<div class="cell-sub">${(r.lignes||[]).length} ligne(s)</div></td>
     <td style="font-size:12px;${r.statut==='envoyee'&&r.date_limite&&r.date_limite<auj?'color:#B42318;font-weight:600':''}">${r.date_limite?fmtD(r.date_limite):'—'}</td>
     <td style="font-size:12px">${r.montant_offre!=null?fmtF(r.montant_offre)+' FCFA':'—'}${r.delai_offre?`<div class="cell-sub">${esc(r.delai_offre)}</div>`:''}</td>
-    <td><span class="badge" style="background:${DP_ST[r.statut][1]}22;color:${DP_ST[r.statut][1]}">${DP_ST[r.statut][0]}</span></td>
-    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="dpForm('${r.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="dpPdf('${r.id}')" title="Télécharger en PDF">📄</button><button class="btn btn-outline btn-sm" onclick="dpWord('${r.id}')" title="Télécharger en Word (.docx)" style="font-weight:700;color:#2B579A">W</button><button class="btn btn-outline btn-sm" onclick="dpExcel('${r.id}')" title="Télécharger en Excel (.xlsx) — le fournisseur peut y saisir ses prix" style="font-weight:700;color:#217346">X</button>
+    <td><span class="badge" style="background:${DP_ST[r.statut][1]}22;color:${DP_ST[r.statut][1]}">${DP_ST[r.statut][0]}</span> ${badgeValidation(r)}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="dpForm('${r.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="dpPdf('${r.id}')" title="PDF">📄</button>
       <button class="btn btn-outline btn-sm" onclick="dpEnvoyer('${r.id}')" title="Transmettre au fournisseur">📤</button><button class="btn btn-outline btn-sm" onclick="dpOffre('${r.id}')" title="Enregistrer l’offre reçue">📥</button>
       <button class="btn btn-outline btn-sm" onclick="openDocs('demandes_prix','${r.id}','${jsq(r.reference)}')" title="Offre du fournisseur (pièce jointe)">📎</button>
       <button class="btn btn-outline btn-sm" onclick="dpDupliquer('${r.id}')" title="Consulter un autre fournisseur">⧉</button>
@@ -17200,17 +17248,18 @@ async function dpSauver(){
 async function dpTiers(r){let f={nom:r.fournisseur_nom};if(r.fournisseur_id){const{data}=await sb.from('fournisseurs').select('*').eq('id',r.fournisseur_id).maybeSingle();if(data)f=data;}return f;}
 async function dpPdf(id){const r=DP_ROWS.find(x=>x.id===id);if(!r)return;
   await docPDF({reference:r.reference,titre:r.objet,created_at:r.created_at,date_document:String(r.created_at).slice(0,10),date_limite:r.date_limite,lieu:r.lieu,conditions:r.conditions,notes:r.notes,
-    lignes:(r.lignes||[]).map(l=>({designation:l.designation,description:l.description,qte:l.qte,unite:l.unite})),statut:r.statut==='brouillon'?'brouillon':'emise'},'DEMANDE DE PRIX','DemandePrix',await dpTiers(r));}
+    lignes:(r.lignes||[]).map(l=>({designation:l.designation,description:l.description,qte:l.qte,unite:l.unite})),statut:r.statut==='brouillon'?'brouillon':'emise',validation_statut:r.validation_statut},'DEMANDE DE PRIX','DemandePrix',await dpTiers(r));}
 async function dpEnvoyer(id){
-  const r=DP_ROWS.find(x=>x.id===id);if(!r)return;const f=await dpTiers(r),E=getEntreprise();
+  const r=DP_ROWS.find(x=>x.id===id);if(!r)return;
+  if(r.validation_statut&&r.validation_statut!=='valide'&&!estSuper()){toast(r.validation_statut==='refuse'?'Demande refusée'+(r.validation_motif?' : '+r.validation_motif:'')+'. Modifiez-la pour la soumettre à nouveau.':'⏳ Cette demande doit d’abord être validée par un super administrateur (page Validations).',8000);return;}const f=await dpTiers(r),E=getEntreprise();
   await dpPdf(id);
   if(r.statut==='brouillon'){await sb.from('demandes_prix').update({statut:'envoyee',updated_at:new Date().toISOString()}).eq('id',id);r.statut='envoyee';}
   const msg=`Bonjour,\nNous vous prions de bien vouloir nous transmettre votre meilleure offre pour : ${r.objet} (demande de prix ${r.reference}, détail en pièce jointe)${r.date_limite?', avant le '+fmtD(r.date_limite):''}.\nMerci de préciser les prix unitaires HT, le délai, la validité de l’offre et vos conditions de paiement.\nCordialement,\n${E.responsable||''}${E.fonction?' — '+E.fonction:''}\n${E.nom||'H TECH INNOV'} — ${E.tel||'27 22 56 28 37'} — ${E.email||'info@htechinnov.com'}`;
   window._DP_MSG=msg;const tel=f.telephone||f.tel||f.mobile||'',wa=typeof acadTelWa==='function'?acadTelWa(tel):'';
   document.getElementById('modalBox').style.width='min(560px,96vw)';document.getElementById('modalTitle').textContent='📤 Transmettre '+r.reference;
-  document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #D97706;font-size:13px">Le PDF est téléchargé : joignez-le à votre e-mail ou à votre message WhatsApp. Vous pouvez aussi joindre la version Excel, dans laquelle le fournisseur saisit directement ses prix. Statut : <b>Envoyée</b>.</div>
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #D97706;font-size:13px">Le PDF est téléchargé : joignez-le à votre e-mail ou à votre message WhatsApp. Statut : <b>Envoyée</b>.</div>
    <p class="cell-sub" style="margin-top:10px">Quand le fournisseur répond, enregistrez son offre (📥) et joignez-la (📎).</p>`;
-  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="dpWord('${r.id}')">Word</button><button class="btn btn-outline" onclick="dpExcel('${r.id}')">Excel</button><a class="btn btn-outline" href="mailto:${esc(f.email||'')}?subject=${encodeURIComponent('Demande de prix '+r.reference+' — '+r.objet)}&body=${encodeURIComponent(msg)}">✉️ E-mail</a>
+  document.getElementById('modalFooter').innerHTML=`<a class="btn btn-outline" href="mailto:${esc(f.email||'')}?subject=${encodeURIComponent('Demande de prix '+r.reference+' — '+r.objet)}&body=${encodeURIComponent(msg)}">✉️ E-mail</a>
    ${wa?`<a class="btn btn-accent" target="_blank" rel="noopener" href="https://wa.me/${wa}?text=${encodeURIComponent(msg)}">WhatsApp</a>`:''}<button class="btn btn-outline" onclick="navigator.clipboard.writeText(window._DP_MSG).then(()=>toast('Message copié'))">Copier</button><button class="btn btn-primary" onclick="closeModal();v4Render('demandes-prix')">Terminé</button>`;
   document.getElementById('modalOverlay').classList.add('open');
 }
@@ -17265,7 +17314,7 @@ async function dpSupprimer(id){const r=DP_ROWS.find(x=>x.id===id);if(!confirm('S
   try{
     Object.entries(NAV).forEach(([ro,nav])=>{if(!nav)return;
       const k=nav.findIndex(x=>x.id==='achats');if(k>=0&&!nav.some(x=>x.id==='demandes-prix'))nav.splice(k+1,0,{id:'demandes-prix',i:'📨',l:'Demandes de prix'});
-      if(['superadmin','admin'].includes(ro)&&!nav.some(x=>x.id==='utilisateurs')){const a=nav.findIndex(x=>x.id==='admin');nav.splice(a<0?nav.length:a+1,0,{id:'utilisateurs',i:'👥',l:'Collaborateurs et accès'});}});
+});
     PAGE_LABELS['demandes-prix']='Demandes de prix';PAGE_LABELS['utilisateurs']='Collaborateurs et accès';
   }catch(e){logErr(e);}
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(!ref)return;['demandes-prix','utilisateurs'].forEach(id=>{if(!document.getElementById('page-'+id)){const d=document.createElement('div');d.className='page';d.id='page-'+id;ref.parentNode.appendChild(d);}});};
