@@ -17604,6 +17604,372 @@ async function resPhotoSuppr(id,k){if(!confirm('Retirer cette photo ?'))return;c
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
 
 </script>
+<script>
+
+// ══════════════════════════════════════════════════════════════════════
+// SUIVI COMMERCIAL — portefeuilles, fiche client 360°, qualification, interlocuteurs, rendez-vous
+// et activités, relances, objectifs et pilotage détaillé par commercial (direction)
+// ══════════════════════════════════════════════════════════════════════
+var CS={onglet:'portefeuille',scope:null,semaine:0,periode:'mois',client:null,focus:null,f:{q:'',pot:'',type:'',dormants:false}},CSD={};
+const CS_TYPES=['Rendez-vous','Appel','Visite','Démonstration','Réunion en ligne','E-mail','Salon / événement'];
+const CS_ST_COUL={'Prévu':['#E5EFFB','#1565C0'],'Tenu':['#EDF6E8','#3F8A1E'],'Reporté':['#FEF3E2','#B45309'],'Annulé':['#F1F3F7','#7A90A8']};
+const CS_ETAPES=[['prospection','Prospection'],['qualification','Qualification'],['proposition','Proposition'],['negociation','Négociation'],['gagnee','Gagnée'],['perdue','Perdue']];
+const csDir=()=>['superadmin','admin','directeur'].includes(CP?.role);
+const csAssist=()=>!!(CP?.crm_assistante||(CSD.equipe||[]).find(p=>p.id===uid())?.crm_assistante);
+const csLarge=()=>csDir()||csAssist();
+const csNom=id=>{const p=(CSD.equipe||[]).find(x=>x.id===id);return p?([p.prenom,p.nom].filter(Boolean).join(' ')||p.email):'';};
+const csJours=d=>d?Math.floor((Date.now()-new Date(d).getTime())/864e5):null;
+const csPill=(t,c)=>`<span class="badge" style="background:${c[0]};color:${c[1]}">${esc(t)}</span>`;
+const csDT=d=>d?new Date(d).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+const csLocal=d=>{const x=d?new Date(d):new Date();x.setMinutes(x.getMinutes()-x.getTimezoneOffset());return x.toISOString().slice(0,16);};
+function csDebutPeriode(){const d=new Date();if(CS.periode==='mois')return new Date(d.getFullYear(),d.getMonth(),1);if(CS.periode==='trimestre')return new Date(d.getFullYear(),Math.floor(d.getMonth()/3)*3,1);return new Date(d.getFullYear(),0,1);}
+const csLibPeriode=()=>({mois:'ce mois-ci',trimestre:'ce trimestre',annee:'cette année'})[CS.periode];
+async function csCharger(){
+  const q=(t,s='*')=>sb.from(t).select(s).then(r=>r.data||[]).catch(()=>[]);
+  let equipe=await q('profiles','id,prenom,nom,email,role,actif,crm_assistante');if(!equipe.length)equipe=await q('profiles','id,prenom,nom,email,role,actif');
+  const notifs=await sb.from('crm_notifications').select('*').eq('destinataire',uid()).eq('lu',false).order('created_at',{ascending:false}).then(r=>r.data||[]).catch(()=>[]);
+  const[clients,acts,taches,opps,devis,factures,objectifs]=await Promise.all([q('clients'),q('crm_activites'),q('crm_taches'),q('opportunites'),
+    q('devis','id,reference,client_id,total_ttc,statut,created_at,created_by'),q('factures','id,reference,client_id,total_ttc,statut,created_at,date_paiement'),q('crm_objectifs')]);
+  CSD={equipe:equipe.filter(p=>!['client','apprenant','formateur'].includes(p.role)&&p.actif!==false),clients,acts,taches,opps,devis,factures,objectifs,notifs};
+  if(CS.scope===null)CS.scope=csLarge()?'tous':'moi';
+}
+const csMesClients=()=>{const C=CSD.clients||[];if(CS.scope==='tous'&&csLarge())return C;if(CS.scope==='libres')return C.filter(c=>!c.commercial_id);
+  if(csLarge()&&CS.scope&&!['moi','tous','libres'].includes(CS.scope))return C.filter(c=>c.commercial_id===CS.scope);return C.filter(c=>c.commercial_id===uid());};
+const csOppOuvertes=L=>L.filter(o=>!['gagnee','perdue'].includes(o.etape));
+function csProchaine(cid){const a=(CSD.acts||[]).filter(x=>x.client_id===cid&&x.statut==='Prévu'&&new Date(x.date_debut)>=new Date(Date.now()-864e5)).sort((x,y)=>x.date_debut.localeCompare(y.date_debut))[0];
+  const t=(CSD.taches||[]).filter(x=>x.client_id===cid&&x.statut==='À faire').sort((x,y)=>x.echeance.localeCompare(y.echeance))[0];
+  if(a&&(!t||a.date_debut.slice(0,10)<=t.echeance))return `${esc(a.type)} le ${csDT(a.date_debut)}`;if(t)return `${t.echeance<isoJour()?'<b style="color:#B42318">En retard</b> · ':''}${esc(t.titre)} (${fmtD(t.echeance)})`;return '<span class="cell-sub">Aucune</span>';}
+const csCA=(cids,depuis)=>(CSD.factures||[]).filter(f=>cids.includes(f.client_id)&&!['annulee','brouillon'].includes(f.statut)&&(!depuis||new Date(f.created_at)>=depuis)).reduce((a,f)=>a+numIn(f.total_ttc),0);
+
+v4Def('crm-suivi',{titre:'Suivi commercial',icone:'🧭',custom:async pg=>{
+  await csCharger();
+  if(CS.client){pg.innerHTML=await csFiche(CS.client);return;}
+  if(CS.focus&&csDir()){pg.innerHTML=csDetailCommercial(CS.focus);return;}
+  const ong=[['portefeuille','📇 Portefeuille'],['activites','📅 Rendez-vous et activités'],['taches','✅ Tâches et relances'],...(csLarge()?[['agenda','🗓️ Agenda de l’équipe']]:[]),...(csDir()?[['pilotage','📊 Pilotage des commerciaux']]:[])];
+  const retard=(CSD.taches||[]).filter(t=>t.statut==='À faire'&&t.assigne_a===uid()&&t.echeance<isoJour()).length;
+  const aRenseigner=(CSD.acts||[]).filter(a=>a.statut==='Prévu'&&a.commercial_id===uid()&&new Date(a.date_debut)<new Date()).length;
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🧭 Suivi commercial</h1><div class="page-sub">Portefeuille, rendez-vous, relances et pilotage des ventes</div></div>
+    <div class="v4-tools">${csLarge()?'<button class="btn btn-outline btn-sm" onclick="csProspect()">+ Nouveau prospect</button>':''}<button class="btn btn-outline btn-sm" onclick="csTache()">+ Tâche</button><button class="btn btn-primary btn-sm" onclick="csActivite()">+ Rendez-vous / activité</button></div></div>
+   ${CSD.notifs.length?`<div class="card" style="border-left:4px solid #1565C0;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="v4-h3">🔔 Notifications (${CSD.notifs.length})</h3><button class="btn btn-outline btn-sm" onclick="csToutLire()">Tout marquer comme lu</button></div>
+     ${CSD.notifs.slice(0,8).map(n=>`<div style="padding:6px 0;border-bottom:1px solid var(--g100);font-size:13px"><a href="#" onclick="csLire('${n.id}','${n.client_id||''}');return false"><b>${esc(n.titre)}</b></a><div class="cell-sub">${esc(n.message||'')} · ${csDT(n.created_at)}</div></div>`).join('')}</div>`:''}
+   ${retard||aRenseigner?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:12px;font-size:13.5px">${retard?`⏰ <b>${retard}</b> tâche(s) en retard. `:''}${aRenseigner?`📝 <b>${aRenseigner}</b> rendez-vous passé(s) à renseigner (tenu, reporté ou annulé).`:''}</div>`:''}
+   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${ong.map(([k,l])=>`<button class="btn ${CS.onglet===k?'btn-primary':'btn-outline'} btn-sm" onclick="CS.onglet='${k}';v4Render('crm-suivi')">${l}</button>`).join('')}</div><div id="csCorps"></div>`;
+  const c=document.getElementById('csCorps');
+  c.innerHTML=CS.onglet==='agenda'&&csLarge()?csAgenda():CS.onglet==='activites'?csActivites():CS.onglet==='taches'?csTaches():CS.onglet==='pilotage'&&csDir()?csPilotage():csPortefeuille();
+}});
+
+// ── Portefeuille ──
+function csSelectScope(){const o=[['moi','Mon portefeuille'],['libres','Clients non attribués'],...(csLarge()?[['tous','Tous les clients'],...CSD.equipe.map(p=>[p.id,'Portefeuille de '+csNom(p.id)])]:[])];
+  return `<select onchange="CS.scope=this.value;v4Render('crm-suivi')" aria-label="Portefeuille">${o.map(([k,l])=>`<option value="${k}" ${CS.scope===k?'selected':''}>${esc(l)}</option>`).join('')}</select>`;}
+function csPortefeuille(){
+  const f=CS.f,q=f.q.toLowerCase();let C=csMesClients();
+  C=C.filter(c=>(!q||[c.nom,c.societe,c.secteur].join(' ').toLowerCase().includes(q))&&(!f.pot||c.potentiel===f.pot)&&(!f.type||c.type===f.type)&&(!f.dormants||(csJours(c.derniere_activite)??999)>30));
+  C.sort((a,b)=>(a.potentiel||'Z').localeCompare(b.potentiel||'Z')||String(a.nom).localeCompare(String(b.nom)));
+  const ids=C.map(c=>c.id),op=csOppOuvertes((CSD.opps||[]).filter(o=>ids.includes(o.client_id)));
+  const dorm=C.filter(c=>['A','B'].includes(c.potentiel)&&(csJours(c.derniere_activite)??999)>30).length;
+  return `<div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-icon blue">📇</div><div class="kpi-label">Clients et prospects</div><div class="kpi-value">${C.length}</div></div>
+    <div class="kpi"><div class="kpi-icon green">🎯</div><div class="kpi-label">Opportunités ouvertes</div><div class="kpi-value">${op.length}</div><div class="cell-sub">${fmtF(op.reduce((a,o)=>a+numIn(o.montant_estime)*numIn(o.probabilite)/100,0))} FCFA pondérés</div></div>
+    <div class="kpi"><div class="kpi-icon amber">💰</div><div class="kpi-label">CA facturé ${csLibPeriode()}</div><div class="kpi-value" style="font-size:20px">${fmtF(csCA(ids,csDebutPeriode()))}</div></div>
+    <div class="kpi"><div class="kpi-icon red">💤</div><div class="kpi-label">Clients A/B sans contact > 30 j</div><div class="kpi-value">${dorm}</div></div></div>
+   <div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${csSelectScope()}
+    <input placeholder="Rechercher un client…" value="${esc(f.q)}" oninput="CS.f.q=this.value;clearTimeout(window._csq);window._csq=setTimeout(()=>v4Render('crm-suivi'),300)" style="flex:1;min-width:160px">
+    <select onchange="CS.f.pot=this.value;v4Render('crm-suivi')"><option value="">Potentiel : tous</option>${['A','B','C'].map(x=>`<option ${f.pot===x?'selected':''}>${x}</option>`).join('')}</select>
+    <select onchange="CS.f.type=this.value;v4Render('crm-suivi')"><option value="">Type : tous</option>${['client','prospect','partenaire'].map(x=>`<option ${f.type===x?'selected':''}>${x}</option>`).join('')}</select>
+    <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" ${f.dormants?'checked':''} onchange="CS.f.dormants=this.checked;v4Render('crm-suivi')"> Sans contact depuis 30 j</label></div>
+   <div class="table-wrap"><table><thead><tr><th>Client</th><th>Commercial</th><th>Potentiel</th><th>Dernier contact</th><th>Prochaine action</th><th>Opportunités</th><th>CA facturé</th><th></th></tr></thead><tbody>
+   ${C.map(c=>{const j=csJours(c.derniere_activite),oo=csOppOuvertes((CSD.opps||[]).filter(o=>o.client_id===c.id));
+     return `<tr><td><a href="#" onclick="CS.client='${c.id}';v4Render('crm-suivi');return false"><strong>${esc(c.nom||'')}</strong></a><div class="cell-sub">${esc([c.societe,c.type,c.secteur].filter(Boolean).join(' · '))}</div></td>
+      <td style="font-size:12.5px">${c.commercial_id?esc(csNom(c.commercial_id)):'<span class="cell-sub">Non attribué</span>'}</td>
+      <td>${c.potentiel?csPill(c.potentiel,c.potentiel==='A'?['#EDF6E8','#3F8A1E']:c.potentiel==='B'?['#E5EFFB','#1565C0']:['#F1F3F7','#5E6B82']):'—'}</td>
+      <td style="font-size:12.5px;${j!=null&&j>30?'color:#B42318;font-weight:600':''}">${j==null?'Jamais':j===0?'Aujourd’hui':'Il y a '+j+' j'}</td>
+      <td style="font-size:12.5px">${csProchaine(c.id)}</td><td style="font-size:12.5px">${oo.length?oo.length+' · '+fmtF(oo.reduce((a,o)=>a+numIn(o.montant_estime),0)):'—'}</td>
+      <td style="font-size:12.5px">${fmtF(csCA([c.id]))}</td>
+      <td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="CS.client='${c.id}';v4Render('crm-suivi')">Fiche</button><button class="btn btn-outline btn-sm" title="Nouvelle activité" onclick="csActivite(null,'${c.id}')">+</button>${!c.commercial_id?`<button class="btn btn-outline btn-sm" onclick="csAttribuer('${c.id}','${uid()}')">Prendre en charge</button>`:''}</div></td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucun client dans cette vue.</td></tr>'}
+   </tbody></table></div></div>`;
+}
+async function csAttribuer(cid,commercial){const{error}=await sb.from('clients').update({commercial_id:commercial||null}).eq('id',cid);if(error){toast('❌ '+error.message.replace(/^.*?:\s(?=[A-ZÉ])/,''),8000);return;}
+  try{logAudit('attribution','clients',cid,{commercial});}catch(e){}toast('✅ Commercial enregistré');v4Render('crm-suivi');}
+
+// ── Fiche client 360° ──
+async function csFiche(cid){
+  const c=CSD.clients.find(x=>x.id===cid);if(!c){CS.client=null;return '<div class="card">Client introuvable.</div>';}
+  const I=(await sb.from('crm_interlocuteurs').select('*').eq('client_id',cid).order('principal',{ascending:false})).data||[];CSD.inter=I;
+  const A=CSD.acts.filter(a=>a.client_id===cid).sort((x,y)=>y.date_debut.localeCompare(x.date_debut)),T=CSD.taches.filter(t=>t.client_id===cid).sort((x,y)=>x.statut.localeCompare(y.statut)||x.echeance.localeCompare(y.echeance));
+  const O=CSD.opps.filter(o=>o.client_id===cid),D=CSD.devis.filter(d=>d.client_id===cid),F=CSD.factures.filter(f=>f.client_id===cid);
+  const ca=F.filter(f=>!['annulee','brouillon'].includes(f.statut)).reduce((a,f)=>a+numIn(f.total_ttc),0),enc=F.filter(f=>!['payee','annulee','brouillon'].includes(f.statut)).reduce((a,f)=>a+numIn(f.total_ttc),0);
+  const j=csJours(c.derniere_activite),inp=(k,l,t)=>`<div class="form-field"><label for="q_${k}">${l}</label><input id="q_${k}" ${t?`type="${t}"`:''} value="${esc(c[k]??'')}"></div>`;
+  const sel=(k,l,o)=>`<div class="form-field"><label for="q_${k}">${l}</label><select id="q_${k}"><option value=""></option>${o.map(x=>`<option ${c[k]===x?'selected':''}>${x}</option>`).join('')}</select></div>`;
+  return `<div class="v4-head"><div><div class="cell-sub"><a href="#" onclick="CS.client=null;v4Render('crm-suivi');return false">← Suivi commercial</a></div><h1 class="page-title">${esc(c.nom||'')}</h1>
+     <div class="page-sub">${esc([c.societe,c.type,c.secteur,c.telephone,c.email].filter(Boolean).join(' · '))}</div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="csTache(null,'${cid}')">+ Relance</button><button class="btn btn-outline btn-sm" onclick="csOpp(null,'${cid}')">+ Opportunité</button><button class="btn btn-primary btn-sm" onclick="csActivite(null,'${cid}')">+ Rendez-vous / activité</button>${typeof openDocs==='function'?`<button class="btn btn-outline btn-sm" onclick="openDocs('clients','${cid}','${jsq(c.nom||'')}')">📎 Documents</button>`:''}</div></div>
+   <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-label">Commercial</div><div style="font-weight:700;color:var(--navy);margin-top:4px">${c.commercial_id?esc(csNom(c.commercial_id)):'Non attribué'}</div>
+      ${csDir()||(csAssist()&&!c.commercial_id)?`<select style="margin-top:6px;font-size:12px" onchange="csAttribuer('${cid}',this.value)"><option value="">— Non attribué —</option>${CSD.equipe.map(p=>`<option value="${p.id}" ${c.commercial_id===p.id?'selected':''}>${esc(csNom(p.id))}</option>`).join('')}</select>`:!c.commercial_id?`<button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="csAttribuer('${cid}','${uid()}')">Prendre en charge</button>`:''}</div>
+    <div class="kpi"><div class="kpi-label">CA facturé (total)</div><div class="kpi-value" style="font-size:19px">${fmtF(ca)}</div><div class="cell-sub">${fmtF(enc)} restant à encaisser</div></div>
+    <div class="kpi"><div class="kpi-label">Opportunités ouvertes</div><div class="kpi-value">${csOppOuvertes(O).length}</div><div class="cell-sub">${fmtF(csOppOuvertes(O).reduce((a,o)=>a+numIn(o.montant_estime)*numIn(o.probabilite)/100,0))} FCFA pondérés</div></div>
+    <div class="kpi"><div class="kpi-label">Rendez-vous tenus</div><div class="kpi-value">${A.filter(a=>a.statut==='Tenu').length}</div><div class="cell-sub" style="${j!=null&&j>30?'color:#B42318':''}">Dernier contact : ${j==null?'jamais':j===0?'aujourd’hui':'il y a '+j+' j'}</div></div></div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;align-items:start">
+    <div class="card"><h3 class="v4-h3">Qualification : comment se présente le client</h3><div class="form-grid" style="margin-top:8px">
+      ${sel('potentiel','Potentiel',['A','B','C'])}${sel('niveau_interet','Niveau d’intérêt',['Froid','Tiède','Chaud'])}${sel('taille','Taille',['TPE','PME','ETI','Grand compte','Administration','ONG / bailleur'])}
+      ${sel('source','Source',['Recommandation','Site web','LinkedIn','Salon / événement','Appel entrant','Prospection directe','Partenaire','Appel d’offres'])}${inp('ca_estime','CA annuel estimé (FCFA)','number')}${inp('budget','Budget identifié (FCFA)','number')}
+      ${inp('decideur','Décideur')}${inp('delai_decision','Délai de décision')}<div class="form-field full"><label for="q_besoins">Besoins exprimés</label><textarea id="q_besoins" rows="3">${esc(c.besoins||'')}</textarea></div>
+      ${inp('concurrents','Concurrents en place')}${inp('site_web','Site web')}<div class="form-field full">${inp('adresse','Adresse')}</div></div>
+      <button class="btn btn-primary btn-sm" onclick="csQualifier('${cid}')">Enregistrer la qualification</button></div>
+    <div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="v4-h3">Interlocuteurs</h3><button class="btn btn-outline btn-sm" onclick="csInter(null,'${cid}')">+ Interlocuteur</button></div>
+      ${I.length?I.map(p=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--g100)"><div><strong>${esc(p.nom)}</strong>${p.principal?' <span class="badge badge-green">principal</span>':''}<div class="cell-sub">${esc([p.fonction,p.role].filter(Boolean).join(' · '))}</div><div class="cell-sub">${esc([p.telephone,p.email].filter(Boolean).join(' · '))}</div></div>
+        <div><button class="btn btn-outline btn-sm" onclick="csInter('${p.id}','${cid}')">✏️</button></div></div>`).join(''):'<p class="cell-sub">Aucun interlocuteur. Ajoutez le décideur, le prescripteur et les utilisateurs.</p>'}
+      <h3 class="v4-h3" style="margin-top:14px">Tâches et relances</h3>${T.length?T.map(csLigneTache).join(''):'<p class="cell-sub">Aucune tâche.</p>'}</div></div>
+   <div class="card" style="margin-top:14px"><h3 class="v4-h3">Historique des échanges</h3>${A.length?A.map(csCarteActivite).join(''):'<p class="cell-sub">Aucun échange enregistré.</p>'}</div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-top:14px">
+    <div class="card"><h3 class="v4-h3">Opportunités</h3>${O.length?`<div class="table-wrap"><table><thead><tr><th>Titre</th><th>Montant</th><th>Proba.</th><th>Étape</th></tr></thead><tbody>${O.map(o=>`<tr><td>${esc(o.titre||'')}${o.motif_perte?`<div class="cell-sub">Perdue : ${esc(o.motif_perte)}</div>`:''}</td><td>${fmtF(o.montant_estime||0)}</td><td>${numIn(o.probabilite)} %</td>
+      <td><select onchange="csEtape('${o.id}',this.value)" style="font-size:12px">${CS_ETAPES.map(([k,l])=>`<option value="${k}" ${o.etape===k?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>`:'<p class="cell-sub">Aucune opportunité.</p>'}</div>
+    <div class="card"><h3 class="v4-h3">Devis et factures</h3>${D.length+F.length?`<div class="table-wrap"><table><tbody>${[...D.map(d=>['Devis',d]),...F.map(f=>['Facture',f])].sort((a,b)=>String(b[1].created_at).localeCompare(String(a[1].created_at))).map(([t,x])=>`<tr><td>${t}</td><td><code style="font-size:11px">${esc(x.reference||'')}</code></td><td>${fmtF(x.total_ttc||0)}</td><td style="font-size:12px">${esc(x.statut||'')}</td><td class="cell-sub">${fmtD(x.created_at)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="cell-sub">Aucun devis ni facture.</p>'}</div></div>`;
+}
+async function csQualifier(cid){const o={};['potentiel','niveau_interet','taille','source','decideur','delai_decision','besoins','concurrents','site_web','adresse'].forEach(k=>{o[k]=gv('q_'+k)||null;});
+  ['ca_estime','budget'].forEach(k=>{o[k]=gv('q_'+k)===''?null:numIn(gv('q_'+k));});
+  const{error}=await sb.from('clients').update(o).eq('id',cid);if(error){toast('❌ '+error.message);return;}toast('✅ Qualification enregistrée');v4Render('crm-suivi');}
+function csInter(id,cid){const p=id?(CSD.inter||[]).find(x=>x.id===id):{};window._csI={id,cid};
+  document.getElementById('modalBox').style.width='min(560px,96vw)';document.getElementById('modalTitle').textContent=id?'Modifier l’interlocuteur':'Nouvel interlocuteur';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="form-field"><label for="iN">Nom *</label><input id="iN" value="${esc(p.nom||'')}"></div><div class="form-field"><label for="iF">Fonction</label><input id="iF" value="${esc(p.fonction||'')}"></div>
+   <div class="form-field"><label for="iR">Rôle dans la décision</label><select id="iR"><option></option>${['Décideur','Prescripteur','Utilisateur','Acheteur','Technique'].map(x=>`<option ${p.role===x?'selected':''}>${x}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="iT">Téléphone</label><input id="iT" value="${esc(p.telephone||'')}"></div><div class="form-field"><label for="iE">E-mail</label><input id="iE" value="${esc(p.email||'')}"></div>
+   <div class="form-field"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="iP" ${p.principal?'checked':''}> Interlocuteur principal</label></div>
+   <div class="form-field full"><label for="iNo">Notes</label><textarea id="iNo" rows="2">${esc(p.notes||'')}</textarea></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`${id?`<button class="btn btn-outline" onclick="csInterSuppr()">Supprimer</button>`:''}<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="csInterSauver()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function csInterSauver(){if(!g('iN')){toast('❌ Nom requis');return;}const{id,cid}=window._csI;
+  const o={client_id:cid,nom:g('iN'),fonction:g('iF')||null,role:gv('iR')||null,telephone:g('iT')||null,email:g('iE')||null,principal:document.getElementById('iP').checked,notes:gv('iNo')||null};
+  const r=id?await sb.from('crm_interlocuteurs').update({...o,updated_at:new Date().toISOString()}).eq('id',id):await sb.from('crm_interlocuteurs').insert(o);
+  if(r.error){toast('❌ '+r.error.message);return;}toast('✅ Interlocuteur enregistré');closeModal();v4Render('crm-suivi');}
+async function csInterSuppr(){if(!confirm('Supprimer cet interlocuteur ?'))return;await sb.from('crm_interlocuteurs').delete().eq('id',window._csI.id);closeModal();v4Render('crm-suivi');}
+
+// ── Activités et rendez-vous ──
+function csCarteActivite(a){const cl=(CSD.clients||[]).find(c=>c.id===a.client_id),inter=(CSD.inter||[]);
+  const pc=(a.participants_client||[]).map(i=>inter.find(x=>x.id===i)?.nom).filter(Boolean),pi=(a.participants_internes||[]).map(csNom).filter(Boolean);
+  const passe=a.statut==='Prévu'&&new Date(a.date_debut)<new Date(),proche=a.statut==='Prévu'&&!passe&&new Date(a.date_debut)-new Date()<48*36e5;
+  return `<div style="padding:10px 0;border-bottom:1px solid var(--g100);display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap"><div style="flex:1;min-width:240px">
+   <div><strong>${esc(a.type)} — ${esc(a.objet)}</strong> ${csPill(a.statut,CS_ST_COUL[a.statut])}${a.resultat?' '+csPill(a.resultat,a.resultat==='Positif'?['#EDF6E8','#3F8A1E']:a.resultat==='Négatif'?['#FDECEC','#B42318']:['#F1F3F7','#5E6B82']):''}${passe?' <span class="badge" style="background:#FEF3E2;color:#B45309">à renseigner</span>':''}${a.statut==='Prévu'&&!passe?(a.confirme?' <span class="badge" style="background:#EDF6E8;color:#3F8A1E">confirmé par le client</span>':proche?' <span class="badge" style="background:#FDECEC;color:#B42318">à confirmer</span>':''):''}</div>
+   <div class="cell-sub">${csDT(a.date_debut)}${a.duree_min?' · '+a.duree_min+' min':''}${a.lieu?' · '+esc(a.lieu):''}${CS.client?'':' · <a href="#" onclick="CS.client=\''+a.client_id+'\';v4Render(\'crm-suivi\');return false">'+esc(cl?.nom||'')+'</a>'} · par ${esc(csNom(a.commercial_id)||'—')}</div>
+   ${pc.length||a.participants_client_libre||pi.length?`<div class="cell-sub">Participants : ${esc([...pc,a.participants_client_libre].filter(Boolean).join(', ')||'—')} · H TECH INNOV : ${esc(pi.join(', ')||'—')}</div>`:''}
+   ${a.compte_rendu?`<div style="font-size:13px;margin-top:4px;white-space:pre-wrap">${esc(a.compte_rendu)}</div>`:''}${a.prochaine_etape?`<div style="font-size:13px;margin-top:2px"><b>Prochaine étape :</b> ${esc(a.prochaine_etape)}</div>`:''}</div>
+   <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start">${a.statut==='Prévu'&&!passe&&!a.confirme?`<button class="btn btn-outline btn-sm" onclick="csConfirmer('${a.id}')">✔ Confirmé par le client</button>`:''}${a.statut==='Prévu'?`<button class="btn btn-accent btn-sm" onclick="csCompteRendu('${a.id}')">Tenu : compte rendu</button><button class="btn btn-outline btn-sm" onclick="csReporter('${a.id}')">Reporter</button><button class="btn btn-outline btn-sm" onclick="csStatut('${a.id}','Annulé')">Annuler</button>`:''}<button class="btn btn-outline btn-sm" onclick="csActivite('${a.id}')">✏️</button></div></div>`;}
+async function csActivite(id,cid){
+  const a=id?CSD.acts.find(x=>x.id===id):{client_id:cid||CS.client||'',type:'Rendez-vous',statut:'Prévu',commercial_id:uid(),participants_internes:[uid()],participants_client:[]};
+  const clientId=a.client_id;let I=[];if(clientId)I=(await sb.from('crm_interlocuteurs').select('*').eq('client_id',clientId)).data||[];
+  const O=CSD.opps.filter(o=>o.client_id===clientId&&!['gagnee','perdue'].includes(o.etape));window._csA={id};
+  const C=csLarge()?CSD.clients:CSD.clients.filter(c=>!c.commercial_id||c.commercial_id===uid()||c.id===clientId);
+  const pourDefaut=id?a.commercial_id:(CSD.clients.find(c=>c.id===clientId)?.commercial_id||uid());
+  document.getElementById('modalBox').style.width='min(760px,96vw)';document.getElementById('modalTitle').textContent=id?'Modifier l’activité':'Nouveau rendez-vous / activité';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+   <div class="form-field full"><label for="aC">Client *</label><select id="aC" onchange="window._csA.chg=1;csActivite(${id?`'${id}'`:'null'},this.value)">${'<option value="">Choisir…</option>'+C.sort((x,y)=>String(x.nom).localeCompare(String(y.nom))).map(c=>`<option value="${c.id}" ${c.id===clientId?'selected':''}>${esc(c.nom||'')}${c.societe?' — '+esc(c.societe):''}</option>`).join('')}</select></div>
+   ${csLarge()?`<div class="form-field full"><label for="aPour">Pour le compte de</label><select id="aPour">${CSD.equipe.map(p=>`<option value="${p.id}" ${p.id===pourDefaut?'selected':''}>${esc(csNom(p.id))}${p.id===uid()?' (moi)':''}</option>`).join('')}</select></div>`:''}
+   <div class="form-field"><label for="aT">Type</label><select id="aT">${CS_TYPES.map(t=>`<option ${a.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="aS">Statut</label><select id="aS">${['Prévu','Tenu','Reporté','Annulé'].map(t=>`<option ${a.statut===t?'selected':''}>${t}</option>`).join('')}</select></div>
+   <div class="form-field full"><label for="aO">Objet *</label><input id="aO" value="${esc(a.objet||'')}" placeholder="Présentation de l’offre GTB, point d’avancement…"></div>
+   <div class="form-field"><label for="aD">Date et heure *</label><input id="aD" type="datetime-local" value="${csLocal(a.date_debut)}"></div><div class="form-field"><label for="aDu">Durée (min)</label><input id="aDu" type="number" value="${esc(a.duree_min??60)}"></div>
+   <div class="form-field full"><label for="aL">Lieu ou lien de visioconférence</label><input id="aL" value="${esc(a.lieu||'')}"></div>
+   <div class="form-field full"><label>Participants côté client</label>${I.length?`<div style="display:flex;gap:10px;flex-wrap:wrap">${I.map(p=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" class="aPC" value="${p.id}" ${(a.participants_client||[]).includes(p.id)?'checked':''}> ${esc(p.nom)}${p.fonction?' ('+esc(p.fonction)+')':''}</label>`).join('')}</div>`:'<div class="cell-sub">Aucun interlocuteur enregistré pour ce client.</div>'}
+     <input id="aPL" style="margin-top:6px" placeholder="Autres personnes présentes (noms, fonctions)" value="${esc(a.participants_client_libre||'')}"></div>
+   <div class="form-field full"><label>Participants H TECH INNOV</label><div style="display:flex;gap:10px;flex-wrap:wrap">${CSD.equipe.map(p=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" class="aPI" value="${p.id}" ${(a.participants_internes||[]).includes(p.id)?'checked':''}> ${esc(csNom(p.id))}</label>`).join('')}</div></div>
+   ${O.length?`<div class="form-field full"><label for="aOp">Opportunité liée</label><select id="aOp"><option value=""></option>${O.map(o=>`<option value="${o.id}" ${a.opportunite_id===o.id?'selected':''}>${esc(o.titre)}</option>`).join('')}</select></div>`:''}
+   <div class="form-field full"><label for="aCR">Compte rendu</label><textarea id="aCR" rows="3">${esc(a.compte_rendu||'')}</textarea></div>
+   <div class="form-field"><label for="aR">Résultat</label><select id="aR"><option value=""></option>${['Positif','Neutre','Négatif'].map(t=>`<option ${a.resultat===t?'selected':''}>${t}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="aPE">Prochaine étape</label><input id="aPE" value="${esc(a.prochaine_etape||'')}"></div>
+   ${id?'':`<div class="form-field"><label for="aRel">Relance à prévoir le</label><input id="aRel" type="date"></div><div class="form-field"><label for="aRelT">Objet de la relance</label><input id="aRelT" placeholder="Envoyer la proposition…"></div>`}</div>`;
+  document.getElementById('modalFooter').innerHTML=`${id?`<button class="btn btn-outline" onclick="csActSuppr()">Supprimer</button>`:''}<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="csActSauver()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function csActSauver(){
+  const{id}=window._csA;if(!gv('aC')||!g('aO')||!gv('aD')){toast('❌ Client, objet et date requis');return;}
+  const o={client_id:gv('aC'),type:gv('aT'),statut:gv('aS'),objet:g('aO'),date_debut:new Date(gv('aD')).toISOString(),duree_min:gv('aDu')?numIn(gv('aDu')):null,lieu:g('aL')||null,
+    participants_client:[...document.querySelectorAll('.aPC:checked')].map(x=>x.value),participants_client_libre:g('aPL')||null,participants_internes:[...document.querySelectorAll('.aPI:checked')].map(x=>x.value),
+    opportunite_id:document.getElementById('aOp')?.value||null,compte_rendu:gv('aCR')||null,resultat:gv('aR')||null,prochaine_etape:g('aPE')||null};
+  if(csLarge()&&document.getElementById('aPour'))o.commercial_id=gv('aPour');else if(!id)o.commercial_id=uid();
+  if(!id&&o.commercial_id!==uid()&&!o.participants_internes.includes(o.commercial_id))o.participants_internes.push(o.commercial_id);
+  const r=id?await sb.from('crm_activites').update({...o,updated_at:new Date().toISOString()}).eq('id',id).select().single():await sb.from('crm_activites').insert(o).select().single();
+  if(r.error){toast('❌ '+r.error.message);return;}
+  if(!id&&gv('aRel')){await sb.from('crm_taches').insert({client_id:o.client_id,activite_id:r.data?.id||null,titre:g('aRelT')||('Relancer — '+o.objet),echeance:gv('aRel'),assigne_a:o.commercial_id||uid()});}
+  try{logAudit(id?'modification':'creation','crm_activites',r.data?.id||id,{objet:o.objet});}catch(e){}toast('✅ Activité enregistrée');closeModal();v4Render('crm-suivi');
+}
+async function csActSuppr(){if(!confirm('Supprimer cette activité ?'))return;await sb.from('crm_activites').delete().eq('id',window._csA.id);closeModal();v4Render('crm-suivi');}
+function csCompteRendu(id){const a=CSD.acts.find(x=>x.id===id);window._csA={id};
+  document.getElementById('modalBox').style.width='min(600px,96vw)';document.getElementById('modalTitle').textContent='Rendez-vous tenu — compte rendu';
+  document.getElementById('modalBody').innerHTML=`<p class="cell-sub">${esc(a.type)} — ${esc(a.objet)} · ${csDT(a.date_debut)}</p><div class="form-grid">
+   <div class="form-field full"><label for="crT">Compte rendu *</label><textarea id="crT" rows="5" placeholder="Points abordés, attentes du client, objections…">${esc(a.compte_rendu||'')}</textarea></div>
+   <div class="form-field"><label for="crR">Résultat</label><select id="crR">${['Positif','Neutre','Négatif'].map(t=>`<option>${t}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="crP">Prochaine étape</label><input id="crP" value="${esc(a.prochaine_etape||'')}"></div>
+   <div class="form-field"><label for="crD">Relance le</label><input id="crD" type="date"></div><div class="form-field"><label for="crDT">Objet de la relance</label><input id="crDT"></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="csCRSauver()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function csCRSauver(){if(!g('crT')){toast('❌ Le compte rendu est requis');return;}const a=CSD.acts.find(x=>x.id===window._csA.id);
+  const{error}=await sb.from('crm_activites').update({statut:'Tenu',compte_rendu:gv('crT'),resultat:gv('crR'),prochaine_etape:g('crP')||null,updated_at:new Date().toISOString()}).eq('id',a.id);if(error){toast('❌ '+error.message);return;}
+  if(gv('crD'))await sb.from('crm_taches').insert({client_id:a.client_id,activite_id:a.id,titre:g('crDT')||('Relancer — '+a.objet),echeance:gv('crD'),assigne_a:uid()});
+  toast('✅ Rendez-vous renseigné');closeModal();v4Render('crm-suivi');}
+async function csReporter(id){const a=CSD.acts.find(x=>x.id===id);const d=prompt('Nouvelle date et heure (AAAA-MM-JJ HH:MM) :',csLocal(new Date(Date.now()+7*864e5)).replace('T',' '));if(!d)return;
+  const nd=new Date(d.replace(' ','T'));if(isNaN(nd)){toast('Date invalide');return;}
+  await sb.from('crm_activites').update({statut:'Reporté',updated_at:new Date().toISOString()}).eq('id',id);
+  const{id:_,created_at,updated_at,...copie}=a;await sb.from('crm_activites').insert({...copie,date_debut:nd.toISOString(),statut:'Prévu',compte_rendu:null,resultat:null});
+  toast('Rendez-vous reporté au '+csDT(nd));v4Render('crm-suivi');}
+async function csStatut(id,st){if(!confirm('Marquer cette activité comme « '+st+' » ?'))return;await sb.from('crm_activites').update({statut:st,updated_at:new Date().toISOString()}).eq('id',id);v4Render('crm-suivi');}
+function csActivites(){
+  const mine=csLarge()&&CS.scope==='tous'?CSD.acts:CSD.acts.filter(a=>a.commercial_id===uid()||(a.participants_internes||[]).includes(uid()));
+  const now=new Date(),a14=new Date(Date.now()+14*864e5),r30=new Date(Date.now()-30*864e5);
+  const aVenir=mine.filter(a=>a.statut==='Prévu'&&new Date(a.date_debut)>=now&&new Date(a.date_debut)<=a14).sort((x,y)=>x.date_debut.localeCompare(y.date_debut));
+  const aRens=mine.filter(a=>a.statut==='Prévu'&&new Date(a.date_debut)<now).sort((x,y)=>x.date_debut.localeCompare(y.date_debut));
+  const recents=mine.filter(a=>a.statut!=='Prévu'&&new Date(a.date_debut)>=r30).sort((x,y)=>y.date_debut.localeCompare(x.date_debut));
+  return `${csLarge()?`<div style="margin-bottom:10px"><label style="font-size:13px"><input type="checkbox" ${CS.scope==='tous'?'checked':''} onchange="CS.scope=this.checked?'tous':'moi';v4Render('crm-suivi')"> Afficher les activités de toute l’équipe</label></div>`:''}
+   ${aRens.length?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:12px"><h3 class="v4-h3">À renseigner (${aRens.length})</h3>${aRens.map(csCarteActivite).join('')}</div>`:''}
+   <div class="card" style="margin-bottom:12px"><h3 class="v4-h3">Prochains 14 jours (${aVenir.length})</h3>${aVenir.length?aVenir.map(csCarteActivite).join(''):'<p class="cell-sub">Aucun rendez-vous prévu.</p>'}</div>
+   <div class="card"><h3 class="v4-h3">30 derniers jours (${recents.length})</h3>${recents.length?recents.map(csCarteActivite).join(''):'<p class="cell-sub">Aucune activité.</p>'}</div>`;
+}
+
+// ── Tâches et relances ──
+function csLigneTache(t){const cl=(CSD.clients||[]).find(c=>c.id===t.client_id),ret=t.statut==='À faire'&&t.echeance<isoJour();
+  return `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--g100);${t.statut==='Fait'?'opacity:.55':''}"><input type="checkbox" ${t.statut==='Fait'?'checked':''} onchange="csFait('${t.id}',this.checked)" aria-label="Fait">
+   <div style="flex:1"><div style="${t.statut==='Fait'?'text-decoration:line-through':''}">${esc(t.titre)} ${t.priorite==='Haute'?'<span class="badge badge-red">haute</span>':''}</div>
+   <div class="cell-sub" style="${ret?'color:#B42318;font-weight:600':''}">${ret?'En retard · ':''}${fmtD(t.echeance)}${!CS.client&&cl?' · '+esc(cl.nom||''):''}${t.assigne_a&&t.assigne_a!==uid()?' · '+esc(csNom(t.assigne_a)):''}</div></div></div>`;}
+async function csFait(id,fait){await sb.from('crm_taches').update({statut:fait?'Fait':'À faire',fait_le:fait?new Date().toISOString():null,updated_at:new Date().toISOString()}).eq('id',id);v4Render('crm-suivi');}
+function csTaches(){const T=(csLarge()&&CS.scope==='tous'?CSD.taches:CSD.taches.filter(t=>t.assigne_a===uid()));const j=isoJour();
+  const ret=T.filter(t=>t.statut==='À faire'&&t.echeance<j),auj=T.filter(t=>t.statut==='À faire'&&t.echeance===j),av=T.filter(t=>t.statut==='À faire'&&t.echeance>j).sort((a,b)=>a.echeance.localeCompare(b.echeance)),faites=T.filter(t=>t.statut==='Fait').sort((a,b)=>String(b.fait_le).localeCompare(String(a.fait_le))).slice(0,15);
+  return `${csLarge()?`<div style="margin-bottom:10px"><label style="font-size:13px"><input type="checkbox" ${CS.scope==='tous'?'checked':''} onchange="CS.scope=this.checked?'tous':'moi';v4Render('crm-suivi')"> Afficher les tâches de toute l’équipe</label></div>`:''}
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">${[['⏰ En retard',ret,'#B42318'],['📌 Aujourd’hui',auj,'#B45309'],['🗓️ À venir',av,'#1565C0'],['✔️ Faites récemment',faites,'#3F8A1E']].map(([t,L,c])=>`<div class="card" style="border-top:3px solid ${c}"><h3 class="v4-h3">${t} (${L.length})</h3>${L.length?L.map(csLigneTache).join(''):'<p class="cell-sub">Rien.</p>'}</div>`).join('')}</div>`;}
+function csTache(id,cid){window._csT={};const C=csLarge()?CSD.clients:CSD.clients.filter(c=>!c.commercial_id||c.commercial_id===uid()||c.id===cid);
+  document.getElementById('modalBox').style.width='min(520px,96vw)';document.getElementById('modalTitle').textContent='Nouvelle tâche / relance';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="form-field full"><label for="tC">Client</label><select id="tC"><option value="">(aucun)</option>${C.map(c=>`<option value="${c.id}" ${c.id===(cid||CS.client)?'selected':''}>${esc(c.nom||'')}</option>`).join('')}</select></div>
+   <div class="form-field full"><label for="tT">Tâche *</label><input id="tT" placeholder="Rappeler le décideur, envoyer la proposition…"></div><div class="form-field"><label for="tE">Échéance *</label><input id="tE" type="date" value="${isoJour()}"></div>
+   <div class="form-field"><label for="tP">Priorité</label><select id="tP"><option>Normale</option><option>Haute</option><option>Basse</option></select></div>
+   <div class="form-field full"><label for="tA">Assignée à</label><select id="tA">${CSD.equipe.map(p=>`<option value="${p.id}" ${p.id===uid()?'selected':''}>${esc(csNom(p.id))}</option>`).join('')}</select></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="csTacheSauver()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function csTacheSauver(){if(!g('tT')||!gv('tE')){toast('❌ Tâche et échéance requises');return;}
+  const{error}=await sb.from('crm_taches').insert({client_id:gv('tC')||null,titre:g('tT'),echeance:gv('tE'),priorite:gv('tP'),assigne_a:gv('tA')||uid()});if(error){toast('❌ '+error.message);return;}toast('✅ Tâche créée');closeModal();v4Render('crm-suivi');}
+
+// ── Opportunités rattachées au client ──
+function csOpp(id,cid){document.getElementById('modalBox').style.width='min(560px,96vw)';document.getElementById('modalTitle').textContent='Nouvelle opportunité';window._csO={cid};
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="form-field full"><label for="oT">Titre *</label><input id="oT"></div><div class="form-field"><label for="oM">Montant estimé (FCFA)</label><input id="oM" type="number"></div>
+   <div class="form-field"><label for="oP">Probabilité (%)</label><input id="oP" type="number" min="0" max="100" value="30"></div><div class="form-field"><label for="oE">Étape</label><select id="oE">${CS_ETAPES.slice(0,4).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="oD">Clôture prévue</label><input id="oD" type="date"></div><div class="form-field full"><label for="oN">Notes</label><textarea id="oN" rows="2"></textarea></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="csOppSauver()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function csOppSauver(){if(!g('oT')){toast('❌ Titre requis');return;}const c=CSD.clients.find(x=>x.id===window._csO.cid);
+  const{error}=await sb.from('opportunites').insert({titre:g('oT'),montant_estime:numIn(gv('oM')),probabilite:numIn(gv('oP')),etape:gv('oE'),date_cloture:gv('oD')||null,notes:gv('oN')||'',client_id:window._csO.cid,commercial_id:c?.commercial_id||uid(),created_by:uid()});
+  if(error){toast('❌ '+error.message);return;}toast('✅ Opportunité créée');closeModal();v4Render('crm-suivi');}
+async function csEtape(id,etape){const o={etape,updated_at:new Date().toISOString()};
+  if(etape==='perdue'){const m=prompt('Motif de la perte (prix, concurrent, délai, abandon du projet…) :');if(m===null){v4Render('crm-suivi');return;}o.motif_perte=m;o.probabilite=0;o.date_gain_perte=isoJour();}
+  if(etape==='gagnee'){o.probabilite=100;o.date_gain_perte=isoJour();}
+  const{error}=await sb.from('opportunites').update(o).eq('id',id);if(error){toast('❌ '+error.message);return;}toast(etape==='gagnee'?'🎉 Opportunité gagnée':'Étape mise à jour');v4Render('crm-suivi');}
+
+// ── Pilotage des commerciaux (direction) ──
+function csStats(cid,depuis){
+  const C=CSD.clients.filter(c=>c.commercial_id===cid),ids=C.map(c=>c.id),A=CSD.acts.filter(a=>(a.commercial_id===cid)&&new Date(a.date_debut)>=depuis&&new Date(a.date_debut)<=new Date());
+  const rdv=A.filter(a=>['Rendez-vous','Visite','Démonstration','Réunion en ligne'].includes(a.type)),tenus=rdv.filter(a=>a.statut==='Tenu').length,prevus=rdv.filter(a=>a.statut!=='Annulé').length;
+  const O=CSD.opps.filter(o=>o.commercial_id===cid||(!o.commercial_id&&ids.includes(o.client_id))),ouv=csOppOuvertes(O);
+  const gag=O.filter(o=>o.etape==='gagnee'&&(!o.date_gain_perte||new Date(o.date_gain_perte)>=depuis)),per=O.filter(o=>o.etape==='perdue'&&(!o.date_gain_perte||new Date(o.date_gain_perte)>=depuis));
+  const m=new Date();const obj=CSD.objectifs.filter(x=>x.commercial_id===cid&&new Date(x.mois)>=new Date(depuis.getFullYear(),depuis.getMonth(),1)&&new Date(x.mois)<=m);
+  const ca=csCA(ids,depuis),objCA=obj.reduce((a,x)=>a+numIn(x.ca_objectif),0),objRdv=obj.reduce((a,x)=>a+numIn(x.rdv_objectif),0);
+  return{C,ids,clientsA:C.filter(c=>c.potentiel==='A').length,rdvPrevus:prevus,rdvTenus:tenus,tauxTenue:prevus?Math.round(100*tenus/prevus):null,autres:A.length-rdv.length,
+    ouv:ouv.length,pondere:ouv.reduce((a,o)=>a+numIn(o.montant_estime)*numIn(o.probabilite)/100,0),gagne:gag.reduce((a,o)=>a+numIn(o.montant_estime),0),nGag:gag.length,nPer:per.length,
+    transfo:gag.length+per.length?Math.round(100*gag.length/(gag.length+per.length)):null,devis:CSD.devis.filter(d=>d.created_by===cid&&new Date(d.created_at)>=depuis).length,
+    ca,objCA,objRdv,pctCA:objCA?Math.round(100*ca/objCA):null,dormants:C.filter(c=>['A','B'].includes(c.potentiel)&&(csJours(c.derniere_activite)??999)>30),
+    retard:CSD.taches.filter(t=>t.assigne_a===cid&&t.statut==='À faire'&&t.echeance<isoJour()).length,aRens:CSD.acts.filter(a=>a.commercial_id===cid&&a.statut==='Prévu'&&new Date(a.date_debut)<new Date()).length,ouvL:ouv};
+}
+function csSelPeriode(){return `<select onchange="CS.periode=this.value;v4Render('crm-suivi')">${[['mois','Ce mois'],['trimestre','Ce trimestre'],['annee','Cette année']].map(([k,l])=>`<option value="${k}" ${CS.periode===k?'selected':''}>${l}</option>`).join('')}</select>`;}
+function csPilotage(){
+  const d=csDebutPeriode(),S=CSD.equipe.map(p=>({p,s:csStats(p.id,d)})).filter(x=>x.s.C.length||x.s.rdvPrevus||x.s.ouv||x.s.ca||x.s.objCA);
+  const T=k=>S.reduce((a,x)=>a+numIn(x.s[k]),0),rp=T('rdvPrevus'),rt=T('rdvTenus'),g=T('nGag'),pe=T('nPer'),maxCA=Math.max(1,...S.map(x=>Math.max(x.s.ca,x.s.objCA)));
+  return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">${csSelPeriode()}<span class="cell-sub">Vue globale de l’équipe ${csLibPeriode()}</span></div>
+   <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-icon green">💰</div><div class="kpi-label">CA facturé</div><div class="kpi-value" style="font-size:19px">${fmtF(T('ca'))}</div><div class="cell-sub">objectif ${fmtF(T('objCA'))}${T('objCA')?' · '+Math.round(100*T('ca')/T('objCA'))+' %':''}</div></div>
+    <div class="kpi"><div class="kpi-icon blue">🤝</div><div class="kpi-label">Rendez-vous tenus</div><div class="kpi-value">${rt} / ${rp}</div><div class="cell-sub">taux de tenue ${rp?Math.round(100*rt/rp):0} %</div></div>
+    <div class="kpi"><div class="kpi-icon amber">🎯</div><div class="kpi-label">Pipeline pondéré</div><div class="kpi-value" style="font-size:19px">${fmtF(T('pondere'))}</div><div class="cell-sub">${T('ouv')} opportunités ouvertes</div></div>
+    <div class="kpi"><div class="kpi-icon green">🏆</div><div class="kpi-label">Gagnées / perdues</div><div class="kpi-value">${g} / ${pe}</div><div class="cell-sub">transformation ${g+pe?Math.round(100*g/(g+pe)):0} % · ${fmtF(T('gagne'))} FCFA</div></div></div>
+   <div class="card" style="margin-bottom:12px"><h3 class="v4-h3">Chiffre d’affaires et objectif par commercial</h3>${S.map(x=>`<div style="display:grid;grid-template-columns:160px 1fr 90px;gap:10px;align-items:center;margin:8px 0;font-size:13px"><a href="#" onclick="CS.focus='${x.p.id}';v4Render('crm-suivi');return false">${esc(csNom(x.p.id))}</a>
+     <div style="position:relative;height:16px;background:#F1F4FA;border-radius:4px"><div style="position:absolute;left:0;top:0;bottom:0;width:${100*x.s.ca/maxCA}%;background:#1565C0;border-radius:4px"></div>${x.s.objCA?`<div title="Objectif" style="position:absolute;left:${100*x.s.objCA/maxCA}%;top:-3px;bottom:-3px;width:3px;background:#0A2A66"></div>`:''}</div>
+     <span style="text-align:right">${x.s.pctCA!=null?x.s.pctCA+' %':'—'}</span></div>`).join('')||'<p class="cell-sub">Aucune donnée.</p>'}<p class="cell-sub">Barre : CA facturé · trait : objectif de la période.</p></div>
+   ${CP?.role==='superadmin'?`<div class="card" style="margin-bottom:12px"><h3 class="v4-h3">Assistantes commerciales</h3><p class="cell-sub">Elles voient tous les clients et l’agenda de l’équipe, saisissent et attribuent les nouveaux prospects, planifient et confirment les rendez-vous pour le compte des commerciaux. Elles n’ont accès ni au pilotage ni aux objectifs.</p>
+     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">${CSD.equipe.filter(p=>p.role!=='superadmin').map(p=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" ${p.crm_assistante?'checked':''} onchange="csDesigner('${p.id}',this.checked)"> ${esc(csNom(p.id))}</label>`).join('')}</div></div>`:''}
+   <div class="card"><h3 class="v4-h3">Détail par commercial</h3><div class="table-wrap"><table><thead><tr><th>Commercial</th><th>Portefeuille</th><th>RDV tenus / prévus</th><th>Autres activités</th><th>Pipeline pondéré</th><th>Gagné</th><th>Transfo.</th><th>Devis</th><th>CA / objectif</th><th>Alertes</th><th></th></tr></thead><tbody>
+   ${S.map(({p,s})=>`<tr><td><strong>${esc(csNom(p.id))}</strong><div class="cell-sub">${esc(p.role)}</div></td><td>${s.C.length}<div class="cell-sub">${s.clientsA} en A</div></td>
+     <td>${s.rdvTenus} / ${s.rdvPrevus}<div class="cell-sub">${s.tauxTenue==null?'—':s.tauxTenue+' %'}${s.objRdv?' · obj. '+s.objRdv:''}</div></td><td>${s.autres}</td><td>${fmtF(s.pondere)}<div class="cell-sub">${s.ouv} ouvertes</div></td>
+     <td>${fmtF(s.gagne)}<div class="cell-sub">${s.nGag} gagnée(s)</div></td><td>${s.transfo==null?'—':s.transfo+' %'}</td><td>${s.devis}</td><td>${fmtF(s.ca)}<div class="cell-sub">${s.objCA?fmtF(s.objCA)+' · '+s.pctCA+' %':'pas d’objectif'}</div></td>
+     <td style="font-size:12px">${s.dormants.length?`<div style="color:#B42318">${s.dormants.length} client(s) dormant(s)</div>`:''}${s.retard?`<div style="color:#B42318">${s.retard} tâche(s) en retard</div>`:''}${s.aRens?`<div style="color:#B45309">${s.aRens} RDV à renseigner</div>`:''}${!s.dormants.length&&!s.retard&&!s.aRens?'<span style="color:#3F8A1E">RAS</span>':''}</td>
+     <td><button class="btn btn-outline btn-sm" onclick="CS.focus='${p.id}';v4Render('crm-suivi')">Détail</button></td></tr>`).join('')||'<tr><td colspan="11" style="text-align:center;padding:18px;color:var(--g400)">Attribuez des clients aux commerciaux pour démarrer le pilotage.</td></tr>'}</tbody></table></div></div>`;
+}
+function csDetailCommercial(cid){
+  const d=csDebutPeriode(),s=csStats(cid,d),A=CSD.acts.filter(a=>a.commercial_id===cid);
+  const sem=[...Array(8)].map((_,i)=>{const fin=new Date();fin.setDate(fin.getDate()-7*i);const deb=new Date(fin);deb.setDate(deb.getDate()-7);const L=A.filter(a=>new Date(a.date_debut)>deb&&new Date(a.date_debut)<=fin);
+    return{l:'S-'+i,tenus:L.filter(a=>a.statut==='Tenu').length,autres:L.filter(a=>a.statut!=='Tenu'&&a.statut!=='Annulé').length};}).reverse();const mx=Math.max(1,...sem.map(x=>x.tenus+x.autres));
+  const parEtape=CS_ETAPES.slice(0,4).map(([k,l])=>{const L=s.ouvL.filter(o=>(o.etape||'prospection')===k);return{l,n:L.length,m:L.reduce((a,o)=>a+numIn(o.montant_estime),0)};});
+  const prochains=A.filter(a=>a.statut==='Prévu'&&new Date(a.date_debut)>=new Date()).sort((x,y)=>x.date_debut.localeCompare(y.date_debut)).slice(0,8);
+  const recents=A.filter(a=>a.statut==='Tenu').sort((x,y)=>y.date_debut.localeCompare(x.date_debut)).slice(0,8);
+  const mois=new Date();const m0=new Date(mois.getFullYear(),mois.getMonth(),1).toISOString().slice(0,10),ob=CSD.objectifs.find(o=>o.commercial_id===cid&&String(o.mois).slice(0,10)===m0)||{};
+  return `<div class="v4-head"><div><div class="cell-sub"><a href="#" onclick="CS.focus=null;v4Render('crm-suivi');return false">← Pilotage des commerciaux</a></div><h1 class="page-title">${esc(csNom(cid))}</h1><div class="page-sub">Activité commerciale ${csLibPeriode()}</div></div>
+    <div class="v4-tools">${csSelPeriode()}<button class="btn btn-outline btn-sm" onclick="CS.scope='${cid}';CS.focus=null;CS.onglet='portefeuille';v4Render('crm-suivi')">Voir son portefeuille</button></div></div>
+   <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-label">CA facturé / objectif</div><div class="kpi-value" style="font-size:19px">${fmtF(s.ca)}</div><div class="cell-sub">${s.objCA?fmtF(s.objCA)+' · '+s.pctCA+' %':'pas d’objectif'}</div></div>
+    <div class="kpi"><div class="kpi-label">RDV tenus / prévus</div><div class="kpi-value">${s.rdvTenus} / ${s.rdvPrevus}</div><div class="cell-sub">taux de tenue ${s.tauxTenue??0} %${s.objRdv?' · objectif '+s.objRdv:''}</div></div>
+    <div class="kpi"><div class="kpi-label">Pipeline pondéré</div><div class="kpi-value" style="font-size:19px">${fmtF(s.pondere)}</div><div class="cell-sub">${s.ouv} opportunités · transformation ${s.transfo??0} %</div></div>
+    <div class="kpi"><div class="kpi-label">Portefeuille</div><div class="kpi-value">${s.C.length}</div><div class="cell-sub">${s.clientsA} en A · ${s.dormants.length} dormant(s) · ${s.retard} tâche(s) en retard</div></div></div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;align-items:start">
+    <div class="card"><h3 class="v4-h3">Activité des 8 dernières semaines</h3><div style="display:flex;align-items:flex-end;gap:8px;height:150px;margin-top:10px">${sem.map(x=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end" title="${x.tenus} tenue(s), ${x.autres} autre(s)">
+      <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:${100*(x.tenus+x.autres)/mx}%"><div style="flex:${x.autres};background:#C9DAF2;border-radius:4px 4px 0 0"></div><div style="flex:${x.tenus};background:#1565C0"></div></div><span class="cell-sub">${x.l}</span></div>`).join('')}</div>
+      <p class="cell-sub">Bleu foncé : activités tenues · bleu clair : prévues ou reportées.</p></div>
+    <div class="card"><h3 class="v4-h3">Pipeline par étape</h3>${parEtape.map(x=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--g100)"><span>${x.l}</span><span><b>${x.n}</b> · ${fmtF(x.m)} FCFA</span></div>`).join('')}</div>
+    <div class="card"><h3 class="v4-h3">Objectifs du mois</h3><div class="form-grid"><div class="form-field"><label for="obCA">CA (FCFA)</label><input id="obCA" type="number" value="${esc(ob.ca_objectif??'')}"></div><div class="form-field"><label for="obR">Rendez-vous</label><input id="obR" type="number" value="${esc(ob.rdv_objectif??'')}"></div>
+      <div class="form-field"><label for="obO">Opportunités créées</label><input id="obO" type="number" value="${esc(ob.opportunites_objectif??'')}"></div></div><button class="btn btn-primary btn-sm" onclick="csObjectif('${cid}','${m0}')">Enregistrer les objectifs</button></div></div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-top:14px">
+    <div class="card"><h3 class="v4-h3">Prochains rendez-vous</h3>${prochains.length?prochains.map(csCarteActivite).join(''):'<p class="cell-sub">Aucun.</p>'}</div>
+    <div class="card"><h3 class="v4-h3">Derniers rendez-vous tenus</h3>${recents.length?recents.map(csCarteActivite).join(''):'<p class="cell-sub">Aucun.</p>'}</div></div>
+   ${s.dormants.length?`<div class="card" style="margin-top:14px;border-left:4px solid #B42318"><h3 class="v4-h3">Clients A/B sans contact depuis plus de 30 jours</h3>${s.dormants.map(c=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--g100)"><a href="#" onclick="CS.client='${c.id}';CS.focus=null;v4Render('crm-suivi');return false">${esc(c.nom||'')}</a><span class="cell-sub">${c.derniere_activite?'dernier contact le '+fmtD(c.derniere_activite):'jamais contacté'}</span></div>`).join('')}</div>`:''}`;
+}
+async function csObjectif(cid,mois){const o={commercial_id:cid,mois,ca_objectif:gv('obCA')===''?null:numIn(gv('obCA')),rdv_objectif:gv('obR')===''?null:numIn(gv('obR')),opportunites_objectif:gv('obO')===''?null:numIn(gv('obO')),updated_at:new Date().toISOString()};
+  const{error}=await sb.from('crm_objectifs').upsert(o,{onConflict:'commercial_id,mois'});if(error){toast('❌ '+error.message);return;}toast('✅ Objectifs enregistrés');v4Render('crm-suivi');}
+
+(function(){try{Object.entries(NAV).forEach(([ro,nav])=>{if(!nav||['client','apprenant','formateur'].includes(ro)||nav.some(x=>x.id==='crm-suivi'))return;
+    const k=nav.findIndex(x=>x.id==='crm');nav.splice(k<0?Math.min(2,nav.length):k+1,0,{id:'crm-suivi',i:'🧭',l:'Suivi commercial'});});PAGE_LABELS['crm-suivi']='Suivi commercial';}catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-crm-suivi')){const d=document.createElement('div');d.className='page';d.id='page-crm-suivi';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
+
+// ── Assistante commerciale : prospects, confirmations, agenda de l'équipe, notifications ──
+async function csDesigner(id,oui){const{error}=await sb.from('profiles').update({crm_assistante:oui}).eq('id',id);if(error){toast('❌ '+error.message.replace(/^.*?:\s(?=[A-ZÉ])/,''),7000);return;}
+  toast(oui?'✅ '+csNom(id)+' est assistante commerciale':'Profil retiré');v4Render('crm-suivi');}
+async function csConfirmer(id){const{error}=await sb.from('crm_activites').update({confirme:true,confirme_le:new Date().toISOString(),confirme_par:uid(),updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){toast('❌ '+error.message);return;}toast('✅ Rendez-vous confirmé : le commercial est prévenu');v4Render('crm-suivi');}
+async function csLire(id,cid){await sb.from('crm_notifications').update({lu:true}).eq('id',id);if(cid){CS.client=cid;CS.focus=null;}v4Render('crm-suivi');}
+async function csToutLire(){await sb.from('crm_notifications').update({lu:true}).eq('destinataire',uid()).eq('lu',false);v4Render('crm-suivi');}
+function csProspect(){document.getElementById('modalBox').style.width='min(620px,96vw)';document.getElementById('modalTitle').textContent='Nouveau prospect';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="form-field"><label for="pN">Nom du contact *</label><input id="pN"></div><div class="form-field"><label for="pS">Société</label><input id="pS"></div>
+   <div class="form-field"><label for="pT">Téléphone</label><input id="pT"></div><div class="form-field"><label for="pE">E-mail</label><input id="pE"></div>
+   <div class="form-field"><label for="pSo">Source</label><select id="pSo">${['Appel entrant','Site web','WhatsApp','Recommandation','LinkedIn','Salon / événement','Partenaire','Appel d’offres'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="pC">Confier à</label><select id="pC"><option value="">— À attribuer plus tard —</option>${CSD.equipe.filter(p=>!p.crm_assistante||p.id===uid()).map(p=>`<option value="${p.id}">${esc(csNom(p.id))}</option>`).join('')}</select></div>
+   <div class="form-field full"><label for="pB">Besoin exprimé</label><textarea id="pB" rows="3"></textarea></div>
+   <div class="form-field full"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="pR" checked> Créer la tâche « Rappeler le prospect » pour demain</label></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="csProspectSauver()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function csProspectSauver(){if(!g('pN')){toast('❌ Nom requis');return;}const com=gv('pC')||null;
+  const{data,error}=await sb.from('clients').insert({nom:g('pN'),societe:g('pS')||null,telephone:g('pT')||null,email:g('pE')||null,type:'prospect',source:gv('pSo'),besoins:gv('pB')||null,commercial_id:com,created_by:uid()}).select().single();
+  if(error){toast('❌ '+error.message.replace(/^.*?:\s(?=[A-ZÉ])/,''),7000);return;}
+  if(document.getElementById('pR').checked){const d=new Date(Date.now()+864e5).toISOString().slice(0,10);await sb.from('crm_taches').insert({client_id:data.id,titre:'Rappeler le prospect'+(gv('pB')?' — '+gv('pB').slice(0,60):''),echeance:d,priorite:'Haute',assigne_a:com||uid()});}
+  try{logAudit('creation','clients',data.id,{nom:g('pN'),commercial:com});}catch(e){}toast(com?'✅ Prospect confié à '+csNom(com):'✅ Prospect enregistré');closeModal();v4Render('crm-suivi');}
+function csAgenda(){
+  const l=new Date();l.setHours(0,0,0,0);l.setDate(l.getDate()-((l.getDay()+6)%7)+7*CS.semaine);const J=[...Array(6)].map((_,i)=>{const d=new Date(l);d.setDate(d.getDate()+i);return d;});
+  const fin=new Date(J[5]);fin.setDate(fin.getDate()+1);const A=CSD.acts.filter(a=>new Date(a.date_debut)>=l&&new Date(a.date_debut)<fin&&a.statut!=='Reporté');
+  const P=CSD.equipe.filter(p=>A.some(a=>a.commercial_id===p.id)||CSD.clients.some(c=>c.commercial_id===p.id));
+  const demain=new Date();demain.setHours(0,0,0,0);demain.setDate(demain.getDate()+1);const apres=new Date(demain);apres.setDate(apres.getDate()+1);
+  const aConf=CSD.acts.filter(a=>a.statut==='Prévu'&&!a.confirme&&new Date(a.date_debut)>=new Date()&&new Date(a.date_debut)<apres);
+  const cell=(p,d)=>{const L=A.filter(a=>a.commercial_id===p.id&&new Date(a.date_debut).toDateString()===d.toDateString()).sort((x,y)=>x.date_debut.localeCompare(y.date_debut));
+    return L.map(a=>{const c=CS_ST_COUL[a.statut],cl=CSD.clients.find(x=>x.id===a.client_id);return `<div onclick="csActivite('${a.id}')" title="${esc(a.objet)}" style="cursor:pointer;background:${c[0]};color:${c[1]};border-radius:6px;padding:4px 6px;margin:3px 0;font-size:11.5px;line-height:1.3;${a.statut==='Prévu'&&!a.confirme?'border-left:3px solid #B42318':''}">
+      <b>${new Date(a.date_debut).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</b> ${esc(cl?.nom||'')}<br>${esc(a.type)}${a.confirme?' ✔':''}</div>`;}).join('');};
+  return `${aConf.length?`<div class="card" style="border-left:4px solid #B42318;margin-bottom:12px"><h3 class="v4-h3">À confirmer avec les clients d’ici demain (${aConf.length})</h3>${aConf.sort((x,y)=>x.date_debut.localeCompare(y.date_debut)).map(csCarteActivite).join('')}</div>`:''}
+   <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><h3 class="v4-h3">Semaine du ${J[0].toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}</h3>
+     <div style="display:flex;gap:6px"><button class="btn btn-outline btn-sm" onclick="CS.semaine--;v4Render('crm-suivi')">← Précédente</button><button class="btn btn-outline btn-sm" onclick="CS.semaine=0;v4Render('crm-suivi')">Cette semaine</button><button class="btn btn-outline btn-sm" onclick="CS.semaine++;v4Render('crm-suivi')">Suivante →</button></div></div>
+    <div class="table-wrap"><table style="table-layout:fixed;min-width:760px"><thead><tr><th style="width:130px">Commercial</th>${J.map(d=>`<th style="${d.toDateString()===new Date().toDateString()?'background:#E5EFFB':''}">${d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric'})}</th>`).join('')}</tr></thead>
+    <tbody>${P.map(p=>`<tr><td style="vertical-align:top"><strong style="font-size:12.5px">${esc(csNom(p.id))}</strong><div class="cell-sub">${A.filter(a=>a.commercial_id===p.id&&a.statut!=='Annulé').length} activité(s)</div></td>${J.map(d=>`<td style="vertical-align:top;padding:4px">${cell(p,d)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--g400)">Aucun commercial avec des clients ou des rendez-vous.</td></tr>`}</tbody></table></div>
+    <p class="cell-sub">Bleu : prévu · vert : tenu · gris : annulé · liseré rouge : pas encore confirmé par le client · ✔ confirmé. Cliquez sur un rendez-vous pour le modifier.</p></div>`;
+}
+
+</script>
 </body>
 </html>
 
