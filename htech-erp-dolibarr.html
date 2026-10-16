@@ -17983,6 +17983,9 @@ const ptgMin=h=>{if(!h)return null;const[a,b]=String(h).split(':').map(Number);r
 const ptgHM=m=>m==null?'—':`${Math.floor(m/60)} h ${String(m%60).padStart(2,'0')}`;
 const ptgDuree=p=>p.heure_arrivee&&p.heure_depart?Math.max(0,ptgMin(p.heure_depart)-ptgMin(p.heure_arrivee)):null;
 const ptgRetard=p=>p.heure_arrivee&&['normal','formation'].includes(p.type_journee)?Math.max(0,ptgMin(p.heure_arrivee)-ptgMin(PTG.heureRef)-PTG.tolerance):0;
+const ptgErreur=e=>/does not exist|PGRST205|42P01|schema cache|Could not find the table/i.test((e?.code||'')+' '+(e?.message||''))
+  ?'⚠️ La table « pointages » est introuvable dans ce projet Supabase : exécutez « migration-pointage.sql » dans le SQL Editor du projet de l’ERP, puis rechargez la page (Ctrl+F5).'
+  :'⚠️ Lecture des pointages impossible : '+esc(e?.message||String(e));
 const ptgPos=(la,lo)=>la!=null?`<a href="https://www.google.com/maps?q=${la},${lo}" target="_blank" rel="noopener" title="Position au moment du pointage">📍</a>`:'';
 function ptgResume(L){const tr=L.filter(p=>p.heure_arrivee),mn=tr.map(ptgDuree).filter(x=>x!=null);
   return{jours:tr.length,heures:mn.reduce((a,b)=>a+b,0),retards:tr.filter(p=>ptgRetard(p)>0).length,absences:L.filter(p=>['absence','maladie'].includes(p.type_journee)).length,
@@ -17993,7 +17996,7 @@ async function ptgPosition(){if(!navigator.geolocation)return{};return await new
 v4Def('mon-pointage',{titre:'Mon pointage',icone:'⏱️',custom:async pg=>{
   const mois=PTG.moisPerso||isoJour().slice(0,7);
   const{data,error}=await sb.from('pointages').select('*').eq('employe_id',uid()).gte('date_pointage',mois+'-01').lte('date_pointage',mois+'-31').order('date_pointage',{ascending:false});
-  if(error){pg.innerHTML=`<div class="card">⚠️ Le pointage n’est pas encore installé : exécutez la migration « migration-pointage.sql » dans Supabase.</div>`;return;}
+  if(error){pg.innerHTML=`<div class="card">${ptgErreur(error)}</div>`;return;}
   const L=data||[],auj=L.find(p=>p.date_pointage===isoJour()),R=ptgResume(L);
   const etat=!auj||!auj.heure_arrivee?'arrivee':!auj.heure_depart?'depart':'fini';
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">⏱️ Mon pointage</h1><div class="page-sub">${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div></div></div>
@@ -18043,13 +18046,13 @@ async function loadPointage(){
     document.getElementById('pointage-employe').innerHTML+=PTG.equipe.map(e=>`<option value="${e.id}">${esc(((e.prenom||'')+' '+(e.nom||'')).trim())}</option>`).join('');
   }
   const mois=PTG.mois=document.getElementById('pointage-mois').value||isoJour().slice(0,7),emp=document.getElementById('pointage-employe').value,st=document.getElementById('pointage-statut').value;
-  let q=sb.from('pointages').select('*,profiles(prenom,nom)').gte('date_pointage',mois+'-01').lte('date_pointage',mois+'-31').order('date_pointage',{ascending:false});
+  let q=sb.from('pointages').select('*').gte('date_pointage',mois+'-01').lte('date_pointage',mois+'-31').order('date_pointage',{ascending:false});
   if(emp)q=q.eq('employe_id',emp);
   const{data,error}=await q;const T=document.getElementById('pointageTable');
-  if(error){T.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--amber);padding:18px">⚠️ Exécutez la migration « migration-pointage.sql » dans Supabase.</td></tr>';return;}
+  if(error){T.innerHTML=`<tr><td colspan="9" style="text-align:center;color:var(--amber);padding:18px">${ptgErreur(error)}</td></tr>`;return;}
   if(!document.getElementById('pointage-resume'))return;
   PTG.rows=data||[];const L=st?PTG.rows.filter(p=>p.statut===st):PTG.rows;
-  const nom=p=>p.profiles?((p.profiles.prenom||'')+' '+(p.profiles.nom||'')).trim():'—';
+  const nom=ptgNomEmp;
   // Résumé par employé
   const par={};PTG.rows.forEach(p=>{(par[p.employe_id]=par[p.employe_id]||{n:nom(p),L:[]}).L.push(p);});
   document.getElementById('pointage-resume').innerHTML=Object.keys(par).length?`<div class="table-wrap"><table><thead><tr><th>Résumé du mois</th><th>Jours</th><th>Heures</th><th>Retards</th><th>Absences / maladie</th><th>Congés</th><th>Départs non pointés</th></tr></thead><tbody>${Object.values(par).sort((a,b)=>a.n.localeCompare(b.n)).map(x=>{const r=ptgResume(x.L);
@@ -18061,6 +18064,7 @@ async function loadPointage(){
     <td><span class="badge ${(PTG_ST[p.statut]||PTG_ST.en_attente)[0]}">${(PTG_ST[p.statut]||PTG_ST.en_attente)[1]}</span>${p.motif_correction?`<div class="cell-sub">${esc(p.motif_correction)}</div>`:''}${p.notes?`<div class="cell-sub">${esc(p.notes)}</div>`:''}</td>
     <td style="white-space:nowrap">${p.statut==='en_attente'?`<button class="btn btn-outline btn-sm" title="Valider" onclick="validerPointage('${p.id}')">✓</button>`:''}<button class="btn btn-outline btn-sm" title="Corriger" onclick="ptgEditer('${p.id}')">✏️</button></td></tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:18px;color:var(--g400)">Aucun pointage pour cette période.</td></tr>';
 }
+function ptgNomEmp(p){const e=(PTG.equipe||[]).find(x=>x.id===p.employe_id);return e?((e.prenom||'')+' '+(e.nom||'')).trim():'—';}
 async function validerPointage(id){const{error}=await sb.from('pointages').update({statut:'valide'}).eq('id',id);if(error){toast('❌ '+error.message);return;}toast('✅ Pointage validé');await loadPointage();}
 async function ptgValiderTout(){const L=(PTG.rows||[]).filter(p=>p.statut==='en_attente'&&p.heure_arrivee&&p.heure_depart);if(!L.length){toast('Aucun pointage complet en attente');return;}
   if(!confirm('Valider '+L.length+' pointage(s) complet(s) ?'))return;const{error}=await sb.from('pointages').update({statut:'valide'}).in('id',L.map(p=>p.id));if(error){toast('❌ '+error.message);return;}toast('✅ '+L.length+' pointage(s) validé(s)');await loadPointage();}
@@ -18083,7 +18087,7 @@ async function ptgSauver(){const{id,badge}=window._ptgE;const o={date_pointage:g
   if(r.error){toast('❌ '+(/duplicate|unique/i.test(r.error.message)?'Un pointage existe déjà pour cet employé à cette date : corrigez-le.':r.error.message.replace(/^.*?:\s(?=[A-ZÉ])/,'')),7000);return;}
   toast('✅ Pointage enregistré');closeModal();await loadPointage();}
 function ptgExport(){const L=PTG.rows||[];if(!L.length){toast('Rien à exporter');return;}
-  const nom=p=>p.profiles?((p.profiles.prenom||'')+' '+(p.profiles.nom||'')).trim():'',q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const nom=ptgNomEmp,q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   const csv=['Employé;Date;Type;Arrivée;Départ;Durée (min);Retard (min);Origine;Statut;Motif;Notes',...L.map(p=>[nom(p),p.date_pointage,PTG_TYPES[p.type_journee]||p.type_journee,String(p.heure_arrivee||'').slice(0,5),String(p.heure_depart||'').slice(0,5),ptgDuree(p)??'',ptgRetard(p)||'',p.source==='badge'?'Employé':'Responsable',(PTG_ST[p.statut]||[])[1]||p.statut,p.motif_correction||'',p.notes||''].map(q).join(';'))].join('\n');
   dpTelecharger(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}),'Pointages-'+PTG.mois+'.csv');}
 (function(){try{Object.entries(NAV).forEach(([ro,nav])=>{if(!nav||['client','apprenant'].includes(ro)||nav.some(x=>x.id==='mon-pointage'))return;
