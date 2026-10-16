@@ -17970,6 +17970,714 @@ function csAgenda(){
 }
 
 </script>
+<script>
+
+// ══════════════════════════════════════════════════════════════════════
+// POINTAGE — chaque employé pointe (heure du serveur) ; les responsables suivent, corrigent et valident
+// ══════════════════════════════════════════════════════════════════════
+var PTG={heureRef:'08:00',tolerance:15,mois:null,emp:''};
+const PTG_TYPES={normal:'Normal',teletravail:'Télétravail',deplacement:'Déplacement',mission:'Mission',formation:'Formation',conge:'Congé',absence:'Absence',maladie:'Maladie',ferie:'Férié'};
+const PTG_ST={en_attente:['badge-amber','En attente'],valide:['badge-green','Validé'],corrige:['badge-blue','Corrigé'],rejete:['badge-red','Rejeté']};
+const ptgGestion=()=>['superadmin','admin','directeur','administrateur','responsable'].includes(CP?.role);
+const ptgMin=h=>{if(!h)return null;const[a,b]=String(h).split(':').map(Number);return a*60+b;};
+const ptgHM=m=>m==null?'—':`${Math.floor(m/60)} h ${String(m%60).padStart(2,'0')}`;
+const ptgDuree=p=>p.heure_arrivee&&p.heure_depart?Math.max(0,ptgMin(p.heure_depart)-ptgMin(p.heure_arrivee)):null;
+const ptgRetard=p=>p.heure_arrivee&&['normal','formation'].includes(p.type_journee)?Math.max(0,ptgMin(p.heure_arrivee)-ptgMin(PTG.heureRef)-PTG.tolerance):0;
+const ptgPos=(la,lo)=>la!=null?`<a href="https://www.google.com/maps?q=${la},${lo}" target="_blank" rel="noopener" title="Position au moment du pointage">📍</a>`:'';
+function ptgResume(L){const tr=L.filter(p=>p.heure_arrivee),mn=tr.map(ptgDuree).filter(x=>x!=null);
+  return{jours:tr.length,heures:mn.reduce((a,b)=>a+b,0),retards:tr.filter(p=>ptgRetard(p)>0).length,absences:L.filter(p=>['absence','maladie'].includes(p.type_journee)).length,
+    conges:L.filter(p=>p.type_journee==='conge').length,incomplets:L.filter(p=>p.heure_arrivee&&!p.heure_depart&&p.date_pointage<isoJour()).length};}
+async function ptgPosition(){if(!navigator.geolocation)return{};return await new Promise(ok=>{navigator.geolocation.getCurrentPosition(p=>ok({lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6)}),()=>ok({}),{enableHighAccuracy:true,timeout:8000,maximumAge:60000});});}
+
+// ── Mon pointage (tout le personnel) ──
+v4Def('mon-pointage',{titre:'Mon pointage',icone:'⏱️',custom:async pg=>{
+  const mois=PTG.moisPerso||isoJour().slice(0,7);
+  const{data,error}=await sb.from('pointages').select('*').eq('employe_id',uid()).gte('date_pointage',mois+'-01').lte('date_pointage',mois+'-31').order('date_pointage',{ascending:false});
+  if(error){pg.innerHTML=`<div class="card">⚠️ Le pointage n’est pas encore installé : exécutez la migration « migration-pointage.sql » dans Supabase.</div>`;return;}
+  const L=data||[],auj=L.find(p=>p.date_pointage===isoJour()),R=ptgResume(L);
+  const etat=!auj||!auj.heure_arrivee?'arrivee':!auj.heure_depart?'depart':'fini';
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">⏱️ Mon pointage</h1><div class="page-sub">${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div></div></div>
+   <div class="card" style="text-align:center;padding:26px 16px;margin-bottom:14px">
+    <div id="ptgHorloge" style="font-family:Montserrat,sans-serif;font-size:44px;font-weight:800;color:var(--navy);letter-spacing:1px">--:--</div>
+    <div class="cell-sub" style="margin-bottom:16px">${etat==='arrivee'?'Vous n’avez pas encore pointé aujourd’hui.':etat==='depart'?'Arrivée pointée à <b>'+String(auj.heure_arrivee).slice(0,5)+'</b>'+(ptgRetard(auj)?' · <span style="color:#B42318">retard de '+ptgHM(ptgRetard(auj))+'</span>':''):'Journée terminée : '+String(auj.heure_arrivee).slice(0,5)+' → '+String(auj.heure_depart).slice(0,5)+' ('+ptgHM(ptgDuree(auj))+')'}</div>
+    ${etat==='arrivee'?`<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px">${['normal','teletravail','deplacement','mission','formation'].map(t=>`<label style="font-size:13px;display:flex;gap:5px;align-items:center"><input type="radio" name="ptgT" value="${t}" ${t==='normal'?'checked':''}> ${PTG_TYPES[t]}</label>`).join('')}</div>
+      <button class="btn btn-primary" style="font-size:16px;padding:12px 34px" onclick="ptgPointer('arrivee',this)">✅ Pointer mon arrivée</button>`
+     :etat==='depart'?`<button class="btn btn-accent" style="font-size:16px;padding:12px 34px" onclick="ptgPointer('depart',this)">🏁 Pointer mon départ</button>`:'<span class="badge badge-green" style="font-size:13px">✔ Pointage du jour complet</span>'}
+    <p class="cell-sub" style="margin-top:12px">L’heure enregistrée est celle du serveur. Votre position est jointe si vous l’autorisez.</p></div>
+   <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-label">Jours pointés</div><div class="kpi-value">${R.jours}</div></div>
+    <div class="kpi"><div class="kpi-label">Heures travaillées</div><div class="kpi-value" style="font-size:20px">${ptgHM(R.heures)}</div></div>
+    <div class="kpi"><div class="kpi-label">Retards</div><div class="kpi-value" style="${R.retards?'color:#B42318':''}">${R.retards}</div><div class="cell-sub">après ${PTG.heureRef} + ${PTG.tolerance} min</div></div>
+    <div class="kpi"><div class="kpi-label">Départs non pointés</div><div class="kpi-value" style="${R.incomplets?'color:#B45309':''}">${R.incomplets}</div></div></div>
+   <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 class="v4-h3">Mon historique</h3><input type="month" value="${mois}" onchange="PTG.moisPerso=this.value;v4Render('mon-pointage')"></div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Statut</th></tr></thead><tbody>
+    ${L.map(p=>`<tr><td>${new Date(p.date_pointage+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})}</td><td>${PTG_TYPES[p.type_journee]||p.type_journee}</td>
+      <td>${p.heure_arrivee?String(p.heure_arrivee).slice(0,5):'—'}${ptgRetard(p)?' <span style="color:#B42318;font-size:11px">+'+ptgRetard(p)+' min</span>':''}</td><td>${p.heure_depart?String(p.heure_depart).slice(0,5):'—'}</td><td>${ptgHM(ptgDuree(p))}</td>
+      <td><span class="badge ${(PTG_ST[p.statut]||PTG_ST.en_attente)[0]}">${(PTG_ST[p.statut]||PTG_ST.en_attente)[1]}</span>${p.motif_correction?`<div class="cell-sub">${esc(p.motif_correction)}</div>`:''}</td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--g400)">Aucun pointage ce mois-ci.</td></tr>'}
+    </tbody></table></div></div>`;
+  clearInterval(window._ptgH);const h=()=>{const e=document.getElementById('ptgHorloge');if(!e){clearInterval(window._ptgH);return;}e.textContent=new Date().toLocaleTimeString('fr-FR',{timeZone:'Africa/Abidjan',hour:'2-digit',minute:'2-digit',second:'2-digit'});};h();window._ptgH=setInterval(h,1000);
+}});
+async function ptgPointer(sens,btn){if(btn){btn.disabled=true;btn.textContent='Pointage en cours…';}
+  const pos=await ptgPosition(),type=document.querySelector('input[name=ptgT]:checked')?.value||'normal';
+  const{data,error}=await sb.rpc('pointer',{p_sens:sens,p_lat:pos.lat??null,p_lng:pos.lng??null,p_type:type});
+  if(error){toast('❌ '+error.message.replace(/^.*?:\s(?=[A-ZÉ])/,''),7000);await v4Render('mon-pointage');return;}
+  const r=Array.isArray(data)?data[0]:data;toast(sens==='arrivee'?'✅ Arrivée pointée à '+String(r?.heure_arrivee||'').slice(0,5):'🏁 Départ pointé à '+String(r?.heure_depart||'').slice(0,5));await v4Render('mon-pointage');}
+
+// ── Gestion des pointages (RH › Pointage) : remplace l'ancien écran ──
+async function chargerEmployesPointage(){const sel=document.getElementById('ptgEmploye');if(!sel)return;
+  const{data}=await sb.from('profiles').select('id,prenom,nom,role').order('prenom');
+  sel.innerHTML='<option value="">— Choisir un employé —</option>'+(data||[]).filter(p=>!['client','apprenant'].includes(p.role)).map(p=>`<option value="${p.id}">${esc(((p.prenom||'')+' '+(p.nom||'')).trim())}</option>`).join('');}
+async function loadPointage(){
+  const tb=document.getElementById('pointageTable');if(!tb)return;
+  const pane=document.getElementById('rhPane-pointage');
+  if(!ptgGestion()){pane.innerHTML=`<div class="card">Le suivi de l’équipe est réservé aux responsables. <a href="#" onclick="showPage('mon-pointage');return false">Ouvrir mon pointage</a></div>`;return;}
+  if(!document.getElementById('ptgOutils')){
+    pane.innerHTML=`<div class="card"><div id="ptgOutils" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <input type="month" id="pointage-mois" onchange="loadPointage()"><select id="pointage-employe" onchange="loadPointage()"><option value="">Tous les employés</option></select>
+      <select id="pointage-statut" onchange="loadPointage()"><option value="">Tous les statuts</option>${Object.entries(PTG_ST).map(([k,v])=>`<option value="${k}">${v[1]}</option>`).join('')}</select>
+      <span style="flex:1"></span><button class="btn btn-outline btn-sm" onclick="ptgValiderTout()">✓ Valider les pointages complets</button><button class="btn btn-outline btn-sm" onclick="ptgExport()">📊 Export CSV</button><button class="btn btn-primary btn-sm" onclick="ptgEditer()">+ Saisir / absence</button></div>
+     <div id="pointage-resume" style="margin-bottom:12px"></div>
+     <div class="table-wrap"><table><thead><tr><th>Employé</th><th>Date</th><th>Type</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Origine</th><th>Statut</th><th></th></tr></thead><tbody id="pointageTable"></tbody></table></div></div>`;
+    document.getElementById('pointage-mois').value=PTG.mois||isoJour().slice(0,7);
+    const{data:E}=await sb.from('profiles').select('id,prenom,nom,role').order('prenom');PTG.equipe=(E||[]).filter(p=>!['client','apprenant'].includes(p.role));
+    document.getElementById('pointage-employe').innerHTML+=PTG.equipe.map(e=>`<option value="${e.id}">${esc(((e.prenom||'')+' '+(e.nom||'')).trim())}</option>`).join('');
+  }
+  const mois=PTG.mois=document.getElementById('pointage-mois').value||isoJour().slice(0,7),emp=document.getElementById('pointage-employe').value,st=document.getElementById('pointage-statut').value;
+  let q=sb.from('pointages').select('*,profiles(prenom,nom)').gte('date_pointage',mois+'-01').lte('date_pointage',mois+'-31').order('date_pointage',{ascending:false});
+  if(emp)q=q.eq('employe_id',emp);
+  const{data,error}=await q;const T=document.getElementById('pointageTable');
+  if(error){T.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--amber);padding:18px">⚠️ Exécutez la migration « migration-pointage.sql » dans Supabase.</td></tr>';return;}
+  if(!document.getElementById('pointage-resume'))return;
+  PTG.rows=data||[];const L=st?PTG.rows.filter(p=>p.statut===st):PTG.rows;
+  const nom=p=>p.profiles?((p.profiles.prenom||'')+' '+(p.profiles.nom||'')).trim():'—';
+  // Résumé par employé
+  const par={};PTG.rows.forEach(p=>{(par[p.employe_id]=par[p.employe_id]||{n:nom(p),L:[]}).L.push(p);});
+  document.getElementById('pointage-resume').innerHTML=Object.keys(par).length?`<div class="table-wrap"><table><thead><tr><th>Résumé du mois</th><th>Jours</th><th>Heures</th><th>Retards</th><th>Absences / maladie</th><th>Congés</th><th>Départs non pointés</th></tr></thead><tbody>${Object.values(par).sort((a,b)=>a.n.localeCompare(b.n)).map(x=>{const r=ptgResume(x.L);
+    return `<tr><td><b>${esc(x.n)}</b></td><td>${r.jours}</td><td>${ptgHM(r.heures)}</td><td style="${r.retards?'color:#B42318;font-weight:600':''}">${r.retards}</td><td>${r.absences}</td><td>${r.conges}</td><td style="${r.incomplets?'color:#B45309;font-weight:600':''}">${r.incomplets}</td></tr>`;}).join('')}</tbody></table></div>`:'';
+  T.innerHTML=L.map(p=>`<tr><td>${esc(nom(p))}</td><td>${new Date(p.date_pointage+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'})}</td><td>${PTG_TYPES[p.type_journee]||p.type_journee}</td>
+    <td>${p.heure_arrivee?String(p.heure_arrivee).slice(0,5):'—'} ${ptgPos(p.lat_arrivee,p.lng_arrivee)}${ptgRetard(p)?' <span style="color:#B42318;font-size:11px">+'+ptgRetard(p)+' min</span>':''}</td>
+    <td>${p.heure_depart?String(p.heure_depart).slice(0,5):(p.heure_arrivee&&p.date_pointage<isoJour()?'<span style="color:#B45309">non pointé</span>':'—')} ${ptgPos(p.lat_depart,p.lng_depart)}</td><td>${ptgHM(ptgDuree(p))}</td>
+    <td style="font-size:12px">${p.source==='badge'?'Pointé par l’employé':'Saisi par un responsable'}</td>
+    <td><span class="badge ${(PTG_ST[p.statut]||PTG_ST.en_attente)[0]}">${(PTG_ST[p.statut]||PTG_ST.en_attente)[1]}</span>${p.motif_correction?`<div class="cell-sub">${esc(p.motif_correction)}</div>`:''}${p.notes?`<div class="cell-sub">${esc(p.notes)}</div>`:''}</td>
+    <td style="white-space:nowrap">${p.statut==='en_attente'?`<button class="btn btn-outline btn-sm" title="Valider" onclick="validerPointage('${p.id}')">✓</button>`:''}<button class="btn btn-outline btn-sm" title="Corriger" onclick="ptgEditer('${p.id}')">✏️</button></td></tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:18px;color:var(--g400)">Aucun pointage pour cette période.</td></tr>';
+}
+async function validerPointage(id){const{error}=await sb.from('pointages').update({statut:'valide'}).eq('id',id);if(error){toast('❌ '+error.message);return;}toast('✅ Pointage validé');await loadPointage();}
+async function ptgValiderTout(){const L=(PTG.rows||[]).filter(p=>p.statut==='en_attente'&&p.heure_arrivee&&p.heure_depart);if(!L.length){toast('Aucun pointage complet en attente');return;}
+  if(!confirm('Valider '+L.length+' pointage(s) complet(s) ?'))return;const{error}=await sb.from('pointages').update({statut:'valide'}).in('id',L.map(p=>p.id));if(error){toast('❌ '+error.message);return;}toast('✅ '+L.length+' pointage(s) validé(s)');await loadPointage();}
+function ptgEditer(id){const p=id?(PTG.rows||[]).find(x=>x.id===id):{date_pointage:isoJour(),type_journee:'normal'};window._ptgE={id,badge:p.source==='badge'};
+  document.getElementById('modalBox').style.width='min(560px,96vw)';document.getElementById('modalTitle').textContent=id?'Corriger le pointage':'Saisir un pointage ou une absence';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+   <div class="form-field full"><label for="peE">Employé</label><select id="peE" ${id?'disabled':''}>${(PTG.equipe||[]).map(e=>`<option value="${e.id}" ${e.id===p.employe_id?'selected':''}>${esc(((e.prenom||'')+' '+(e.nom||'')).trim())}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="peD">Date</label><input id="peD" type="date" value="${p.date_pointage||''}"></div>
+   <div class="form-field"><label for="peT">Type de journée</label><select id="peT">${Object.entries(PTG_TYPES).map(([k,v])=>`<option value="${k}" ${p.type_journee===k?'selected':''}>${v}</option>`).join('')}</select></div>
+   <div class="form-field"><label for="peA">Arrivée</label><input id="peA" type="time" value="${p.heure_arrivee?String(p.heure_arrivee).slice(0,5):''}"></div>
+   <div class="form-field"><label for="peDe">Départ</label><input id="peDe" type="time" value="${p.heure_depart?String(p.heure_depart).slice(0,5):''}"></div>
+   ${p.source==='badge'?`<div class="form-field full"><label for="peM">Motif de la correction * <span class="cell-sub">(pointage effectué par l’employé)</span></label><input id="peM" placeholder="Badge oublié, erreur de pointage…"></div>`:''}
+   <div class="form-field full"><label for="peN">Notes</label><textarea id="peN" rows="2">${esc(p.notes||'')}</textarea></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="ptgSauver()">Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function ptgSauver(){const{id,badge}=window._ptgE;const o={date_pointage:gv('peD'),type_journee:gv('peT'),heure_arrivee:gv('peA')||null,heure_depart:gv('peDe')||null,notes:gv('peN')||null};
+  if(!o.date_pointage){toast('❌ Date requise');return;}if(o.heure_arrivee&&o.heure_depart&&o.heure_depart<=o.heure_arrivee){toast('❌ Le départ doit suivre l’arrivée');return;}
+  if(badge){const m=g('peM');if(!m){toast('❌ Motif de la correction requis');return;}o.motif_correction=m;}
+  const r=id?await sb.from('pointages').update(o).eq('id',id):await sb.from('pointages').insert({...o,employe_id:gv('peE'),source:'saisie',statut:'valide'});
+  if(r.error){toast('❌ '+(/duplicate|unique/i.test(r.error.message)?'Un pointage existe déjà pour cet employé à cette date : corrigez-le.':r.error.message.replace(/^.*?:\s(?=[A-ZÉ])/,'')),7000);return;}
+  toast('✅ Pointage enregistré');closeModal();await loadPointage();}
+function ptgExport(){const L=PTG.rows||[];if(!L.length){toast('Rien à exporter');return;}
+  const nom=p=>p.profiles?((p.profiles.prenom||'')+' '+(p.profiles.nom||'')).trim():'',q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const csv=['Employé;Date;Type;Arrivée;Départ;Durée (min);Retard (min);Origine;Statut;Motif;Notes',...L.map(p=>[nom(p),p.date_pointage,PTG_TYPES[p.type_journee]||p.type_journee,String(p.heure_arrivee||'').slice(0,5),String(p.heure_depart||'').slice(0,5),ptgDuree(p)??'',ptgRetard(p)||'',p.source==='badge'?'Employé':'Responsable',(PTG_ST[p.statut]||[])[1]||p.statut,p.motif_correction||'',p.notes||''].map(q).join(';'))].join('\n');
+  dpTelecharger(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}),'Pointages-'+PTG.mois+'.csv');}
+(function(){try{Object.entries(NAV).forEach(([ro,nav])=>{if(!nav||['client','apprenant'].includes(ro)||nav.some(x=>x.id==='mon-pointage'))return;
+    const k=nav.findIndex(x=>x.id==='dashboard');nav.splice(k<0?1:k+1,0,{id:'mon-pointage',i:'⏱️',l:'Mon pointage'});});PAGE_LABELS['mon-pointage']='Mon pointage';}catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-mon-pointage')){const d=document.createElement('div');d.className='page';d.id='page-mon-pointage';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
+
+</script>
+<script>
+
+// ══════════════════════════════════════════════════════════════════════
+// CONTRATS RH — modèles de textes (droit ivoirien : loi n° 2015-532 du 20 juillet 2015 portant Code du travail,
+// décret n° 2024-900 du 16 octobre 2024 sur la période d'essai, décret n° 2022-986 sur le SMIG)
+// Variables {{...}} ; clauses conditionnelles [[si:cle]] … [[/si]] ; « Article # » numéroté automatiquement.
+// ══════════════════════════════════════════════════════════════════════
+var RH_MODELES_DEFAUT={
+cdi:`**Article # – Engagement.** {{employeur}} engage {{salarie}}, qui l'accepte, en qualité de {{poste}}, à compter du {{date_debut}}, pour une durée indéterminée. Le Salarié est classé dans la catégorie {{categorie}} de la Convention collective interprofessionnelle du 19 juillet 1977{{classification_txt}}.
+
+**Article # – Textes applicables.** Le présent contrat est régi par la loi n° 2015-532 du 20 juillet 2015 portant Code du travail, ses textes d'application, la Convention collective interprofessionnelle et le règlement intérieur de {{employeur}}, dont le Salarié reconnaît avoir reçu un exemplaire.
+
+[[si:essai]]**Article # – Période d'essai.** Le présent contrat ne devient définitif qu'à l'issue d'une période d'essai de {{essai_texte}}, conformément au décret n° 2024-900 du 16 octobre 2024. Cette période peut être renouvelée une seule fois, par écrit, avant son terme. Pendant la période d'essai, chacune des parties peut rompre le contrat librement, sans préavis et sans indemnité (article 18.1 du Code du travail). Le Salarié passe la visite médicale d'embauche au plus tard avant l'expiration de la période d'essai.
+
+[[/si]]**Article # – Fonctions.** Le Salarié exerce les fonctions suivantes : {{missions}}. Il exerce ses fonctions sous l'autorité de {{superieur}}, ou de toute personne désignée par la Direction. Il peut se voir confier toute tâche connexe relevant de sa qualification. Toute modification substantielle du présent contrat requiert l'accord préalable du Salarié (article 16.6 du Code du travail).
+
+**Article # – Lieu de travail.** Le Salarié exerce ses fonctions à {{lieu_travail}}. Il peut être amené à effectuer des déplacements professionnels liés à ses fonctions, dans les conditions prévues par la réglementation et les usages de l'entreprise.[[si:mobilite]] Compte tenu de la nature de ses fonctions, le Salarié accepte d'être affecté dans tout établissement ou chantier de {{employeur}} situé dans le périmètre suivant : {{zone_mobilite}}, sous réserve d'un délai de prévenance raisonnable.[[/si]]
+
+**Article # – Durée et horaires de travail.** [[si:temps_partiel]]Le Salarié est engagé à temps partiel, pour une durée de {{duree_hebdo}} heures par semaine, réparties comme suit : {{horaires}}. Des heures complémentaires peuvent être accomplies dans les conditions et limites fixées par décret (article 21.2 du Code du travail).[[/si]][[si:!temps_partiel]]La durée du travail est fixée à quarante (40) heures par semaine (article 21.2 du Code du travail), selon l'horaire suivant : {{horaires}}. Les heures supplémentaires éventuellement accomplies à la demande de la Direction sont rémunérées avec les majorations prévues par la réglementation.[[/si]]
+
+**Article # – Rémunération.** En contrepartie de ses services, le Salarié perçoit une rémunération mensuelle brute composée de : salaire catégoriel {{salaire_base}} ({{salaire_base_lettres}}){{sursalaire_txt}}{{prime_transport_txt}}{{autres_primes_txt}}. La rémunération est payée par {{mode_paiement}}, au plus tard huit (8) jours après la fin du mois (article 32.3 du Code du travail), et donne lieu à la remise d'un bulletin de paie. Le Salarié est affilié à la Caisse nationale de prévoyance sociale (CNPS) ; les cotisations et retenues légales sont prélevées sur sa rémunération.
+
+**Article # – Congés.** Le Salarié bénéficie d'un congé payé de 2,2 jours ouvrables par mois de service effectif (article 25.1 du Code du travail), augmenté le cas échéant selon son ancienneté, ainsi que des permissions exceptionnelles prévues par la loi. Les dates de congé sont fixées par la Direction, compte tenu des nécessités du service.
+
+**Article # – Obligations du Salarié.** Le Salarié s'engage à exécuter lui-même et avec soin le travail pour lequel il est engagé, à respecter le règlement intérieur, les consignes d'hygiène et de sécurité et les instructions de la Direction. Il peut exercer, en dehors de son temps de travail, toute activité professionnelle non susceptible de concurrencer l'entreprise ou de nuire à la bonne exécution de ses fonctions (article 16.4 du Code du travail).[[si:exclusivite]] Par dérogation, le Salarié s'engage à consacrer l'exclusivité de son activité professionnelle à {{employeur}} pendant toute la durée du contrat et à ne pas exercer d'autre activité professionnelle sans autorisation écrite préalable de la Direction.[[/si]]
+
+[[si:confidentialite]]**Article # – Confidentialité.** Le Salarié s'engage à garder strictement confidentielles les informations techniques, commerciales, financières et personnelles dont il a connaissance dans l'exercice de ses fonctions, notamment celles relatives aux clients, partenaires, apprenants et projets de {{employeur}}. Cette obligation s'applique pendant toute la durée du contrat et après sa cessation, quelle qu'en soit la cause.
+
+[[/si]][[si:non_sollicitation]]**Article # – Loyauté et non-sollicitation.** Pendant toute la durée du contrat, le Salarié s'interdit de solliciter, pour son compte ou pour le compte d'un tiers, les clients, partenaires ou apprenants de {{employeur}}, ainsi que d'inciter tout membre du personnel à quitter l'entreprise.
+
+[[/si]][[si:propriete_intellectuelle]]**Article # – Travaux et propriété intellectuelle.** Les études, documents, logiciels, supports de formation et autres travaux réalisés par le Salarié dans l'exercice de ses fonctions ou avec les moyens de l'entreprise sont la propriété de {{employeur}}, dans les limites prévues par la législation sur la propriété intellectuelle. Le Salarié ne peut les utiliser ou les diffuser qu'avec l'accord écrit de la Direction.
+
+[[/si]][[si:materiel]]**Article # – Matériel professionnel.** {{employeur}} met à la disposition du Salarié le matériel suivant : {{materiel_liste}}. Ce matériel est destiné à un usage professionnel ; le Salarié en assure la garde et le restitue en bon état à la première demande et, au plus tard, à la fin du contrat.
+
+[[/si]][[si:teletravail]]**Article # – Télétravail.** Le Salarié peut exercer une partie de ses fonctions en télétravail, selon les modalités suivantes : {{teletravail_modalites}}. Il reste joignable pendant les horaires convenus et respecte les règles de sécurité informatique de l'entreprise.
+
+[[/si]]**Article # – Suspension et rupture du contrat.** Le contrat peut être suspendu dans les cas prévus par le Code du travail. Il peut être rompu par l'une ou l'autre des parties dans les conditions prévues aux articles 18.3 et suivants du Code du travail, moyennant le respect du préavis fixé par la Convention collective interprofessionnelle. La partie qui prend l'initiative de la rupture la notifie par écrit à l'autre ; lorsque l'initiative émane de l'employeur, la notification est motivée.
+
+**Article # – Fin du contrat.** À l'expiration du contrat, {{employeur}} remet au Salarié un certificat de travail et un relevé nominatif de salaire de la CNPS (article 18.18 du Code du travail). Le Salarié restitue l'ensemble des documents et matériels appartenant à l'entreprise.
+
+**Article # – Données personnelles.** Les données personnelles du Salarié sont traitées par {{employeur}} pour la gestion du personnel, de la paie et des obligations sociales, conformément à la loi n° 2013-450 du 19 juin 2013 relative à la protection des données à caractère personnel. Le Salarié dispose d'un droit d'accès et de rectification auprès de la Direction.
+
+**Article # – Litiges.** Tout différend relatif à l'exécution ou à la rupture du présent contrat fait l'objet d'une recherche de solution amiable. À défaut, il peut être porté devant l'inspecteur du travail et des lois sociales, puis devant le Tribunal du travail territorialement compétent.
+
+**Article # – Dispositions finales.** Le présent contrat est exempt de tous droits de timbre et d'enregistrement (article 14.2 du Code du travail). Il est établi en deux (2) exemplaires originaux, dont un remis à chaque partie.{{conditions_particulieres_txt}}`,
+
+cdd:`**Article # – Engagement.** {{employeur}} engage {{salarie}}, qui l'accepte, par contrat à durée déterminée, en qualité de {{poste}}, à compter du {{date_debut}}. Le Salarié est classé dans la catégorie {{categorie}} de la Convention collective interprofessionnelle du 19 juillet 1977{{classification_txt}}.
+
+**Article # – Textes applicables.** Le présent contrat est régi par les articles 15.1 à 15.10 de la loi n° 2015-532 du 20 juillet 2015 portant Code du travail, ses textes d'application, la Convention collective interprofessionnelle et le règlement intérieur de {{employeur}}.
+
+[[si:terme=precis]]**Article # – Durée et terme.** Le présent contrat est conclu pour une durée de {{duree_mois}} mois, du {{date_debut}} au {{date_fin}} inclus. Il prend fin de plein droit à cette date. Il peut être renouvelé par avenant écrit ; les renouvellements ne peuvent avoir pour effet de porter la durée totale du contrat au-delà de deux (2) ans (article 15.4 du Code du travail).
+
+[[/si]][[si:terme=imprecis]]**Article # – Motif et terme.** Le présent contrat est conclu pour l'exécution d'une tâche précise et temporaire, au motif suivant : {{motif_label}} ({{motif_detail}}), conformément à l'article 15.6 du Code du travail. Il prend fin à la réalisation de l'événement suivant : {{terme_evenement}}. À titre d'information, sa durée approximative est estimée à {{duree_approx}}.
+
+[[/si]][[si:essai]]**Article # – Période d'essai.** Le présent contrat comporte une période d'essai de {{essai_texte}}, conformément au décret n° 2024-900 du 16 octobre 2024, renouvelable une seule fois par écrit avant son terme. Pendant cette période, chacune des parties peut rompre le contrat librement, sans préavis et sans indemnité (articles 15.9 et 18.1 du Code du travail).
+
+[[/si]]**Article # – Fonctions.** Le Salarié exerce les fonctions suivantes : {{missions}}, sous l'autorité de {{superieur}}. Toute modification substantielle du contrat requiert son accord préalable (article 16.6 du Code du travail).
+
+**Article # – Lieu de travail.** Le Salarié exerce ses fonctions à {{lieu_travail}}, avec les déplacements que requièrent ses fonctions.
+
+**Article # – Durée et horaires de travail.** [[si:temps_partiel]]Le Salarié est engagé à temps partiel, pour {{duree_hebdo}} heures par semaine, réparties comme suit : {{horaires}}.[[/si]][[si:!temps_partiel]]La durée du travail est fixée à quarante (40) heures par semaine, selon l'horaire suivant : {{horaires}}. Les heures supplémentaires sont rémunérées avec les majorations réglementaires.[[/si]]
+
+**Article # – Rémunération.** Le Salarié perçoit une rémunération mensuelle brute composée de : salaire catégoriel {{salaire_base}} ({{salaire_base_lettres}}){{sursalaire_txt}}{{prime_transport_txt}}{{autres_primes_txt}}, payée par {{mode_paiement}} au plus tard huit (8) jours après la fin du mois, avec remise d'un bulletin de paie. Le Salarié est affilié à la CNPS.
+
+**Article # – Indemnité de fin de contrat.** Lorsque le contrat prend fin sans que ne soit conclu un contrat à durée indéterminée, le Salarié perçoit, avec son dernier salaire, une indemnité de fin de contrat égale à 3 % de la somme des salaires bruts perçus pendant la durée du contrat (article 15.8 du Code du travail). Cette indemnité n'est pas due si le Salarié refuse un contrat à durée indéterminée pour le même emploi ou un emploi similaire à rémunération au moins équivalente, en cas de rupture anticipée de son fait ou de faute lourde.
+
+**Article # – Congés.** Le Salarié acquiert 2,2 jours ouvrables de congé payé par mois de service effectif. Les droits non pris à la fin du contrat donnent lieu au versement d'une indemnité compensatrice (article 25.8 du Code du travail).
+
+**Article # – Obligations du Salarié.** Le Salarié exécute lui-même et avec soin le travail convenu, respecte le règlement intérieur et les consignes d'hygiène et de sécurité.[[si:exclusivite]] Il consacre l'exclusivité de son activité professionnelle à {{employeur}} pendant toute la durée du contrat.[[/si]]
+
+[[si:confidentialite]]**Article # – Confidentialité.** Le Salarié garde strictement confidentielles les informations dont il a connaissance dans l'exercice de ses fonctions, notamment celles relatives aux clients, partenaires, apprenants et projets de {{employeur}}, pendant la durée du contrat et après sa cessation.
+
+[[/si]][[si:non_sollicitation]]**Article # – Loyauté et non-sollicitation.** Pendant toute la durée du contrat, le Salarié s'interdit de solliciter les clients, partenaires ou apprenants de {{employeur}} pour son compte ou celui d'un tiers.
+
+[[/si]][[si:propriete_intellectuelle]]**Article # – Travaux et propriété intellectuelle.** Les travaux réalisés par le Salarié dans l'exercice de ses fonctions sont la propriété de {{employeur}}, dans les limites de la législation applicable.
+
+[[/si]][[si:materiel]]**Article # – Matériel professionnel.** Le matériel suivant est mis à la disposition du Salarié pour un usage professionnel : {{materiel_liste}}. Il est restitué en bon état au plus tard à la fin du contrat.
+
+[[/si]]**Article # – Rupture anticipée.** Le présent contrat ne peut être rompu avant son terme que pour force majeure, d'un commun accord ou en cas de faute lourde de l'une des parties, ou pendant la période d'essai (article 15.9 du Code du travail). Toute rupture en violation de ces règles ouvre droit, pour la partie lésée, à des dommages et intérêts.
+
+**Article # – Fin du contrat.** À l'échéance, {{employeur}} remet au Salarié un certificat de travail et un relevé nominatif de salaire de la CNPS. La poursuite de la relation de travail au-delà du terme sans avenant écrit expose le contrat à être réputé conclu à durée indéterminée.
+
+**Article # – Données personnelles et litiges.** Les données personnelles du Salarié sont traitées pour la gestion du personnel conformément à la loi n° 2013-450 du 19 juin 2013. Tout différend fait l'objet d'une recherche de solution amiable puis, à défaut, est porté devant l'inspecteur du travail et des lois sociales et le Tribunal du travail compétent.
+
+**Article # – Dispositions finales.** Le présent contrat est exempt de tous droits de timbre et d'enregistrement. Il est établi en deux (2) exemplaires originaux.{{conditions_particulieres_txt}}`,
+
+journalier:`**Article # – Engagement.** {{employeur}} engage {{salarie}} en qualité de travailleur journalier, pour exercer l'activité suivante : {{poste}} ({{missions}}), à compter du {{date_debut}}{{date_fin_txt}}. Conformément à l'article 15.7 du Code du travail, le présent engagement, à l'heure ou à la journée et pour une occupation de courte durée, est assimilé à un contrat à durée déterminée à terme imprécis.
+
+**Article # – Lieu et horaires.** Le travail est effectué à {{lieu_travail}}, selon l'horaire suivant : {{horaires}}.
+
+**Article # – Rémunération.** Le Travailleur perçoit une rémunération de {{taux}} par {{unite_paie_label}}, payée {{periodicite_label}}. Conformément à l'article 25.9 du Code du travail, une indemnité compensatrice de congé payé égale au douzième de la rémunération acquise lui est versée en même temps que son salaire.
+
+[[si:essai]]**Article # – Période d'essai.** L'engagement comporte une période d'essai de {{essai_texte}}, pendant laquelle chacune des parties peut y mettre fin librement.
+
+[[/si]]**Article # – Sécurité et discipline.** Le Travailleur respecte le règlement intérieur, les consignes de sécurité et porte les équipements de protection fournis par {{employeur}}.
+
+**Article # – Fin de l'engagement.** L'engagement prend fin à l'achèvement de l'occupation pour laquelle le Travailleur a été engagé. Le Travailleur qui justifie de douze (12) mois de travail continu au service de {{employeur}} a droit à des congés effectifs.
+
+**Article # – Dispositions finales.** Le présent engagement est exempt de droits de timbre et d'enregistrement et établi en deux (2) exemplaires.{{conditions_particulieres_txt}}`,
+
+stage_ecole:`**Article # – Objet.** La présente convention organise le stage de {{salarie}}, {{niveau_etudes}} en {{formation}} à {{etablissement}}, au sein de {{employeur}}, en vue de la validation de son diplôme ou de sa formation professionnelle. Elle constitue le contrat stage-école prévu aux articles 13.11 à 13.13 de la loi n° 2015-532 du 20 juillet 2015 portant Code du travail.
+
+**Article # – Durée.** Le stage se déroule du {{date_debut}} au {{date_fin}}, soit {{duree_texte}}. Il prend fin au terme de cette période, sans indemnité ni préavis (article 13.12 du Code du travail).
+
+**Article # – Objectifs et activités.** Le stage a pour objectifs : {{objectifs}}. Le Stagiaire est associé aux activités suivantes : {{missions}}. Ces activités sont en rapport avec la formation suivie ; le Stagiaire ne peut se voir confier une tâche correspondant à un poste de travail permanent.
+
+**Article # – Encadrement.** Le Stagiaire est encadré au sein de {{employeur}} par {{tuteur}}, et suivi par {{tuteur_ecole}} pour {{etablissement}}. Les tuteurs se concertent sur le déroulement du stage et l'évaluation du Stagiaire.
+
+**Article # – Horaires et présence.** Le Stagiaire est présent selon l'horaire suivant : {{horaires}}, dans la limite de la durée légale du travail. Toute absence est justifiée et signalée au tuteur.
+
+**Article # – Gratification et avantages.** [[si:indemnite]]{{employeur}} alloue au Stagiaire une indemnité mensuelle de {{indemnite}}, dont elle fixe librement le montant (article 13.12 du Code du travail).[[/si]][[si:!indemnite]]Le stage n'est pas rémunéré (article 13.12 du Code du travail).[[/si]] Avantages accordés : {{avantages}}.
+
+**Article # – Couverture des risques.** Le Stagiaire est couvert pendant la durée du stage, au titre des accidents survenus sur les lieux ou à l'occasion du stage, par : {{assurance}}. L'établissement et l'entreprise se communiquent toute déclaration d'accident.
+
+**Article # – Discipline et confidentialité.** Le Stagiaire respecte le règlement intérieur, les consignes de sécurité et les horaires de {{employeur}}. Il est tenu à la confidentialité des informations dont il a connaissance pendant le stage, y compris dans la rédaction de son rapport, qu'il soumet à {{employeur}} avant diffusion. En cas de manquement grave, {{employeur}} peut mettre fin au stage après en avoir informé l'établissement.
+
+**Article # – Évaluation et attestation.** À l'issue du stage, {{employeur}} délivre au Stagiaire une attestation de stage et transmet à l'établissement une fiche d'évaluation.
+
+**Article # – Dispositions finales.** La présente convention, établie en trois (3) exemplaires originaux, est signée par l'entreprise, l'établissement et le Stagiaire. À défaut d'écrit, la relation serait réputée être un contrat de travail à durée indéterminée (article 13.11 du Code du travail).{{conditions_particulieres_txt}}`,
+
+stage_qualif:`**Article # – Objet.** Le présent contrat est conclu en application des articles 13.14 à 13.20 de la loi n° 2015-532 du 20 juillet 2015 portant Code du travail. {{employeur}} s'engage à donner à {{salarie}}, demandeur d'emploi, une formation pratique lui permettant d'acquérir {{nature_label}} dans le domaine suivant : {{qualification}}.
+
+**Article # – Durée.** Le stage se déroule du {{date_debut}} au {{date_fin}}, soit {{duree_texte}}. Il peut être renouvelé par avenant écrit, sans que la durée totale, renouvellements compris, puisse excéder douze (12) mois (article 13.14 du Code du travail).
+
+**Article # – Statut du Stagiaire.** Le Stagiaire n'est pas un salarié (article 13.17 du Code du travail). Il est soumis au règlement intérieur de {{employeur}} (article 13.16), dont il reconnaît avoir reçu un exemplaire.
+
+**Article # – Activités et encadrement.** Le Stagiaire exerce les activités suivantes : {{missions}}, sous la responsabilité de {{tuteur}}, chargé de sa formation pratique et de son évaluation.
+
+**Article # – Horaires.** Le Stagiaire est présent selon l'horaire suivant : {{horaires}}, dans la limite de la durée légale du travail.
+
+**Article # – Indemnité forfaitaire.** {{employeur}} verse au Stagiaire une indemnité forfaitaire mensuelle de {{indemnite}} ({{indemnite_lettres}}), payée au plus tard le {{jour_paiement}} du mois suivant (article 13.17 du Code du travail). Avantages complémentaires : {{avantages}}.
+
+**Article # – Couverture des risques.** {{employeur}} couvre le Stagiaire contre les risques d'accident survenant pendant le stage, par : {{assurance}}.
+
+**Article # – Confidentialité.** Le Stagiaire garde confidentielles les informations dont il a connaissance pendant le stage, pendant et après celui-ci.
+
+**Article # – Fin du stage et priorité d'embauche.** Au terme du stage, {{employeur}} délivre au Stagiaire une attestation indiquant la qualification acquise, l'objet et la durée du stage (article 13.19). Le Stagiaire reconnu apte à tenir un emploi en rapport avec sa qualification est prioritaire, pendant six (6) mois, en cas d'embauche à cet emploi (article 13.18). Chacune des parties peut mettre fin au stage avant son terme, par écrit, avec un préavis de {{preavis_jours}} jours, ou sans préavis en cas de faute grave.
+
+**Article # – Dispositions finales.** Le présent contrat est constaté par écrit ; à défaut, il serait réputé être un contrat de travail à durée indéterminée (article 13.15). Il est établi en deux (2) exemplaires originaux.{{conditions_particulieres_txt}}`,
+
+apprentissage:`**Article # – Objet.** Le présent contrat est conclu en application des articles 13.1 à 13.10 de la loi n° 2015-532 du 20 juillet 2015 portant Code du travail. {{employeur}} s'oblige à donner ou à faire donner à {{salarie}} (l'Apprenti) une formation professionnelle méthodique et complète au métier de {{metier}}, en vue de l'obtention de : {{diplome}}. L'Apprenti s'engage en retour à se conformer aux instructions reçues et à exécuter les ouvrages qui lui sont confiés en vue de sa formation.
+
+[[si:mineur]]**Article # – Représentation de l'Apprenti mineur.** L'Apprenti, mineur, est représenté par {{representant_legal}}, {{representant_qualite}}, qui signe le présent contrat et est informé sans délai par le maître d'apprentissage en cas de maladie, d'absence ou de tout fait de nature à motiver son intervention (article 13.6).
+
+[[/si]]**Article # – Durée.** L'apprentissage se déroule du {{date_debut}} au {{date_fin}}, soit {{duree_texte}}, selon les usages et coutumes de la profession (article 13.2).
+
+**Article # – Formation en alternance.** La formation est dispensée en alternance entre {{employeur}} et {{centre_formation}}, selon le rythme suivant : {{rythme}}. Le temps passé au centre de formation est compris dans l'horaire de l'Apprenti.
+
+**Article # – Maître d'apprentissage.** La formation au sein de {{employeur}} est assurée par {{maitre}}{{maitre_fonction_txt}}[[si:mineur]], âgé(e) de vingt et un (21) ans au moins (article 13.3)[[/si]]. Le maître d'apprentissage enseigne à l'Apprenti, progressivement et complètement, le métier objet du contrat, ne l'emploie qu'aux travaux et services qui se rattachent à ce métier, dans la mesure de ses aptitudes et de ses forces, et le traite en bon père de famille (articles 13.6 à 13.8).
+
+**Article # – Obligations de l'Apprenti.** L'Apprenti doit au maître d'apprentissage, dans le cadre de l'apprentissage, obéissance et respect ; il l'aide par son travail dans la mesure de ses aptitudes et de ses forces, suit assidûment les enseignements du centre de formation et respecte le règlement intérieur (article 13.9).
+
+**Article # – Horaires et repos.** L'Apprenti est présent selon l'horaire suivant : {{horaires}}, dans la limite de la durée légale du travail.[[si:mineur]] Le travail de nuit lui est interdit et il bénéficie d'un repos d'au moins douze (12) heures consécutives (articles 22.2 et 22.3).[[/si]] Il bénéficie du repos hebdomadaire et des congés payés prévus par la loi.
+
+**Article # – Allocation.** {{employeur}} verse à l'Apprenti une allocation mensuelle de {{allocation}}{{allocation_lettres_txt}}, payée au plus tard huit (8) jours après la fin du mois. Avantages : {{avantages}}.
+
+**Article # – Fin de l'apprentissage.** À la fin de l'apprentissage, le maître délivre à l'Apprenti une attestation constatant l'exécution du contrat (article 13.8). L'Apprenti passe l'examen prévu devant un organisme agréé par l'État ; un certificat d'aptitude professionnelle lui est délivré en cas de succès (article 13.9). Le contrat peut être résilié avant son terme d'un commun accord, pour faute grave ou manquements répétés de l'une des parties, ou en cas d'inaptitude de l'Apprenti au métier.
+
+**Article # – Dispositions finales.** Le présent contrat est rédigé en langue française et exempt de tous droits de timbre et d'enregistrement (article 13.1). Il est établi en {{nb_exemplaires}} exemplaires originaux.{{conditions_particulieres_txt}}`,
+
+promesse:`Nous avons le plaisir de vous confirmer notre proposition d'engagement au sein de {{employeur}}, dans les conditions suivantes :
+
+| Élément | Proposition |
+| --- | --- |
+| Poste | {{poste}} |
+| Type de contrat | {{type_envisage_label}} |
+| Date de prise de fonctions | {{date_debut}} |
+| Lieu de travail | {{lieu_travail}} |
+| Rémunération mensuelle brute | {{remuneration_txt}} |
+| Période d'essai | {{essai_promesse_txt}} |
+
+Cette proposition est faite sous réserve de la production des pièces administratives demandées et de l'aptitude médicale au poste. Elle est valable jusqu'au {{delai_reponse}}. Votre acceptation, matérialisée par la signature de la présente avec la mention « Bon pour accord », vaut engagement réciproque ; le contrat de travail écrit vous sera remis au plus tard le jour de votre prise de fonctions.
+
+Nous nous réjouissons de vous compter prochainement parmi nos collaborateurs.{{conditions_particulieres_txt}}`,
+
+avenant:`**Article # – Objet.** Le présent avenant n° {{numero_avenant}} modifie le contrat {{ref_parent}} conclu entre {{employeur}} et {{salarie}}. Il est conclu d'un commun accord, conformément à l'article 16.6 du Code du travail.
+
+**Article # – Modifications.** À compter du {{date_effet}}, les stipulations suivantes du contrat sont modifiées :{{modifications_txt}}
+
+[[si:renouvellement]]**Article # – Renouvellement du contrat à durée déterminée.** Le contrat à durée déterminée, dont le terme était fixé au {{fin_actuelle}}, est renouvelé jusqu'au {{nouvelle_fin}}. La durée totale du contrat, renouvellements compris, n'excède pas deux (2) ans (article 15.4 du Code du travail).
+
+[[/si]]**Article # – Autres stipulations.** Toutes les autres clauses du contrat demeurent inchangées et continuent de s'appliquer.
+
+**Article # – Dispositions finales.** Le présent avenant, établi en deux (2) exemplaires originaux, fait partie intégrante du contrat.{{conditions_particulieres_txt}}`,
+
+renouvellement_essai:`Nous vous rappelons que votre contrat {{ref_parent}}, en qualité de {{poste}}, comporte une période d'essai de {{essai_initial}}, qui arrive à échéance le {{essai_fin}}.
+
+Conformément au décret n° 2024-900 du 16 octobre 2024 relatif à l'essai et à la durée de la période d'essai, nous vous notifions par la présente le renouvellement de cette période d'essai, pour une durée de {{essai_renouv}}, soit jusqu'au {{essai_nouvelle_fin}} inclus. Ce renouvellement est unique et ne peut être prolongé.
+
+Pendant cette nouvelle période, chacune des parties conserve la faculté de rompre le contrat librement, sans préavis et sans indemnité (article 18.1 du Code du travail).
+
+Nous vous remercions de bien vouloir nous retourner un exemplaire de la présente, revêtu de votre signature précédée de la mention « Reçu notification le … ».{{conditions_particulieres_txt}}`,
+
+certificat_travail:`Je soussigné(e), {{representant}}, {{representant_fonction}} de {{employeur}}, certifie que {{salarie}}, {{ne}} le {{date_naissance}} à {{lieu_naissance}}{{cnps_salarie_txt}}, a été {{employe_accord}} dans notre entreprise du {{date_entree}} au {{date_sortie}}, et y a occupé successivement les emplois suivants :
+
+{{emplois_table}}
+
+{{salarie_court}} quitte l'entreprise libre de tout engagement. Un relevé nominatif de salaire de la Caisse nationale de prévoyance sociale lui est remis avec le présent certificat (article 18.18 du Code du travail).
+
+Le présent certificat est délivré pour servir et valoir ce que de droit.`,
+
+attestation_stage:`Je soussigné(e), {{representant}}, {{representant_fonction}} de {{employeur}}, atteste que {{salarie}}{{etablissement_txt}} a effectué un {{type_stage_label}} au sein de notre entreprise du {{date_debut}} au {{date_fin}}, soit {{duree_texte}}.
+
+Objet du stage : {{objet}}.
+
+[[si:qualification]]Qualification acquise : {{qualification}}.
+
+[[/si]]Activités principales : {{missions}}.
+
+La présente attestation est délivrée pour servir et valoir ce que de droit.`
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// CONTRATS RH — types, champs, contrôles juridiques, PDF / Word, modèles versionnés
+// ══════════════════════════════════════════════════════════════════════
+const RH_ROLES=['superadmin','admin','directeur','administrateur','responsable'];
+const rhGestion=()=>RH_ROLES.includes(CP?.role);
+const RH_SMIG=75000;
+const rhLettres=n=>{let t=String(montantEnLettres(n)||'');t=t.charAt(0).toLowerCase()+t.slice(1);return /franc/i.test(t)?t:t+' francs CFA';};
+const rhFichier=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'');
+
+const RH_GROUPES={emploi:'Contrats de travail',formation:'Stages et apprentissage',documents:'Documents RH'};
+const RH_STATUTS={brouillon:['#F1F3F7','#5E6B82','Brouillon'],a_signer:['#FEF3E2','#B45309','À signer'],signe:['#E5EFFB','#1565C0','Signé'],en_cours:['#EDF6E8','#3F8A1E','En cours'],
+  termine:['#F1F3F7','#5E6B82','Terminé'],rompu:['#FDECEC','#B42318','Rompu'],annule:['#F1F3F7','#7A90A8','Annulé']};
+const RH_ESSAI={journalier:['Payé à l’heure ou à la journée',8,'jours'],mensuel:['Payé au mois',1,'mois'],maitrise:['Agent de maîtrise, technicien',2,'mois'],cadre:['Ingénieur, cadre, technicien supérieur',3,'mois'],cadre_sup:['Cadre supérieur',6,'mois']};
+const RH_PREAVIS_ESSAI={8:2,1:8,2:15,3:15,6:30};   // délai (jours) de notification du renouvellement avant la fin de l'essai
+const RH_MOTIFS={remplacement:'remplacement d’un travailleur absent ou en attente d’entrée en service',surcroit:'surcroît occasionnel de travail ou activité inhabituelle',saisonnier:'emploi à caractère saisonnier',usage:'emploi d’un secteur où il est d’usage de ne pas recourir au CDI',chantier:'durée d’un chantier ou d’un projet'};
+const F=(k,l,t,x)=>Object.assign({k,l,t:t||'text'},x||{});
+const RH_ID=[F('civilite','Civilité','select',{o:{'M.':'M.','Mme':'Mme'},req:1}),F('nom','Nom','text',{req:1}),F('prenoms','Prénoms','text',{req:1}),F('date_naissance','Date de naissance','date',{req:1}),
+  F('lieu_naissance','Lieu de naissance'),F('nationalite','Nationalité','text',{def:'Ivoirienne'}),F('adresse','Adresse','text',{req:1,w:2}),F('telephone','Téléphone'),F('email','E-mail'),
+  F('piece','Pièce d’identité (type et n°)'),F('filiation','Filiation (fils / fille de …)','text',{w:2})];
+const RH_POSTE=[F('poste','Poste','text',{req:1}),F('categorie','Catégorie (Convention collective)','text',{req:1,aide:'Ex. : 4A, 7B, M1, P1…'}),F('classification','Échelon / niveau'),
+  F('missions','Fonctions et missions','textarea',{req:1,w:2}),F('superieur','Responsable hiérarchique','text',{def:'la Direction générale'}),F('lieu_travail','Lieu de travail','text',{req:1,w:2})];
+const RH_REMU=[F('salaire_base','Salaire catégoriel brut mensuel','money',{req:1}),F('sursalaire','Sursalaire','money'),F('prime_transport','Prime de transport','money'),F('autres_primes','Autres primes et avantages','text',{w:2}),
+  F('mode_paiement','Mode de paiement','select',{o:{virement:'virement bancaire',mobile:'mobile money',cheque:'chèque',especes:'espèces contre émargement'},def:'virement'}),F('cnps_salarie','N° CNPS du salarié')];
+const RH_TEMPS=[F('temps_partiel','Temps partiel','bool'),F('duree_hebdo','Heures par semaine','number',{def:40,si:'temps_partiel'}),F('horaires','Horaires','text',{w:2,def:'du lundi au vendredi, de 8 h 00 à 12 h 30 et de 13 h 30 à 17 h 00'})];
+const RH_ESSAI_F=[F('essai','Période d’essai','bool',{def:true}),F('categorie_essai','Catégorie (décret n° 2024-900)','select',{o:Object.fromEntries(Object.entries(RH_ESSAI).map(([k,v])=>[k,v[0]+' — '+v[1]+' '+v[2]+' max.'])),si:'essai',def:'mensuel'}),
+  F('essai_duree','Durée de l’essai','number',{si:'essai'}),F('essai_unite','Unité','select',{o:{jours:'jours',mois:'mois'},si:'essai',def:'mois'})];
+const RH_DATES=[F('date_debut','Date de début','date',{req:1}),F('date_signature','Date de signature','date')];
+const RH_FIN=[F('conditions_particulieres','Conditions particulières (facultatif)','textarea',{w:2})];
+const RH_STAGE_ENC=[F('missions','Activités confiées','textarea',{req:1,w:2}),F('tuteur','Tuteur dans l’entreprise','text',{req:1}),F('horaires','Horaires','text',{w:2,def:'du lundi au vendredi, de 8 h 00 à 12 h 30 et de 13 h 30 à 17 h 00'}),
+  F('avantages','Avantages (transport, repas…)','text',{w:2,def:'néant'}),F('assurance','Couverture des accidents','text',{w:2,req:1,aide:'Ex. : assurance responsabilité civile de l’établissement, police n° …'})];
+const RH_CLAUSES={confidentialite:['Confidentialité',true],non_sollicitation:['Non-sollicitation pendant le contrat',true],propriete_intellectuelle:['Travaux et propriété intellectuelle',true],
+  exclusivite:['Exclusivité d’activité',false],materiel:['Matériel professionnel',false],teletravail:['Télétravail',false],mobilite:['Mobilité géographique',false]};
+const RH_CLAUSES_DETAIL=[F('materiel_liste','Matériel remis','text',{w:2,si:'materiel'}),F('teletravail_modalites','Modalités du télétravail','text',{w:2,si:'teletravail'}),F('zone_mobilite','Périmètre de mobilité','text',{w:2,si:'mobilite'})];
+const RH_TYPES={
+  cdi:{g:'emploi',court:'CDI',titre:'CONTRAT DE TRAVAIL À DURÉE INDÉTERMINÉE',forme:'contrat',partie:'le Salarié',clauses:1,sections:[['Salarié',RH_ID],['Poste',RH_POSTE],['Durée',RH_DATES],['Période d’essai',RH_ESSAI_F],['Rémunération',RH_REMU],['Temps de travail',RH_TEMPS],['Clauses',RH_CLAUSES_DETAIL],['Divers',RH_FIN]]},
+  cdd:{g:'emploi',court:'CDD',titre:'CONTRAT DE TRAVAIL À DURÉE DÉTERMINÉE',forme:'contrat',partie:'le Salarié',clauses:1,sections:[['Salarié',RH_ID],['Poste',RH_POSTE],
+    ['Durée et terme',[...RH_DATES,F('terme','Type de terme','select',{o:{precis:'Terme précis (date de fin)',imprecis:'Terme imprécis (événement)'},def:'precis',req:1}),F('date_fin','Date de fin','date',{si:'terme=precis',req:1}),
+      F('motif','Motif (article 15.6)','select',{o:RH_MOTIFS,si:'terme=imprecis',req:1}),F('motif_detail','Précision du motif','text',{si:'terme=imprecis',req:1,w:2,aide:'Ex. : remplacement de Mme X en congé de maternité'}),
+      F('terme_evenement','Événement qui met fin au contrat','text',{si:'terme=imprecis',req:1,w:2}),F('duree_approx','Durée approximative','text',{si:'terme=imprecis',req:1})]],
+    ['Période d’essai',RH_ESSAI_F],['Rémunération',RH_REMU],['Temps de travail',RH_TEMPS],['Clauses',RH_CLAUSES_DETAIL],['Divers',RH_FIN]]},
+  journalier:{g:'emploi',court:'Journalier',titre:'ENGAGEMENT DE TRAVAILLEUR JOURNALIER',forme:'contrat',partie:'le Travailleur',sections:[['Travailleur',RH_ID.filter(f=>!['filiation'].includes(f.k))],
+    ['Engagement',[F('poste','Activité','text',{req:1}),F('missions','Tâches','textarea',{req:1,w:2}),F('lieu_travail','Lieu','text',{req:1,w:2}),F('horaires','Horaires','text',{w:2,def:'de 7 h 30 à 12 h 00 et de 13 h 00 à 16 h 30'}),...RH_DATES,F('date_fin','Fin prévue (si connue)','date')]],
+    ['Rémunération',[F('taux','Montant','money',{req:1}),F('unite_paie','Par','select',{o:{heure:'heure',jour:'journée'},def:'jour'}),F('periodicite','Paiement','select',{o:{jour:'à la fin de chaque journée',semaine:'à la fin de chaque semaine',quinzaine:'à la fin de chaque quinzaine'},def:'semaine'})]],
+    ['Période d’essai',[F('essai','Période d’essai','bool'),F('essai_duree','Durée (jours)','number',{si:'essai',def:8}),F('essai_unite','Unité','select',{o:{jours:'jours'},si:'essai',def:'jours'})]],['Divers',RH_FIN]]},
+  stage_ecole:{g:'formation',court:'Stage-école',titre:'CONVENTION DE STAGE-ÉCOLE',forme:'contrat',partie:'le Stagiaire',etab:1,sections:[['Stagiaire',RH_ID.filter(f=>f.k!=='filiation')],
+    ['Établissement',[F('etablissement','Établissement d’enseignement','text',{req:1,w:2}),F('etablissement_adresse','Adresse de l’établissement','text',{w:2}),F('etablissement_representant','Représenté par','text',{req:1}),F('etablissement_qualite','Qualité','text',{def:'Directeur des études'}),
+      F('niveau_etudes','Niveau','text',{req:1,aide:'Ex. : étudiant(e) en Licence 3'}),F('formation','Formation suivie','text',{req:1}),F('tuteur_ecole','Enseignant référent','text',{req:1})]],
+    ['Stage',[...RH_DATES,F('date_fin','Date de fin','date',{req:1}),F('objectifs','Objectifs pédagogiques','textarea',{req:1,w:2}),...RH_STAGE_ENC,F('indemnite','Indemnité mensuelle (facultative)','money')]],['Divers',RH_FIN]]},
+  stage_qualif:{g:'formation',court:'Stage de qualification',titre:'CONTRAT DE STAGE DE QUALIFICATION OU D’EXPÉRIENCE PROFESSIONNELLE',forme:'contrat',partie:'le Stagiaire',sections:[['Stagiaire',RH_ID.filter(f=>f.k!=='filiation')],
+    ['Stage',[...RH_DATES,F('date_fin','Date de fin','date',{req:1}),F('nature','Objet','select',{o:{qualification:'Acquérir une qualification professionnelle',experience:'Acquérir une première expérience professionnelle'},def:'experience'}),
+      F('qualification','Domaine ou qualification visée','text',{req:1,w:2}),...RH_STAGE_ENC,F('indemnite','Indemnité forfaitaire mensuelle','money',{req:1}),F('jour_paiement','Payée au plus tard le','number',{def:8,aide:'jour du mois suivant'}),F('preavis_jours','Préavis de fin anticipée (jours)','number',{def:8})]],['Divers',RH_FIN]]},
+  apprentissage:{g:'formation',court:'Apprentissage',titre:'CONTRAT D’APPRENTISSAGE',forme:'contrat',partie:'l’Apprenti',sections:[['Apprenti',RH_ID],
+    ['Formation',[...RH_DATES,F('date_fin','Date de fin','date',{req:1}),F('metier','Métier appris','text',{req:1}),F('diplome','Diplôme ou titre visé','text',{req:1,def:'certificat d’aptitude professionnelle (CAP)'}),
+      F('centre_formation','Centre de formation','text',{req:1,w:2}),F('rythme','Rythme de l’alternance','text',{req:1,w:2,aide:'Ex. : 3 jours en entreprise, 2 jours au centre'}),F('maitre','Maître d’apprentissage','text',{req:1}),F('maitre_fonction','Fonction du maître','text'),
+      F('horaires','Horaires','text',{w:2,def:'du lundi au vendredi, de 8 h 00 à 12 h 30 et de 13 h 30 à 17 h 00'}),F('allocation','Allocation mensuelle','money',{req:1}),F('avantages','Avantages','text',{w:2,def:'néant'})]],
+    ['Apprenti mineur',[F('representant_legal','Représentant légal (nom)','text'),F('representant_qualite','Qualité (père, mère, tuteur)','text'),F('maitre_21','Le maître d’apprentissage a 21 ans au moins','bool')]],['Divers',RH_FIN]]},
+  promesse:{g:'documents',court:'Promesse d’embauche',titre:'PROMESSE D’EMBAUCHE',forme:'lettre',objet:'Promesse d’embauche',sections:[['Candidat',RH_ID.filter(f=>['civilite','nom','prenoms','adresse','telephone','email'].includes(f.k))],
+    ['Proposition',[F('poste','Poste','text',{req:1}),F('type_envisage','Type de contrat','select',{o:{cdi:'Contrat à durée indéterminée',cdd:'Contrat à durée déterminée',stage_qualif:'Stage de qualification ou d’expérience professionnelle',apprentissage:'Contrat d’apprentissage'},def:'cdi'}),
+      F('date_debut','Date de prise de fonctions','date',{req:1}),F('lieu_travail','Lieu de travail','text',{req:1,w:2}),F('salaire_base','Salaire catégoriel brut mensuel','money',{req:1}),F('autres_primes','Autres éléments de rémunération','text',{w:2}),
+      F('essai_promesse','Période d’essai','text',{def:'un (1) mois, renouvelable une fois'}),F('delai_reponse','Réponse attendue avant le','date',{req:1}),F('date_signature','Date de la lettre','date')]],['Divers',RH_FIN]]},
+  avenant:{g:'documents',court:'Avenant',titre:'AVENANT AU CONTRAT DE TRAVAIL',forme:'contrat',partie:'le Salarié',parent:1,sections:[['Avenant',[F('numero_avenant','N° de l’avenant','number',{def:1}),F('date_effet','Date d’effet','date',{req:1}),
+      F('modifications','Modifications (une par ligne)','textarea',{w:2,aide:'Ex. : Article Rémunération : salaire catégoriel porté à 350 000 FCFA'}),F('renouvellement','Renouvellement d’un CDD','bool'),F('nouvelle_fin','Nouveau terme du CDD','date',{si:'renouvellement',req:1}),F('date_signature','Date de signature','date')]],['Divers',RH_FIN]]},
+  renouvellement_essai:{g:'documents',court:'Renouvellement de l’essai',titre:'RENOUVELLEMENT DE LA PÉRIODE D’ESSAI',forme:'lettre',objet:'Renouvellement de votre période d’essai',parent:1,sections:[['Renouvellement',[F('date_signature','Date de notification','date',{req:1})]],['Divers',RH_FIN]]},
+  certificat_travail:{g:'documents',court:'Certificat de travail',titre:'CERTIFICAT DE TRAVAIL',forme:'attestation',sections:[['Salarié',RH_ID.filter(f=>['civilite','nom','prenoms','date_naissance','lieu_naissance','cnps_salarie'].includes(f.k)).concat([F('cnps_salarie','N° CNPS du salarié')]).filter((f,i,a)=>a.findIndex(x=>x.k===f.k)===i)],
+    ['Emplois',[F('date_entree','Date d’entrée','date',{req:1}),F('date_sortie','Date de sortie','date',{req:1}),F('emplois','Emplois occupés (une ligne : emploi ; du ; au)','textarea',{req:1,w:2,aide:'Ex. : Commerciale ; 01/02/2024 ; 31/12/2025'}),F('date_signature','Date de délivrance','date')]]]},
+  attestation_stage:{g:'documents',court:'Attestation de stage',titre:'ATTESTATION DE STAGE',forme:'attestation',sections:[['Stagiaire',RH_ID.filter(f=>['civilite','nom','prenoms'].includes(f.k))],
+    ['Stage',[F('type_stage','Type de stage','select',{o:{stage_ecole:'stage-école',stage_qualif:'stage de qualification ou d’expérience professionnelle',autre:'stage'},def:'stage_ecole'}),F('etablissement','Établissement (stage-école)'),F('date_debut','Du','date',{req:1}),F('date_fin','Au','date',{req:1}),
+      F('objet','Objet du stage','text',{req:1,w:2}),F('qualification','Qualification acquise','text',{w:2}),F('missions','Activités principales','textarea',{req:1,w:2}),F('date_signature','Date de délivrance','date')]]]}
+};
+const rhChamps=t=>(RH_TYPES[t]?.sections||[]).flatMap(s=>s[1]);
+const rhVrai=v=>!(v==null||v===''||v===false||v===0||v==='0');
+const rhAjMois=(iso,m)=>{if(!iso)return'';const d=new Date(iso+'T12:00:00');d.setMonth(d.getMonth()+(+m||0));d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);};
+const rhAjJours=(iso,n)=>{if(!iso)return'';const d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+(+n||0));return d.toISOString().slice(0,10);};
+const rhMois=(a,b)=>{if(!a||!b)return null;const d1=new Date(a+'T12:00:00'),d2=new Date(b+'T12:00:00');d2.setDate(d2.getDate()+1);return Math.round(((d2.getFullYear()-d1.getFullYear())*12+(d2.getMonth()-d1.getMonth())+(d2.getDate()-d1.getDate())/30)*10)/10;};
+const rhAge=(naiss,a)=>{if(!naiss)return null;const n=new Date(naiss+'T12:00:00'),d=new Date((a||isoJour())+'T12:00:00');let x=d.getFullYear()-n.getFullYear();if(d<new Date(d.getFullYear(),n.getMonth(),n.getDate()))x--;return x;};
+const rhDureeTexte=(a,b)=>{if(!a||!b)return '[à compléter]';const j=Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/864e5)+1;const m=rhMois(a,b);return m>=1&&Math.abs(m-Math.round(m))<0.05?`${Math.round(m)} mois`:`${j} jours`;};
+function rhEssaiFin(c){const d=c.donnees||{};if(!rhVrai(d.essai)||!d.date_debut||!d.essai_duree)return null;return d.essai_unite==='jours'?rhAjJours(d.date_debut,(+d.essai_duree)-1):rhAjMois(d.date_debut,d.essai_duree);}
+function rhDateFin(c){const d=c.donnees||{};if(c.type==='cdd')return d.terme==='precis'?d.date_fin||null:null;if(['stage_ecole','stage_qualif','apprentissage','journalier','attestation_stage'].includes(c.type))return d.date_fin||null;return null;}
+function rhNom(d,court){d=d||{};const n=String(d.nom||'').toUpperCase();return court?[d.civilite,n].filter(Boolean).join(' '):[d.civilite,d.prenoms,n].filter(Boolean).join(' ');}
+
+// ── Variables des modèles ──
+function rhVars(c){
+  const E=getEntreprise(),T=RH_TYPES[c.type]||{},d=c.donnees||{},P=c._parent||null,pd=P?.donnees||{},AC='[à compléter]',v={};
+  rhChamps(c.type).forEach(f=>{const raw=d[f.k];v['_raw_'+f.k]=raw;
+    if(!rhVrai(raw)&&f.t!=='number'&&f.t!=='bool'){v[f.k]=f.t==='money'?'néant':AC;return;}
+    if(f.t==='money'){v[f.k]=fmtF(numIn(raw))+' FCFA';v[f.k+'_lettres']=rhLettres(numIn(raw));}
+    else if(f.t==='date')v[f.k]=fmtD(raw);else if(f.t==='select'){v[f.k]=raw;v[f.k+'_label']=(f.o||{})[raw]||raw;}
+    else if(f.t==='textarea')v[f.k]=String(raw).split(/\n+/).map(s=>s.trim()).filter(Boolean).join(' ; ');else v[f.k]=raw==null||raw===''?AC:String(raw);});
+  const ident=P&&['avenant','renouvellement_essai'].includes(c.type)?pd:d;
+  Object.assign(v,{employeur:E.nom||'H TECH INNOV',salarie:rhNom(ident)||AC,salarie_court:rhNom(ident,true)||AC,representant:E.responsable||AC,representant_fonction:E.fonction||'Directeur général',
+    poste:d.poste||pd.poste||AC,date_naissance:fmtD(ident.date_naissance)||AC,lieu_naissance:ident.lieu_naissance||AC,
+    classification_txt:rhVrai(d.classification)?', échelon '+d.classification:'',
+    sursalaire_txt:numIn(d.sursalaire)?', sursalaire '+fmtF(numIn(d.sursalaire))+' FCFA':'',prime_transport_txt:numIn(d.prime_transport)?', prime de transport '+fmtF(numIn(d.prime_transport))+' FCFA':'',
+    autres_primes_txt:rhVrai(d.autres_primes)?', '+d.autres_primes:'',mode_paiement:(RH_REMU.find(f=>f.k==='mode_paiement').o)[d.mode_paiement]||'virement bancaire',
+    essai_texte:rhVrai(d.essai_duree)?`${d.essai_duree} ${d.essai_unite||'mois'}`:AC,
+    duree_mois:c.type==='cdd'&&d.terme==='precis'?(rhMois(d.date_debut,d.date_fin)??AC):AC,duree_texte:rhDureeTexte(d.date_debut,d.date_fin),
+    motif_label:RH_MOTIFS[d.motif]||AC,date_fin_txt:rhVrai(d.date_fin)?', jusqu’au '+fmtD(d.date_fin)+' au plus tard':'',
+    unite_paie_label:d.unite_paie==='heure'?'heure':'journée',periodicite_label:({jour:'à la fin de chaque journée',semaine:'à la fin de chaque semaine',quinzaine:'à la fin de chaque quinzaine'})[d.periodicite]||'à la fin de chaque semaine',
+    nature_label:d.nature==='qualification'?'une qualification professionnelle':'une première expérience professionnelle',
+    mineur:(rhAge(d.date_naissance,d.date_debut)??99)<18,etablissement_txt:rhVrai(d.etablissement)?', '+(d.civilite==='Mme'?'étudiante':'étudiant')+' à '+d.etablissement+',':'',
+    type_stage_label:({stage_ecole:'stage-école',stage_qualif:'stage de qualification ou d’expérience professionnelle',autre:'stage'})[d.type_stage]||'stage',
+    cnps_salarie_txt:rhVrai(ident.cnps_salarie)?', immatriculé(e) à la CNPS sous le n° '+ident.cnps_salarie:'',
+    remuneration_txt:(numIn(d.salaire_base)?fmtF(numIn(d.salaire_base))+' FCFA (salaire catégoriel)':AC)+(rhVrai(d.autres_primes)?', '+d.autres_primes:''),essai_promesse_txt:d.essai_promesse||'sans période d’essai',
+    type_envisage_label:({cdi:'Contrat à durée indéterminée',cdd:'Contrat à durée déterminée',stage_qualif:'Stage de qualification ou d’expérience professionnelle',apprentissage:'Contrat d’apprentissage'})[d.type_envisage]||AC,
+    allocation_lettres_txt:numIn(d.allocation)?' ('+rhLettres(numIn(d.allocation))+')':'',
+    maitre_fonction_txt:rhVrai(d.maitre_fonction)?', '+d.maitre_fonction:'',ne:ident.civilite==='Mme'?'née':'né',employe_accord:ident.civilite==='Mme'?'employée':'employé',
+    conditions_particulieres_txt:rhVrai(d.conditions_particulieres)?(T.forme==='contrat'?'\n\n**Article # – Conditions particulières.** ':'\n\n')+String(d.conditions_particulieres).split(/\n+/).join(' '):''});
+  v.nb_exemplaires=v.mineur?'trois (3)':'deux (2)';
+  if(P){v.ref_parent=(P.reference||'')+' du '+(fmtD(P.date_signature||P.donnees?.date_debut)||AC);v.fin_actuelle=fmtD(pd.date_fin)||AC;v.poste=pd.poste||v.poste;
+    const ef=rhEssaiFin(P);v.essai_initial=pd.essai_duree?`${pd.essai_duree} ${pd.essai_unite||'mois'}`:AC;v.essai_fin=fmtD(ef)||AC;v.essai_renouv=v.essai_initial;
+    v.essai_nouvelle_fin=ef&&pd.essai_duree?fmtD(pd.essai_unite==='jours'?rhAjJours(ef,+pd.essai_duree):rhAjMois(rhAjJours(ef,1),pd.essai_duree)):AC;}
+  v.modifications_txt=rhVrai(d.modifications)?' '+String(d.modifications).split(/\n+/).map(s=>s.trim()).filter(Boolean).map((s,i)=>`(${i+1}) ${s}`).join(' ; ')+'.':' néant.';
+  v.emplois_table=rhVrai(d.emplois)?'| Emploi | Du | Au |\n| --- | --- | --- |\n'+String(d.emplois).split(/\n+/).filter(s=>s.trim()).map(l=>'| '+l.split(';').map(x=>x.trim()).concat(['','']).slice(0,3).join(' | ')+' |').join('\n'):'| Emploi | Du | Au |\n| --- | --- | --- |\n| [à compléter] | | |';
+  return v;
+}
+function rhCond(cle,c,v){let neg=false;if(cle[0]==='!'){neg=true;cle=cle.slice(1);}const d=c.donnees||{};let r;const m=/^([a-z_0-9]+)=(.+)$/i.exec(cle);
+  if(m)r=String(d[m[1]]??'')===m[2];else if(cle in RH_CLAUSES)r=!!(c.clauses||{})[cle];else if(cle==='mineur')r=!!v.mineur;else r=rhVrai(d[cle]);return neg?!r:r;}
+function rhRemplir(txt,c){const v=rhVars(c);let t=String(txt||'');
+  for(let i=0;i<5&&/\[\[si:/.test(t);i++)t=t.replace(/\[\[si:([^\]]+)\]\]((?:(?!\[\[si:)[\s\S])*?)\[\[\/si\]\]/g,(_,k,inner)=>rhCond(k.trim(),c,v)?inner:'');
+  t=t.replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/gi,(_,k)=>v[k]!=null&&v[k]!==''?String(v[k]):(/_txt$/.test(k)&&k in v?'':'[à compléter]'));return t.replace(/\n{3,}/g,'\n\n').trim();}
+
+// ── Contrôles juridiques ──
+function rhControles(c){
+  const d=c.donnees||{},T=RH_TYPES[c.type],out=[],B=m=>out.push({n:'bloquant',m}),A=m=>out.push({n:'alerte',m});if(!T)return[{n:'bloquant',m:'Type de document inconnu'}];
+  rhChamps(c.type).forEach(f=>{if(f.req&&(!f.si||rhCond(f.si,c,rhVars(c)))&&!rhVrai(d[f.k])&&!(c._parent&&['avenant','renouvellement_essai'].includes(c.type)&&f.k!=='date_effet'&&f.k!=='nouvelle_fin'&&f.k!=='date_signature'))B('Champ obligatoire : '+f.l);});
+  const age=rhAge(d.date_naissance,d.date_debut);
+  if(['cdi','cdd','journalier'].includes(c.type)){
+    if(age!=null&&age<16)B('Aucun salarié ne peut être employé avant 16 ans (article 23.2 du Code du travail).');
+    if(age!=null&&age<18)A('Salarié mineur : travail de nuit interdit et repos de 12 heures consécutives (articles 22.2 et 22.3) ; inscription au registre des moins de 18 ans.');
+  }
+  if(['cdi','cdd'].includes(c.type)){
+    const sb=numIn(d.salaire_base),prorata=rhVrai(d.temps_partiel)&&numIn(d.duree_hebdo)?numIn(d.duree_hebdo)/40:1;
+    if(sb&&sb<Math.round(RH_SMIG*prorata))B(`Salaire catégoriel inférieur au SMIG (${fmtF(RH_SMIG)} FCFA par mois${prorata<1?', soit '+fmtF(Math.round(RH_SMIG*prorata))+' FCFA au prorata du temps partiel':''} — décret n° 2022-986).`);
+    if(rhVrai(d.temps_partiel)&&numIn(d.duree_hebdo)>=40)A('Temps partiel coché alors que la durée est de 40 heures ou plus.');
+  }
+  if(['cdi','cdd','journalier'].includes(c.type)&&rhVrai(d.essai)){
+    const cat=c.type==='journalier'?'journalier':d.categorie_essai,mx=RH_ESSAI[cat];
+    if(mx&&numIn(d.essai_duree)){const jours=(d.essai_unite==='jours'?numIn(d.essai_duree):numIn(d.essai_duree)*30),max=(mx[2]==='jours'?mx[1]:mx[1]*30);
+      if(jours>max)B(`Période d’essai supérieure au maximum légal pour cette catégorie : ${mx[1]} ${mx[2]} (décret n° 2024-900 du 16 octobre 2024).`);}
+    if(c.type==='cdd'&&d.terme==='precis'&&d.date_debut&&d.date_fin&&numIn(d.essai_duree)){const ef=rhEssaiFin(c);if(ef&&ef>=d.date_fin)B('La période d’essai ne peut pas couvrir toute la durée du CDD.');}
+  }
+  if(c.type==='cdd'){
+    if(d.terme==='precis'&&d.date_debut&&d.date_fin){const m=rhMois(d.date_debut,d.date_fin);if(d.date_fin<d.date_debut)B('La date de fin précède la date de début.');else if(m>24)B('Un CDD à terme précis ne peut dépasser deux ans, renouvellements compris (article 15.4).');}
+    A('Les CDD sur emploi permanent ne doivent pas dépasser le tiers de l’effectif de l’entreprise (article 15.1).');
+  }
+  if(c.type==='stage_qualif'&&d.date_debut&&d.date_fin){if(rhMois(d.date_debut,d.date_fin)>12)B('Le stage de qualification ou d’expérience professionnelle ne peut excéder douze mois, renouvellements compris (article 13.14).');
+    if(!numIn(d.indemnite))B('L’indemnité forfaitaire est obligatoire (article 13.17).');}
+  if(['stage_ecole','stage_qualif','apprentissage','attestation_stage'].includes(c.type)&&d.date_debut&&d.date_fin&&d.date_fin<d.date_debut)B('La date de fin précède la date de début.');
+  if(c.type==='stage_ecole'&&!numIn(d.indemnite))A('Stage non rémunéré : c’est permis (article 13.12), une indemnité reste conseillée pour les stages longs.');
+  if(c.type==='apprentissage'){if(age!=null&&age<14)B('Aucun apprenti ne peut être engagé avant 14 ans (article 23.2).');
+    if(age!=null&&age<18){if(!rhVrai(d.representant_legal))B('Apprenti mineur : le représentant légal doit être indiqué et signer le contrat.');if(!rhVrai(d.maitre_21))B('Apprenti mineur : le maître d’apprentissage doit avoir 21 ans au moins (article 13.3).');}}
+  if(c.type==='avenant'&&rhVrai(d.renouvellement)){const P=c._parent;if(P?.type!=='cdd')B('Le renouvellement ne concerne qu’un CDD.');
+    else if(P.donnees?.date_debut&&d.nouvelle_fin){if(rhMois(P.donnees.date_debut,d.nouvelle_fin)>24)B('Renouvellement impossible : la durée totale du CDD dépasserait deux ans (article 15.4).');if(P.donnees.date_fin&&d.nouvelle_fin<=P.donnees.date_fin)B('Le nouveau terme doit être postérieur au terme actuel.');}}
+  if(c.type==='renouvellement_essai'){const P=c._parent,ef=P&&rhEssaiFin(P);if(!ef)B('Le contrat d’origine ne comporte pas de période d’essai.');
+    else{const delai=RH_PREAVIS_ESSAI[P.donnees.essai_unite==='jours'?8:numIn(P.donnees.essai_duree)]??15,lim=rhAjJours(ef,-delai);
+      if(d.date_signature&&d.date_signature>lim)B(`Le renouvellement doit être notifié au plus tard le ${fmtD(lim)}, soit ${delai} jours avant la fin de l’essai (décret n° 2024-900).`);
+      if(P._renouvele)B('La période d’essai a déjà été renouvelée : un seul renouvellement est permis.');}}
+  if(c.type==='promesse'&&numIn(d.salaire_base)&&numIn(d.salaire_base)<RH_SMIG&&['cdi','cdd'].includes(d.type_envisage))B(`Salaire inférieur au SMIG (${fmtF(RH_SMIG)} FCFA).`);
+  return out;
+}
+
+// ── Modèles versionnés ──
+var _RH_MOD=null;
+async function rhModeles(force){if(_RH_MOD&&!force)return _RH_MOD;const out={};Object.keys(RH_MODELES_DEFAUT).forEach(k=>out[k]={code:k,version:1,contenu:RH_MODELES_DEFAUT[k],defaut:true});
+  try{const{data}=await sb.from('modeles_contrat').select('*').like('code','rh_%').eq('actif',true);(data||[]).forEach(r=>{const k=r.code.slice(3);if(out[k]&&(out[k].defaut||r.version>out[k].version))out[k]={...r,code:k};});}catch(e){logErr(e);}
+  return _RH_MOD=out;}
+async function rhModeleDe(c){const M=await rhModeles(),v=(c.modele_versions||{})[c.type];
+  if(v&&v!==M[c.type]?.version){if(v===1)return{version:1,contenu:RH_MODELES_DEFAUT[c.type]};try{const{data}=await sb.from('modeles_contrat').select('*').eq('code','rh_'+c.type).eq('version',v).maybeSingle();if(data)return data;}catch(e){logErr(e);}}
+  return M[c.type];}
+
+// ── PDF ──
+async function rhPDF(c,opts){opts=opts||{};await ensurePdf();
+  const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),E=getEntreprise(),T=RH_TYPES[c.type],d=c.donnees||{},v=rhVars(c),P=pdfT;
+  const NAVY=[10,42,102],BLUE=[21,101,192],GREY=[96,108,130],LIGHT=[244,247,252],LINE=[213,224,240],W=210,M=14,BAS=268;
+  const col=(cc,s)=>{doc.setTextColor(...cc);if(s)doc.setFont('helvetica',s);};const mod=await rhModeleDe(c);const ref=c.reference||'PROJET';
+  const entete=p1=>{doc.setFillColor(...NAVY);doc.rect(0,0,W,4,'F');doc.setFillColor(...BLUE);doc.rect(0,4,W,1,'F');
+    if(!p1){doc.setFontSize(9);col(NAVY,'bold');doc.text(P(E.nom),M,12);col(GREY,'normal');doc.text(P(T.court+' '+ref),W-M,12,{align:'right'});return;}
+    try{if(HTI_LOGO)doc.addImage(HTI_LOGO,'JPEG',M,10,26,20);}catch(e){}
+    const x=M+30;doc.setFontSize(15);col(NAVY,'bold');doc.text(P(E.nom),x,16);doc.setFontSize(8);col(GREY,'normal');
+    [[E.forme,E.rccm?'RCCM '+E.rccm:'',E.dgi?'NCC '+E.dgi:'',E.cnps?'CNPS '+E.cnps:''].filter(Boolean).join('  |  '),[E.adresse,E.ville].filter(Boolean).join(', '),[E.tel,E.email].filter(Boolean).join('  |  ')].filter(Boolean).forEach((t,i)=>doc.text(P(t),x,21.5+i*4));
+    doc.setFontSize(8.5);[['N°',ref],['Établi le',fmtD(d.date_signature||isoJour())]].forEach(([k,val],i)=>{col(GREY,'normal');doc.text(P(k),W-M-46,18+i*4.6);col(NAVY,'bold');doc.text(P(val),W-M,18+i*4.6,{align:'right'});});};
+  entete(true);let y=40;const saut=h=>{if(y+h>BAS){doc.addPage();entete(false);y=20;}};
+  const para=(txt,size,style,c2)=>{doc.setFontSize(size||9);col(c2||[40,50,70],style||'normal');const L=doc.splitTextToSize(P(txt),W-2*M);saut(L.length*4.1+2);doc.text(L,M,y+3);y+=L.length*4.1+3;};
+  const rendreTexte=texte=>{let n=0;annexeBlocs(texte).forEach(b=>{
+    if(b.table){saut(20);doc.autoTable({startY:y,head:[b.table[0].map(P)],body:b.table.slice(1).map(r=>r.map(P)),theme:'grid',headStyles:{fillColor:NAVY,textColor:255,fontSize:8.5},styles:{fontSize:8.5,cellPadding:2,lineColor:LINE,lineWidth:0.15},margin:{left:M,right:M,top:20,bottom:30},didDrawPage:x=>{if(x.pageNumber>1)entete(false);}});y=doc.lastAutoTable.finalY+4;return;}
+    let t=b.titre||'';if(/^Article\s*#/i.test(t)){n++;t=t.replace(/^Article\s*#/i,'Article '+n);}const corps=b.texte?doc.splitTextToSize(P(b.texte),W-2*M):[];
+    saut((t?5:0)+corps.length*3.9+3);if(t){doc.setFontSize(9);col(NAVY,'bold');doc.text(P(t),M,y+3);y+=5;}if(corps.length){doc.setFontSize(8.8);col([40,50,70],'normal');doc.text(corps,M,y+3);y+=corps.length*3.9+3;}});};
+  const titre=t=>{doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);const tl=doc.splitTextToSize(P(t),W-2*M-8);const h=6+tl.length*5.5;doc.roundedRect(M,y,W-2*M,h,2,2,'FD');doc.setFontSize(12.5);col(NAVY,'bold');doc.text(tl,W/2,y+7.5,{align:'center'});y+=h+6;};
+  const lieuDate=()=>'Fait à '+((E.ville||'Abidjan').split(',')[0])+', le '+(d.date_signature?fmtD(d.date_signature):'____________________');
+  const sig=(L)=>{saut(48);const sw=(W-2*M-(L.length-1)*6)/L.length;L.forEach(([t,nm,fc,stamp],i)=>{const x=M+i*(sw+6);doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.roundedRect(x,y,sw,38,2,2,'S');
+    doc.setFontSize(7.8);col(BLUE,'bold');doc.text(doc.splitTextToSize(P(t),sw-6),x+3,y+5.5);doc.setFontSize(8);col(NAVY,'bold');doc.text(doc.splitTextToSize(P(nm||''),sw-6),x+3,y+12);
+    doc.setFontSize(7.2);col(GREY,'normal');if(fc)doc.text(doc.splitTextToSize(P(fc),sw-6),x+3,y+16.5);doc.text(P(stamp?'Signature et cachet':'« Lu et approuvé », signature'),x+3,y+35);
+    if(stamp){try{if(typeof HTI_STAMP==='string'&&HTI_STAMP.indexOf('data:')===0)doc.addImage(HTI_STAMP,'PNG',x+sw-34,y+9,30,22);}catch(e){}}});y+=42;};
+  const emp=['POUR '+(E.nom||'H TECH INNOV').toUpperCase(),E.responsable||'',E.fonction||'Directeur général',1];
+  if(T.forme==='contrat'){
+    titre(T.titre+(c.type==='avenant'?' N° '+(d.numero_avenant||1):''));
+    const id=c._parent&&['avenant'].includes(c.type)?c._parent.donnees||{}:d;
+    const hti=`${E.nom}, ${E.forme||'société'}${E.rccm?', immatriculée au RCCM sous le n° '+E.rccm:''}${E.dgi?', NCC '+E.dgi:''}${E.cnps?', immatriculée à la CNPS sous le n° '+E.cnps:''}, dont le siège est situé ${[E.adresse,E.ville].filter(Boolean).join(', ')||'[à compléter]'}, représentée par ${E.responsable||'[à compléter]'}${E.fonction?', '+E.fonction:''},`;
+    const pers=`${rhNom(id)||'[à compléter]'}${id.date_naissance?', '+(id.civilite==='Mme'?'née':'né')+' le '+fmtD(id.date_naissance)+(id.lieu_naissance?' à '+id.lieu_naissance:''):''}${id.filiation?', '+id.filiation:''}${id.nationalite?', de nationalité '+id.nationalite:''}, demeurant ${id.adresse||'[à compléter]'}${id.piece?', titulaire de la pièce d’identité '+id.piece:''}${id.cnps_salarie?', n° CNPS '+id.cnps_salarie:''}${id.telephone?', tél. '+id.telephone:''},`;
+    const bloc=(lbl,txt,fin)=>{const ls=doc.splitTextToSize(P(txt),W-2*M-10),h=ls.length*4+11;saut(h+6);doc.setFontSize(7.5);col(BLUE,'bold');doc.text(P(lbl),M,y+3);y+=5;
+      doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,h-5,2,2,'FD');doc.setFontSize(8.6);col([30,40,60],'normal');doc.text(ls,M+5,y+5);doc.setFont('helvetica','italic');col(GREY);doc.text(P(fin),M+5,y+5+ls.length*4);y+=h-2;};
+    bloc(c.type==='apprentissage'?'ENTRE L’EMPLOYEUR, MAÎTRE D’APPRENTISSAGE':'ENTRE LES SOUSSIGNÉS',hti,'ci-après « l’Employeur » ou « '+(E.nom||'H TECH INNOV')+' »,');
+    if(T.etab)bloc('L’ÉTABLISSEMENT D’ENSEIGNEMENT',`${d.etablissement||'[à compléter]'}${d.etablissement_adresse?', '+d.etablissement_adresse:''}, représenté par ${d.etablissement_representant||'[à compléter]'}, ${d.etablissement_qualite||''},`,'ci-après « l’Établissement »,');
+    bloc('ET',pers,'ci-après « '+(T.partie||'le Salarié')+' »,');
+    if(c.type==='apprentissage'&&v.mineur)bloc('REPRÉSENTÉ(E) PAR',`${d.representant_legal||'[à compléter]'}, ${d.representant_qualite||'représentant légal'},`,'agissant en qualité de représentant légal,');
+    saut(10);doc.setFontSize(9.5);col(NAVY,'bold');doc.text(P('IL A ÉTÉ CONVENU CE QUI SUIT :'),M,y+4);y+=10;
+    rendreTexte(rhRemplir(mod.contenu,c));y+=2;para(lieuDate()+(T.etab?', en trois (3) exemplaires originaux.':v.mineur&&c.type==='apprentissage'?', en trois (3) exemplaires originaux.':', en deux (2) exemplaires originaux.'));
+    const S=[emp,[(T.partie||'le Salarié').replace(/^l[ea’'] ?/i,'').toUpperCase(),rhNom(id),'']];if(T.etab)S.push(['L’ÉTABLISSEMENT',d.etablissement_representant||'',d.etablissement||'']);
+    if(c.type==='apprentissage'&&v.mineur)S.push(['LE REPRÉSENTANT LÉGAL',d.representant_legal||'',d.representant_qualite||'']);sig(S);
+  }else if(T.forme==='lettre'){
+    const id=c._parent?c._parent.donnees||{}:d;doc.setFontSize(9);col([40,50,70],'normal');
+    const dest=[rhNom(id),id.adresse,id.email].filter(Boolean);dest.forEach((l,i)=>doc.text(P(l),W-M-80,y+i*4.5));y+=dest.length*4.5+6;
+    para(lieuDate());doc.setFontSize(9);col(NAVY,'bold');doc.text(P('Objet : '+T.objet+(c._parent?' — contrat '+c._parent.reference:'')),M,y+3);y+=9;
+    para((id.civilite==='Mme'?'Madame':'Monsieur')+',');rendreTexte(rhRemplir(mod.contenu,c));
+    para('Nous vous prions d’agréer, '+(id.civilite==='Mme'?'Madame':'Monsieur')+', l’expression de nos salutations distinguées.');y+=2;
+    sig([emp,[c.type==='promesse'?'« BON POUR ACCORD » — LE CANDIDAT':'REÇU NOTIFICATION — LE SALARIÉ',rhNom(id),'Date : ____________']]);
+  }else{
+    titre(T.titre);rendreTexte(rhRemplir(mod.contenu,c));y+=2;para(lieuDate()+'.');const x=W-M-90;saut(46);
+    doc.setDrawColor(...LINE);doc.roundedRect(x,y,90,38,2,2,'S');doc.setFontSize(8);col(BLUE,'bold');doc.text(P('POUR '+(E.nom||'').toUpperCase()),x+3,y+6);col(NAVY,'bold');doc.text(P(E.responsable||''),x+3,y+11);
+    doc.setFontSize(7.2);col(GREY,'normal');doc.text(P(E.fonction||''),x+3,y+15.5);doc.text(P('Signature et cachet'),x+3,y+35);try{if(typeof HTI_STAMP==='string'&&HTI_STAMP.indexOf('data:')===0)doc.addImage(HTI_STAMP,'PNG',x+56,y+9,30,22);}catch(e){}y+=42;
+  }
+  const nb=doc.getNumberOfPages(),legal=P([E.nom,E.forme,E.rccm?'RCCM '+E.rccm:'',E.dgi?'NCC '+E.dgi:'',E.ville].filter(Boolean).join('  |  '));
+  for(let i=1;i<=nb;i++){doc.setPage(i);if(opts.projet||c.statut==='brouillon'){try{doc.setGState(new doc.GState({opacity:0.07}));}catch(e){}doc.setFontSize(70);col(NAVY,'bold');doc.text('PROJET',W/2,175,{align:'center',angle:30});try{doc.setGState(new doc.GState({opacity:1}));}catch(e){}}
+    if(T.forme==='contrat'){doc.setFontSize(7.5);col(GREY,'normal');doc.text(P('Paraphes :  ________   ________'+(T.etab||(c.type==='apprentissage'&&v.mineur)?'   ________':'')),M,276);}
+    doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);doc.line(M,281,W-M,281);doc.setFontSize(7);col(GREY,'normal');doc.text(legal,W/2,285,{align:'center'});
+    doc.text(P('Modèle '+c.type+' v'+(mod.version||1)),M,289.5);doc.text(P('Page '+i+' / '+nb),W-M,289.5,{align:'right'});}
+  if(opts.retour)return doc;
+  doc.save(rhFichier(T.court+' '+ref+' '+(rhNom(c._parent&&['avenant','renouvellement_essai'].includes(c.type)?c._parent.donnees:d,true)||''))+'.pdf');toast('✅ Document PDF téléchargé');
+}
+
+// ── Word ──
+async function rhWord(c){try{await loadScript(DP_LIBS.docx);const D=window.docx,E=getEntreprise(),T=RH_TYPES[c.type],mod=await rhModeleDe(c),d=c.donnees||{},id=c._parent&&['avenant','renouvellement_essai'].includes(c.type)?c._parent.donnees||{}:d;
+  const p=(t,o)=>new D.Paragraph({spacing:{after:120},alignment:o?.c?D.AlignmentType.CENTER:D.AlignmentType.JUSTIFIED,children:[new D.TextRun({text:t,bold:!!o?.b,size:o?.s||20,color:o?.col})]});
+  const kids=[p(E.nom||'H TECH INNOV',{b:1,s:28,col:'0A2A66'}),p([E.forme,E.rccm?'RCCM '+E.rccm:'',E.dgi?'NCC '+E.dgi:'',[E.adresse,E.ville].filter(Boolean).join(', ')].filter(Boolean).join(' | '),{s:16}),
+    p(T.titre+(c.type==='avenant'?' N° '+(d.numero_avenant||1):''),{b:1,c:1,s:26,col:'0A2A66'}),p('Référence : '+(c.reference||'PROJET'),{c:1,s:18})];
+  if(T.forme==='contrat'){kids.push(p('ENTRE LES SOUSSIGNÉS',{b:1}),p(`${E.nom}, représentée par ${E.responsable||'[à compléter]'}${E.fonction?', '+E.fonction:''}, ci-après « l’Employeur »,`));
+    if(T.etab)kids.push(p(`${d.etablissement||'[à compléter]'}, représenté par ${d.etablissement_representant||'[à compléter]'}, ci-après « l’Établissement »,`));
+    kids.push(p('ET',{b:1}),p(`${rhNom(id)}${id.date_naissance?', '+(id.civilite==='Mme'?'née':'né')+' le '+fmtD(id.date_naissance):''}, demeurant ${id.adresse||'[à compléter]'}, ci-après « ${T.partie} »,`),p('IL A ÉTÉ CONVENU CE QUI SUIT :',{b:1}));}
+  else if(T.forme==='lettre')kids.push(p(rhNom(id)+(id.adresse?' — '+id.adresse:'')),p('Objet : '+T.objet,{b:1}),p((id.civilite==='Mme'?'Madame':'Monsieur')+','));
+  let n=0;annexeBlocs(rhRemplir(mod.contenu,c)).forEach(b=>{if(b.table){kids.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:b.table.map((r,i)=>new D.TableRow({children:r.map(x=>new D.TableCell({children:[new D.Paragraph({children:[new D.TextRun({text:x,bold:i===0,size:18})]})]}))}))}));return;}
+    let t=b.titre||'';if(/^Article\s*#/i.test(t)){n++;t=t.replace(/^Article\s*#/i,'Article '+n);}
+    kids.push(new D.Paragraph({spacing:{after:140},alignment:D.AlignmentType.JUSTIFIED,children:[...(t?[new D.TextRun({text:t+' ',bold:true,size:20,color:'0A2A66'})]:[]),new D.TextRun({text:b.texte||'',size:20})]}));});
+  if(T.forme==='lettre')kids.push(p('Nous vous prions d’agréer, '+(id.civilite==='Mme'?'Madame':'Monsieur')+', l’expression de nos salutations distinguées.'));
+  kids.push(p('Fait à '+((E.ville||'Abidjan').split(',')[0])+', le '+(d.date_signature?fmtD(d.date_signature):'____________________')),
+    new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:[new D.TableRow({children:(T.forme==='attestation'?[['Pour '+E.nom,E.responsable||'']]:[['Pour '+E.nom,E.responsable||''],[T.forme==='lettre'?'Bon pour accord':(T.partie||'').replace(/^l[ea’'] ?/i,''),rhNom(id)]].concat(T.etab?[['L’Établissement',d.etablissement_representant||'']]:[])).map(([a,b])=>new D.TableCell({children:[new D.Paragraph({children:[new D.TextRun({text:a,bold:true,size:18})]}),new D.Paragraph({children:[new D.TextRun({text:b,size:18})]}),new D.Paragraph({spacing:{before:900},children:[new D.TextRun({text:'Signature',size:16,color:'5E6B82'})]})]}))})]}));
+  const blob=await D.Packer.toBlob(new D.Document({sections:[{properties:{page:{margin:{top:1000,bottom:1000,left:1100,right:1100}}},children:kids}]}));
+  dpTelecharger(blob,rhFichier(T.court+' '+(c.reference||'projet')+' '+(rhNom(id,true)||''))+'.docx');toast('✅ Document Word téléchargé');}catch(e){logErr(e);toast('❌ Export Word impossible : '+e.message,8000);}}
+
+// ── Interface : page « Contrats et documents RH » ──
+var RHC={vue:'liste',ed:null,f:{q:'',g:'',statut:''},modele:'cdi'},RH_ROWS=[];
+const rhPill=s=>{const x=RH_STATUTS[s]||RH_STATUTS.brouillon;return `<span class="badge" style="background:${x[0]};color:${x[1]}">${x[2]}</span>`;};
+const rhJ=d=>d?Math.round((new Date(d+'T12:00:00')-new Date(isoJour()+'T12:00:00'))/864e5):null;
+async function rhCharger(){const{data,error}=await sb.from('rh_contrats').select('*').order('created_at',{ascending:false});if(error)throw error;RH_ROWS=data||[];
+  RH_ROWS.forEach(r=>{r._parent=RH_ROWS.find(p=>p.id===r.parent_id)||null;});RH_ROWS.forEach(r=>{r._renouvele=RH_ROWS.some(x=>x.parent_id===r.id&&x.type==='renouvellement_essai'&&x.statut!=='annule');});}
+function rhEcheances(){const act=RH_ROWS.filter(r=>['signe','en_cours'].includes(r.statut)),out=[];
+  act.forEach(r=>{const j=rhJ(r.date_fin),je=rhJ(r.essai_fin),nm=r.nom_complet||'';
+    if(r.type==='cdd'&&j!=null&&j<=30)out.push({r,j,m:`CDD de ${nm} : fin le ${fmtD(r.date_fin)}`,a:[['Renouveler (avenant)',`rhNouveau('avenant','${r.id}',{renouvellement:true})`],['Certificat de travail',`rhNouveau('certificat_travail','${r.id}')`]]});
+    if(['cdi','cdd'].includes(r.type)&&je!=null&&je>=-1&&je<=20&&!r._renouvele){const delai=RH_PREAVIS_ESSAI[r.donnees?.essai_unite==='jours'?8:numIn(r.donnees?.essai_duree)]??15;
+      out.push({r,j:je,m:`Période d’essai de ${nm} : fin le ${fmtD(r.essai_fin)} — renouvellement à notifier au plus tard le ${fmtD(rhAjJours(r.essai_fin,-delai))}`,a:[['Renouveler l’essai',`rhNouveau('renouvellement_essai','${r.id}')`]]});}
+    if(['stage_ecole','stage_qualif','apprentissage','journalier'].includes(r.type)&&j!=null&&j<=15)out.push({r,j,m:`${RH_TYPES[r.type].court} de ${nm} : fin le ${fmtD(r.date_fin)}`,a:r.type.startsWith('stage')?[['Attestation de stage',`rhNouveau('attestation_stage','${r.id}')`]]:[]});
+  });return out.sort((a,b)=>a.j-b.j);}
+v4Def('contrats-rh',{titre:'Contrats et documents RH',icone:'📝',custom:async pg=>{
+  if(!rhGestion()){pg.innerHTML='<div class="card">Cette page est réservée à la direction et aux responsables RH.</div>';return;}
+  try{await rhCharger();}catch(e){pg.innerHTML='<div class="card">⚠️ Exécutez la migration « migration-contrats-rh.sql » dans Supabase pour activer les contrats.</div>';return;}
+  pg.innerHTML=RHC.vue==='fiche'&&RHC.ed?rhFiche():RHC.vue==='modeles'?await rhVueModeles():rhListe();
+}});
+function rhListe(){const f=RHC.f,q=f.q.toLowerCase(),E=rhEcheances();
+  const L=RH_ROWS.filter(r=>(!f.g||RH_TYPES[r.type]?.g===f.g)&&(!f.statut||r.statut===f.statut)&&(!q||[r.reference,r.nom_complet,r.poste,RH_TYPES[r.type]?.court].join(' ').toLowerCase().includes(q)));
+  const enCours=RH_ROWS.filter(r=>['signe','en_cours'].includes(r.statut)&&['cdi','cdd','journalier','stage_ecole','stage_qualif','apprentissage'].includes(r.type));
+  return `<div class="v4-head"><div><h1 class="page-title">📝 Contrats et documents RH</h1><div class="page-sub">Contrats de travail, stages, apprentissage et documents RH conformes au Code du travail ivoirien</div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="RHC.vue='modeles';v4Render('contrats-rh')">📄 Modèles</button><button class="btn btn-primary btn-sm" onclick="rhChoisirType()">+ Nouveau document</button></div></div>
+   <div class="grid-4" style="margin-bottom:.9rem">
+    <div class="kpi"><div class="kpi-icon blue">👥</div><div class="kpi-label">Contrats en cours</div><div class="kpi-value">${enCours.length}</div><div class="cell-sub">${enCours.filter(r=>r.type==='cdi').length} CDI · ${enCours.filter(r=>r.type==='cdd').length} CDD · ${enCours.filter(r=>/stage|apprent/.test(r.type)).length} stages et apprentis</div></div>
+    <div class="kpi"><div class="kpi-icon amber">⏳</div><div class="kpi-label">Échéances à traiter</div><div class="kpi-value">${E.length}</div></div>
+    <div class="kpi"><div class="kpi-icon green">✍️</div><div class="kpi-label">À signer</div><div class="kpi-value">${RH_ROWS.filter(r=>r.statut==='a_signer').length}</div></div>
+    <div class="kpi"><div class="kpi-icon red">📊</div><div class="kpi-label">Part des CDD</div><div class="kpi-value">${enCours.filter(r=>['cdi','cdd'].includes(r.type)).length?Math.round(100*enCours.filter(r=>r.type==='cdd').length/enCours.filter(r=>['cdi','cdd'].includes(r.type)).length):0} %</div><div class="cell-sub">plafond légal : un tiers de l’effectif</div></div></div>
+   ${E.length?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:12px"><h3 class="v4-h3">Échéances</h3>${E.map(x=>`<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--g100)"><span style="font-size:13px;${x.j<0?'color:#B42318':''}">${x.j<0?'⚠️ ':''}${esc(x.m)}${x.j>=0?` <span class="cell-sub">(J-${x.j})</span>`:''}</span><span style="display:flex;gap:4px">${x.a.map(([l,fn])=>`<button class="btn btn-outline btn-sm" onclick="${fn}">${l}</button>`).join('')}<button class="btn btn-outline btn-sm" onclick="rhOuvrir('${x.r.id}')">Ouvrir</button></span></div>`).join('')}</div>`:''}
+   <div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><input placeholder="Rechercher…" value="${esc(f.q)}" oninput="RHC.f.q=this.value;clearTimeout(window._rhq);window._rhq=setTimeout(()=>v4Render('contrats-rh'),300)" style="flex:1;min-width:160px">
+     <select onchange="RHC.f.g=this.value;v4Render('contrats-rh')"><option value="">Toutes catégories</option>${Object.entries(RH_GROUPES).map(([k,l])=>`<option value="${k}" ${f.g===k?'selected':''}>${l}</option>`).join('')}</select>
+     <select onchange="RHC.f.statut=this.value;v4Render('contrats-rh')"><option value="">Tous statuts</option>${Object.entries(RH_STATUTS).map(([k,v])=>`<option value="${k}" ${f.statut===k?'selected':''}>${v[2]}</option>`).join('')}</select></div>
+    <div class="table-wrap"><table><thead><tr><th>Référence</th><th>Document</th><th>Personne</th><th>Poste</th><th>Début</th><th>Fin</th><th>Statut</th></tr></thead><tbody>
+    ${L.map(r=>`<tr style="cursor:pointer" onclick="rhOuvrir('${r.id}')"><td><code style="font-size:11px">${esc(r.reference||'')}</code></td><td>${esc(RH_TYPES[r.type]?.court||r.type)}${r._parent?`<div class="cell-sub">lié à ${esc(r._parent.reference||'')}</div>`:''}</td><td><b>${esc(r.nom_complet||'')}</b></td><td style="font-size:12.5px">${esc(r.poste||'')}</td>
+      <td style="font-size:12.5px">${fmtD(r.date_debut)||'—'}</td><td style="font-size:12.5px">${fmtD(r.date_fin)||(r.type==='cdi'?'indéterminée':'—')}</td><td>${rhPill(r.statut)}</td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--g400)">Aucun document.</td></tr>'}</tbody></table></div></div>`;}
+function rhChoisirType(){document.getElementById('modalBox').style.width='min(760px,96vw)';document.getElementById('modalTitle').textContent='Nouveau document RH';
+  document.getElementById('modalBody').innerHTML=Object.entries(RH_GROUPES).map(([g,l])=>`<h3 class="v4-h3" style="margin:6px 0">${l}</h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin-bottom:12px">
+    ${Object.entries(RH_TYPES).filter(([k,t])=>t.g===g&&!t.parent).map(([k,t])=>`<button class="btn btn-outline" style="text-align:left;justify-content:flex-start;white-space:normal;height:auto;padding:10px" onclick="closeModal();rhNouveau('${k}')"><b>${esc(t.court)}</b><br><span class="cell-sub">${esc(t.titre.charAt(0)+t.titre.slice(1).toLowerCase())}</span></button>`).join('')}</div>`).join('')+
+    '<p class="cell-sub">L’avenant et le renouvellement de l’essai se créent depuis la fiche du contrat concerné.</p>';
+  document.getElementById('modalFooter').innerHTML='<button class="btn btn-outline" onclick="closeModal()">Fermer</button>';document.getElementById('modalOverlay').classList.add('open');}
+function rhNouveau(type,parentId,extra){const T=RH_TYPES[type],P=parentId?RH_ROWS.find(r=>r.id===parentId):null,pd=P?.donnees||{},d={};
+  rhChamps(type).forEach(f=>{if(f.def!==undefined)d[f.k]=f.def;});
+  if(!d.lieu_travail&&rhChamps(type).some(f=>f.k==='lieu_travail')){const E=getEntreprise();d.lieu_travail=[E.adresse,E.ville].filter(Boolean).join(', ');}
+  if(P){['civilite','nom','prenoms','date_naissance','lieu_naissance','nationalite','adresse','telephone','email','piece','cnps_salarie','filiation','poste','missions','etablissement'].forEach(k=>{if(rhVrai(pd[k])&&rhChamps(type).some(f=>f.k===k))d[k]=pd[k];});
+    if(type==='certificat_travail'){d.date_entree=pd.date_debut||'';d.date_sortie=P.date_fin||isoJour();d.emplois=`${pd.poste||''} ; ${fmtD(pd.date_debut)} ; ${fmtD(d.date_sortie)}`;}
+    if(type==='attestation_stage'){d.type_stage=P.type==='stage_qualif'?'stage_qualif':'stage_ecole';d.date_debut=pd.date_debut;d.date_fin=pd.date_fin;d.objet=pd.qualification||pd.formation||'';d.qualification=pd.qualification||'';}
+    if(type==='avenant'){d.numero_avenant=RH_ROWS.filter(r=>r.parent_id===P.id&&r.type==='avenant').length+1;d.date_effet=pd.date_fin?rhAjJours(pd.date_fin,1):isoJour();}
+    if(type==='renouvellement_essai')d.date_signature=isoJour();}
+  Object.assign(d,extra||{});const cl={};if(T.clauses)Object.entries(RH_CLAUSES).forEach(([k,v])=>cl[k]=v[1]);
+  RHC.ed={type,statut:'brouillon',donnees:d,clauses:cl,parent_id:P?.id||null,_parent:P};RHC.vue='fiche';v4Render('contrats-rh');}
+function rhOuvrir(id){const r=RH_ROWS.find(x=>x.id===id);if(!r)return;RHC.ed=JSON.parse(JSON.stringify({...r,_parent:null}));RHC.ed._parent=r._parent;RHC.vue='fiche';v4Render('contrats-rh');}
+const rhModifiable=c=>['brouillon','a_signer'].includes(c.statut||'brouillon');
+function rhChampHTML(f,c){const d=c.donnees||{},v=d[f.k],dis=rhModifiable(c)?'':'disabled',id='rf_'+f.k,ch=f.t==='bool'||f.t==='select'?'onchange="rhLire(true)"':'oninput="rhLire(false)"';
+  let inp;if(f.t==='select')inp=`<select id="${id}" ${dis} ${ch}>${Object.entries(f.o||{}).map(([k,l])=>`<option value="${k}" ${String(v)===k?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  else if(f.t==='bool')inp=`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="${id}" ${rhVrai(v)?'checked':''} ${dis} ${ch}> ${esc(f.l)}</label>`;
+  else if(f.t==='textarea')inp=`<textarea id="${id}" rows="3" ${dis} ${ch}>${esc(v||'')}</textarea>`;
+  else inp=`<input id="${id}" type="${f.t==='date'?'date':['number','money'].includes(f.t)?'number':'text'}" value="${esc(v??'')}" ${dis} ${ch}>`;
+  return `<div class="form-field ${f.w===2||f.t==='textarea'?'full':''}">${f.t==='bool'?'':`<label for="${id}">${esc(f.l)}${f.req?' *':''}</label>`}${inp}${f.aide?`<div class="cell-sub">${esc(f.aide)}</div>`:''}</div>`;}
+function rhPanneau(){const c=RHC.ed,K=rhControles(c),b=K.filter(x=>x.n==='bloquant'),a=K.filter(x=>x.n==='alerte');
+  return `<h3 class="v4-h3">Contrôles juridiques</h3>${!b.length?'<div style="color:#3F8A1E;font-size:13px;margin:6px 0">✔ Aucun point bloquant</div>':''}
+   ${b.map(x=>`<div style="font-size:12.5px;color:#B42318;padding:5px 0;border-bottom:1px solid var(--g100)">⛔ ${esc(x.m)}</div>`).join('')}${a.map(x=>`<div style="font-size:12.5px;color:#B45309;padding:5px 0;border-bottom:1px solid var(--g100)">⚠️ ${esc(x.m)}</div>`).join('')}`;}
+function rhFiche(){const c=RHC.ed,T=RH_TYPES[c.type],mod=rhModifiable(c),v=rhVars(c),enf=c.id?RH_ROWS.filter(r=>r.parent_id===c.id):[];
+  const sec=T.sections.filter(([t])=>t!=='Apprenti mineur'||v.mineur).map(([t,F_])=>{const L=F_.filter(f=>!f.si||rhCond(f.si,c,v));if(t==='Clauses'&&!T.clauses)return'';
+    return `<div class="card" style="margin-bottom:12px"><h3 class="v4-h3">${esc(t)}</h3>${t==='Clauses'?`<div style="display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 10px">${Object.entries(RH_CLAUSES).map(([k,x])=>`<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" class="rhCl" data-k="${k}" ${(c.clauses||{})[k]?'checked':''} ${mod?'':'disabled'} onchange="rhLire(true)"> ${esc(x[0])}</label>`).join('')}</div>`:''}
+      <div class="form-grid">${L.map(f=>rhChampHTML(f,c)).join('')}</div>${t==='Salarié'||t==='Stagiaire'||t==='Apprenti'||t==='Travailleur'||t==='Candidat'?(mod?`<div style="margin-top:8px"><button class="btn btn-outline btn-sm" onclick="rhLierCompte()">🔗 Reprendre les informations d’un compte ERP</button>${c.employe_id?' <span class="cell-sub">lié à un compte</span>':''}</div>`:''):''}</div>`;}).join('');
+  const flux={brouillon:[['a_signer','Prêt à signer']],a_signer:[['signe','Marquer comme signé'],['brouillon','Revenir en brouillon']],signe:[['en_cours','En cours d’exécution'],['termine','Terminé']],en_cours:[['termine','Terminé'],['rompu','Rompu']]}[c.statut||'brouillon']||[];
+  return `<div class="v4-head"><div><div class="cell-sub"><a href="#" onclick="RHC.vue='liste';RHC.ed=null;v4Render('contrats-rh');return false">← Contrats et documents RH</a></div>
+     <h1 class="page-title">${esc(T.court)}${c.reference?' · '+esc(c.reference):''}</h1><div class="page-sub">${rhPill(c.statut)} ${c._parent?'· lié à '+esc(c._parent.reference||'')+' ('+esc(RH_TYPES[c._parent.type]?.court||'')+')':''}${!mod?' · document signé : contenu figé, établissez un avenant pour le modifier':''}</div></div>
+    <div class="v4-tools">${mod?'<button class="btn btn-outline btn-sm" onclick="rhSauver()">💾 Enregistrer</button>':''}<button class="btn btn-outline btn-sm" onclick="rhApercu()">👁️ Aperçu PDF</button><button class="btn btn-outline btn-sm" onclick="rhExport('pdf')">PDF</button><button class="btn btn-outline btn-sm" onclick="rhExport('word')">Word</button>
+     ${flux.map(([s,l])=>`<button class="btn ${s==='brouillon'?'btn-outline':'btn-primary'} btn-sm" onclick="rhStatut('${s}')">${l}</button>`).join('')}${c.id&&!['termine','rompu','annule'].includes(c.statut)?`<button class="btn btn-outline btn-sm" onclick="rhStatut('annule')">Annuler</button>`:''}</div></div>
+   <div style="display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start"><div>${sec}</div>
+    <div style="position:sticky;top:10px"><div class="card" id="rhPanneau" style="margin-bottom:12px">${rhPanneau()}</div>
+     ${c.id&&['cdi','cdd','journalier','stage_ecole','stage_qualif','apprentissage'].includes(c.type)&&['signe','en_cours','termine','rompu'].includes(c.statut)?`<div class="card"><h3 class="v4-h3">Documents liés</h3>
+      ${enf.map(r=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--g100);font-size:12.5px"><a href="#" onclick="rhOuvrir('${r.id}');return false">${esc(RH_TYPES[r.type].court)} ${esc(r.reference||'')}</a>${rhPill(r.statut)}</div>`).join('')||'<p class="cell-sub">Aucun.</p>'}
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">${['cdi','cdd'].includes(c.type)?`<button class="btn btn-outline btn-sm" onclick="rhNouveau('avenant','${c.id}')">+ Avenant</button>`:''}${c.type==='cdd'?`<button class="btn btn-outline btn-sm" onclick="rhNouveau('avenant','${c.id}',{renouvellement:true})">+ Renouvellement du CDD</button>`:''}
+       ${['cdi','cdd'].includes(c.type)&&rhVrai(c.donnees?.essai)&&!c._renouvele?`<button class="btn btn-outline btn-sm" onclick="rhNouveau('renouvellement_essai','${c.id}')">+ Renouvellement de l’essai</button>`:''}
+       ${['cdi','cdd','journalier'].includes(c.type)?`<button class="btn btn-outline btn-sm" onclick="rhNouveau('certificat_travail','${c.id}')">+ Certificat de travail</button>`:''}${/stage/.test(c.type)?`<button class="btn btn-outline btn-sm" onclick="rhNouveau('attestation_stage','${c.id}')">+ Attestation de stage</button>`:''}</div></div>`:''}</div></div>`;}
+function rhLire(rerender){const c=RHC.ed;if(!c||!rhModifiable(c))return;rhChamps(c.type).forEach(f=>{const e=document.getElementById('rf_'+f.k);if(!e)return;c.donnees[f.k]=f.t==='bool'?e.checked:['number','money'].includes(f.t)?(e.value===''?'':numIn(e.value)):e.value;});
+  document.querySelectorAll('.rhCl').forEach(e=>{c.clauses[e.dataset.k]=e.checked;});
+  if(rerender){const y=window.scrollY;document.getElementById('page-contrats-rh').innerHTML=rhFiche();window.scrollTo(0,y);}else{const p=document.getElementById('rhPanneau');if(p)p.innerHTML=rhPanneau();}}
+async function rhLierCompte(){const{data}=await sb.from('profiles').select('id,prenom,nom,email,telephone,role').order('prenom');const L=(data||[]).filter(p=>!['client'].includes(p.role));
+  document.getElementById('modalBox').style.width='min(480px,96vw)';document.getElementById('modalTitle').textContent='Reprendre un compte ERP';
+  document.getElementById('modalBody').innerHTML=`<select id="rhCpt" style="width:100%">${L.map(p=>`<option value="${p.id}">${esc(((p.prenom||'')+' '+(p.nom||'')).trim())} — ${esc(p.email||'')}</option>`).join('')}</select><p class="cell-sub">Le nom, le prénom, l’e-mail et le téléphone sont repris ; la personne pourra consulter ses documents signés.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="rhLierOk()">Reprendre</button>`;document.getElementById('modalOverlay').classList.add('open');window._rhCpt=L;}
+function rhLierOk(){const p=window._rhCpt.find(x=>x.id===gv('rhCpt'));if(!p)return;const d=RHC.ed.donnees;RHC.ed.employe_id=p.id;if(p.nom)d.nom=p.nom;if(p.prenom)d.prenoms=p.prenom;if(p.email)d.email=p.email;if(p.telephone)d.telephone=p.telephone;closeModal();v4Render('contrats-rh');}
+async function rhRefSuivante(){const an=new Date().getFullYear(),pre='RH-'+an+'-';const n=RH_ROWS.map(r=>r.reference||'').filter(x=>x.startsWith(pre)).map(x=>+x.slice(pre.length)||0);return pre+String((n.length?Math.max(...n):0)+1).padStart(4,'0');}
+function rhLigne(c){const d=c.donnees||{},id=c._parent&&['avenant','renouvellement_essai'].includes(c.type)?c._parent.donnees||{}:d;
+  return{type:c.type,statut:c.statut||'brouillon',parent_id:c.parent_id||null,employe_id:c.employe_id||c._parent?.employe_id||null,nom_complet:rhNom(id)||null,poste:d.poste||id.poste||null,
+    date_debut:d.date_debut||d.date_effet||d.date_entree||null,date_fin:rhDateFin(c)||d.date_sortie||null,essai_fin:rhEssaiFin(c),donnees:d,clauses:c.clauses||{},date_signature:d.date_signature||null};}
+async function rhSauver(silence){const c=RHC.ed;rhLire(false);const o=rhLigne(c);let r;
+  if(c.id)r=await sb.from('rh_contrats').update(o).eq('id',c.id).select().single();else{o.reference=await rhRefSuivante();r=await sb.from('rh_contrats').insert(o).select().single();}
+  if(r.error){toast('❌ '+r.error.message.replace(/^.*?:\s(?=[A-ZÉ])/,''),7000);return false;}
+  const P=c._parent;Object.assign(c,r.data);c._parent=P;try{logAudit(c.id?'modification':'creation','rh_contrats',c.id,{type:c.type});}catch(e){}if(!silence){toast('✅ Enregistré');await v4Render('contrats-rh');}return true;}
+async function rhStatut(s){const c=RHC.ed,K=rhControles(c).filter(x=>x.n==='bloquant');
+  if(['a_signer','signe'].includes(s)&&K.length){toast('⛔ Corrigez d’abord les points bloquants ('+K.length+')',6000);return;}
+  if(s==='annule'&&!confirm('Annuler ce document ?'))return;let motif=null;if(s==='rompu'){motif=prompt('Motif de la rupture (essai, démission, licenciement, accord commun, faute lourde…) :');if(!motif)return;}
+  if(rhModifiable(c)&&!(await rhSauver(true)))return;const o={statut:s};
+  if(s==='signe'){const M=await rhModeles();o.modele_versions={[c.type]:M[c.type]?.version||1};if(!c.donnees.date_signature)o.date_signature=isoJour();}
+  if(s==='rompu'||s==='termine'){o.motif_fin=motif;if(s==='rompu')o.date_fin=isoJour();}
+  const{data,error}=await sb.from('rh_contrats').update(o).eq('id',c.id).select().single();if(error){toast('❌ '+error.message.replace(/^.*?:\s(?=[A-ZÉ])/,''),7000);return;}
+  if(s==='signe'&&c.type==='avenant'&&c.donnees.renouvellement&&c._parent){await sb.from('rh_contrats').update({date_fin:c.donnees.nouvelle_fin}).eq('id',c._parent.id);}
+  const P=c._parent;Object.assign(c,data);c._parent=P;toast('✅ Statut : '+RH_STATUTS[s][2]);await v4Render('contrats-rh');}
+async function rhApercu(){rhLire(false);try{await rhPDF(RHC.ed,{projet:true});}catch(e){logErr(e);toast('❌ '+e.message);}}
+async function rhExport(f){rhLire(false);const c=RHC.ed;if(rhControles(c).some(x=>x.n==='bloquant')&&!confirm('Des points bloquants subsistent : le document sera marqué « PROJET ». Continuer ?'))return;
+  try{f==='word'?await rhWord(c):await rhPDF(c);}catch(e){logErr(e);toast('❌ '+e.message);}}
+
+// ── Modèles ──
+async function rhVueModeles(){const M=await rhModeles(true),k=RHC.modele,T=RH_TYPES[k],m=M[k];
+  const vars=[...new Set((m.contenu.match(/\{\{\s*[a-z_0-9]+\s*\}\}/gi)||[]).map(x=>x.replace(/[{}\s]/g,'')))];
+  return `<div class="v4-head"><div><div class="cell-sub"><a href="#" onclick="RHC.vue='liste';v4Render('contrats-rh');return false">← Contrats et documents RH</a></div><h1 class="page-title">📄 Modèles de documents RH</h1><div class="page-sub">Chaque publication crée une nouvelle version ; les documents signés conservent la version avec laquelle ils ont été établis.</div></div></div>
+   <div style="display:grid;grid-template-columns:240px minmax(0,1fr);gap:14px;align-items:start"><div class="card">${Object.entries(RH_TYPES).map(([c,t])=>`<a href="#" onclick="RHC.modele='${c}';v4Render('contrats-rh');return false" style="display:block;padding:7px 8px;border-radius:6px;${c===k?'background:#E5EFFB;font-weight:700':''}">${esc(t.court)}<span class="cell-sub" style="float:right">v${M[c].version}</span></a>`).join('')}</div>
+    <div class="card"><h3 class="v4-h3">${esc(T.titre)} — version ${m.version}${m.defaut?' (texte d’origine)':''}</h3>
+     <p class="cell-sub">Syntaxe : <code>**Article # – Titre.**</code> numéroté automatiquement ; <code>{{variable}}</code> ; clause conditionnelle <code>[[si:cle]] … [[/si]]</code>.</p>
+     <textarea id="rhModTxt" rows="22" style="width:100%;font-family:monospace;font-size:12px">${esc(m.contenu)}</textarea>
+     <div class="cell-sub" style="margin:6px 0">Variables utilisées : ${vars.map(x=>`<code>${x}</code>`).join(' ')}</div>
+     <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="document.getElementById('rhModTxt').value=RH_MODELES_DEFAUT[RHC.modele]">Revenir au texte d’origine</button><button class="btn btn-primary btn-sm" onclick="rhPublier()">Publier une nouvelle version</button></div></div></div>`;}
+async function rhPublier(){const k=RHC.modele,txt=gv('rhModTxt');if(!txt.trim()){toast('❌ Texte vide');return;}const M=await rhModeles(true);if(txt===M[k].contenu){toast('Aucune modification');return;}
+  if(!confirm('Publier la version '+(M[k].version+1)+' de ce modèle ? Les nouveaux documents l’utiliseront.'))return;
+  const{error}=await sb.from('modeles_contrat').insert({code:'rh_'+k,version:M[k].version+1,contenu:txt,date_effet:isoJour(),actif:true,created_by:uid()});
+  if(error){toast('❌ '+error.message);return;}_RH_MOD=null;toast('✅ Modèle publié — version '+(M[k].version+1));v4Render('contrats-rh');}
+(function(){try{Object.entries(NAV).forEach(([ro,nav])=>{if(!nav||!RH_ROLES.includes(ro)||nav.some(x=>x.id==='contrats-rh'))return;
+    const k=nav.findIndex(x=>x.id==='rh');nav.splice(k<0?nav.length:k+1,0,{id:'contrats-rh',i:'📝',l:'Contrats RH'});});PAGE_LABELS['contrats-rh']='Contrats et documents RH';}catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-contrats-rh')){const d=document.createElement('div');d.className='page';d.id='page-contrats-rh';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
+
+</script>
 </body>
 </html>
 
