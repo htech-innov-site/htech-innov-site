@@ -18937,6 +18937,70 @@ async function meDispo(){const jour=ME.dispo||isoJour(),de=new Date(jour+'T00:00
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
 
 </script>
+<script>
+
+// ══════════════════════════════════════════════════════════════════════
+// SIMULATEUR PMO — H TECH ACADEMY : accès (formation ou achat 30 jours), formations liées, résultats des apprenants
+// ══════════════════════════════════════════════════════════════════════
+var SIMP={onglet:'acces',apprenant:''};
+const SIM_DOMAINES=['Alignement organisationnel','Éléments stratégiques','Conception et structure','Fonctionnement et performances','Amélioration et efficacité','Personnes'];
+const simNom=p=>p?((p.prenom||'')+' '+(p.nom||'')).trim()||p.email||'':'—';
+const simJ=d=>Math.ceil((new Date(d)-new Date())/864e5);
+v4Def('simulateur-pmo',{titre:'Simulateur PMO',icone:'🎯',custom:async pg=>{
+  const q=(t,s='*')=>sb.from(t).select(s).then(r=>{if(r.error)throw r.error;return r.data||[];});
+  let A,F,T,P;try{[A,F,T,P]=await Promise.all([q('sim_acces'),q('sim_formations'),sb.from('sim_tentatives').select('*').order('created_at',{ascending:false}).limit(500).then(r=>{if(r.error)throw r.error;return r.data||[];}),q('profiles','id,prenom,nom,email,role')]);}
+  catch(e){pg.innerHTML=`<div class="card">⚠️ ${/does not exist|PGRST205|42P01|schema cache|Could not find/i.test((e.code||'')+' '+(e.message||''))?'Exécutez « migration-simulateur-pmo.sql » dans le SQL Editor du projet de l’ERP, puis rechargez la page.':esc(e.message)}</div>`;return;}
+  SIMP.P=P;const pp=id=>P.find(p=>p.id===id),now=new Date(),actifs=A.filter(a=>new Date(a.debut)<=now&&new Date(a.fin)>=now);
+  const m0=new Date(now.getFullYear(),now.getMonth(),1),ventes=A.filter(a=>a.origine==='achat'&&new Date(a.created_at)>=m0),t30=T.filter(t=>new Date(t.created_at)>=new Date(Date.now()-30*864e5)),ex=t30.filter(t=>t.mode==='exam');
+  const ong=[['acces','🔑 Accès'],['resultats','📊 Résultats'],['formations','🎓 Formations liées']];
+  let corps='';
+  if(SIMP.onglet==='resultats'){const L=T.filter(t=>!SIMP.apprenant||t.user_id===SIMP.apprenant),ids=[...new Set(T.map(t=>t.user_id))];
+    corps=`<div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><select onchange="SIMP.apprenant=this.value;v4Render('simulateur-pmo')"><option value="">Tous les apprenants</option>${ids.map(i=>`<option value="${i}" ${SIMP.apprenant===i?'selected':''}>${esc(simNom(pp(i)))}</option>`).join('')}</select><span class="cell-sub">Scores calculés par le serveur ; l’apprenant ne peut pas les modifier.</span></div>
+     ${SIMP.apprenant?simSynthese(L):''}
+     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Apprenant</th><th>Session</th><th>Langue</th><th>Score</th><th>Par domaine</th><th>Durée</th></tr></thead><tbody>
+     ${L.map(t=>`<tr><td style="font-size:12px">${new Date(t.created_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</td><td>${esc(simNom(pp(t.user_id)))}</td><td>${esc(t.libelle||'')}<div class="cell-sub">${t.mode==='exam'?'examen blanc':'entraînement'}</div></td><td>${(t.langue||'fr').toUpperCase()}</td>
+      <td><b style="color:${t.pct>=80?'#3F8A1E':t.pct>=65?'#1565C0':t.pct>=50?'#B45309':'#B42318'}">${t.pct} %</b><div class="cell-sub">${t.ok}/${t.nb}</div></td>
+      <td>${[1,2,3,4,5,6].map(d=>{const v=(t.par_domaine||{})[d];if(!v)return '';const p=Math.round(100*v[0]/v[1]);return `<span title="${SIM_DOMAINES[d-1]} : ${v[0]}/${v[1]}" style="display:inline-block;width:22px;margin-right:2px;text-align:center;font-size:10.5px;border-radius:4px;padding:1px 0;background:${p>=80?'#EDF6E8':p>=50?'#FEF3E2':'#FDECEC'}">${['I','II','III','IV','V','VI'][d-1]}</span>`;}).join('')}</td>
+      <td style="font-size:12px">${Math.round((t.duree_s||0)/60)} min</td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--g400)">Aucune session enregistrée.</td></tr>'}</tbody></table></div></div>`;}
+  else if(SIMP.onglet==='formations'){
+    corps=`<div class="card"><p class="cell-sub">Une inscription à l’une de ces formations ouvre automatiquement l’accès au simulateur pendant la durée indiquée, à compter du début de la formation.</p>
+     <div class="table-wrap"><table><thead><tr><th>Référence de la formation</th><th>Durée d’accès</th><th></th></tr></thead><tbody>${F.map(f=>`<tr><td><code>${esc(f.formation_ref)}</code></td><td>${f.jours} jours</td><td><button class="btn btn-outline btn-sm" onclick="simFormSuppr('${jsq(f.formation_ref)}')">Retirer</button></td></tr>`).join('')||'<tr><td colspan="3" class="cell-sub" style="padding:14px">Aucune formation liée.</td></tr>'}</tbody></table></div>
+     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="sfRef" placeholder="Référence (ex. PMO-01)" style="min-width:180px"><input id="sfJ" type="number" value="90" min="1" style="width:110px" title="jours"><button class="btn btn-primary btn-sm" onclick="simFormAjout()">Ajouter</button></div></div>`;}
+  else{const L=[...A].sort((x,y)=>String(y.fin).localeCompare(String(x.fin)));
+    corps=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 class="v4-h3">Accès au simulateur</h3><button class="btn btn-primary btn-sm" onclick="simAccorder()">+ Ouvrir un accès (achat 30 jours)</button></div>
+     <div class="table-wrap"><table><thead><tr><th>Apprenant</th><th>Origine</th><th>Début</th><th>Fin</th><th>État</th><th>Référence</th></tr></thead><tbody>
+     ${L.map(a=>{const j=simJ(a.fin),act=new Date(a.debut)<=now&&new Date(a.fin)>=now;return `<tr><td><b>${esc(simNom(pp(a.user_id)))}</b><div class="cell-sub">${esc(pp(a.user_id)?.email||'')}</div></td><td>${{formation:'Formation PMO',achat:'Achat',offert:'Offert'}[a.origine]||a.origine}${a.montant?`<div class="cell-sub">${fmtF(a.montant)} FCFA</div>`:''}</td>
+      <td style="font-size:12px">${fmtD(a.debut)}</td><td style="font-size:12px">${fmtD(a.fin)}</td><td>${act?`<span class="badge badge-green">actif · ${j} j</span>`:new Date(a.debut)>now?'<span class="badge">à venir</span>':'<span class="badge">expiré</span>'}</td><td style="font-size:12px">${esc(a.reference||'')}</td></tr>`;}).join('')||'<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--g400)">Aucun accès.</td></tr>'}</tbody></table></div></div>`;}
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🎯 Simulateur PMO</h1><div class="page-sub">H TECH ACADEMY · accès, formations liées et résultats des apprenants</div></div><div class="v4-tools"><a class="btn btn-outline btn-sm" href="${(window.CONFIG?.SITE||'https://www.htechinnov.com/')+'academy/simulateur/'}" target="_blank" rel="noopener">Ouvrir le simulateur</a></div></div>
+   <div class="grid-4" style="margin-bottom:.9rem"><div class="kpi"><div class="kpi-icon green">🔑</div><div class="kpi-label">Accès actifs</div><div class="kpi-value">${actifs.length}</div></div>
+    <div class="kpi"><div class="kpi-icon blue">💳</div><div class="kpi-label">Accès vendus ce mois</div><div class="kpi-value">${ventes.length}</div><div class="cell-sub">${fmtF(ventes.reduce((s,a)=>s+numIn(a.montant),0))} FCFA</div></div>
+    <div class="kpi"><div class="kpi-icon amber">📝</div><div class="kpi-label">Sessions (30 jours)</div><div class="kpi-value">${t30.length}</div><div class="cell-sub">${ex.length} examen(s) blanc(s)</div></div>
+    <div class="kpi"><div class="kpi-icon red">🎯</div><div class="kpi-label">Score moyen aux examens</div><div class="kpi-value">${ex.length?Math.round(ex.reduce((s,t)=>s+t.pct,0)/ex.length)+' %':'—'}</div></div></div>
+   <div style="display:flex;gap:6px;margin-bottom:12px">${ong.map(([k,l])=>`<button class="btn ${SIMP.onglet===k?'btn-primary':'btn-outline'} btn-sm" onclick="SIMP.onglet='${k}';v4Render('simulateur-pmo')">${l}</button>`).join('')}</div>${corps}`;
+}});
+function simSynthese(L){const ex=L.filter(t=>t.mode==='exam'),agg={};L.forEach(t=>Object.entries(t.par_domaine||{}).forEach(([d,v])=>{agg[d]=agg[d]||[0,0];agg[d][0]+=v[0];agg[d][1]+=v[1];}));
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:12px"><div style="padding:10px;border:1px solid var(--g100);border-radius:10px"><b>Évolution aux examens blancs</b><div style="display:flex;align-items:flex-end;gap:5px;height:90px;margin-top:8px">${ex.slice(0,12).reverse().map(t=>`<div title="${fmtD(t.created_at)} : ${t.pct} %" style="flex:1;background:${t.pct>=65?'#1565C0':'#D97706'};height:${Math.max(4,t.pct)}%;border-radius:4px 4px 0 0"></div>`).join('')||'<span class="cell-sub">Aucun examen blanc.</span>'}</div></div>
+   <div style="padding:10px;border:1px solid var(--g100);border-radius:10px"><b>Maîtrise cumulée par domaine</b>${[1,2,3,4,5,6].map(d=>{const v=agg[d];const p=v?Math.round(100*v[0]/v[1]):null;return `<div style="display:grid;grid-template-columns:150px 1fr 40px;gap:6px;align-items:center;font-size:12px;margin-top:5px"><span>${SIM_DOMAINES[d-1]}</span><div style="height:7px;background:#F1F4FA;border-radius:4px"><div style="height:7px;width:${p||0}%;background:${p>=80?'#3F8A1E':p>=50?'#D97706':'#B42318'};border-radius:4px"></div></div><span>${p==null?'—':p+' %'}</span></div>`;}).join('')}</div></div>`;}
+function simAccorder(){const L=(SIMP.P||[]).filter(p=>['apprenant','client'].includes(p.role)).sort((a,b)=>simNom(a).localeCompare(simNom(b)));
+  document.getElementById('modalBox').style.width='min(520px,96vw)';document.getElementById('modalTitle').textContent='Ouvrir un accès au Simulateur PMO';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="form-field full"><label for="saU">Apprenant *</label><select id="saU"><option value="">Choisir…</option>${L.map(p=>`<option value="${p.id}">${esc(simNom(p))} — ${esc(p.email||'')}</option>`).join('')}</select><div class="cell-sub">Le compte apprenant doit exister (H TECH Academy › Mes apprenants).</div></div>
+   <div class="form-field"><label for="saO">Origine</label><select id="saO"><option value="achat">Achat</option><option value="offert">Offert</option></select></div><div class="form-field"><label for="saJ">Durée (jours)</label><input id="saJ" type="number" value="30" min="1"></div>
+   <div class="form-field"><label for="saM">Montant (FCFA)</label><input id="saM" type="number" value="100000"></div><div class="form-field"><label for="saR">Référence (facture, paiement)</label><input id="saR" placeholder="FAC-2026-…"></div></div>
+   <p class="cell-sub">Si l’apprenant a déjà un accès en cours, le nouvel accès commence à sa date de fin.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="simAccorderOk()">Ouvrir l’accès</button>`;document.getElementById('modalOverlay').classList.add('open');}
+async function simAccorderOk(){const u=gv('saU');if(!u){toast('❌ Choisissez un apprenant');return;}const j=Math.max(1,numIn(gv('saJ'))||30);
+  const{data:ex}=await sb.from('sim_acces').select('fin').eq('user_id',u);const der=(ex||[]).map(a=>new Date(a.fin)).filter(d=>d>new Date()).sort((a,b)=>b-a)[0];
+  const debut=der||new Date(),fin=new Date(debut.getTime()+j*864e5);
+  const{error}=await sb.from('sim_acces').insert({user_id:u,debut:debut.toISOString(),fin:fin.toISOString(),origine:gv('saO'),montant:gv('saO')==='achat'?numIn(gv('saM')):null,reference:g('saR')||null});
+  if(error){toast('❌ '+error.message);return;}try{logAudit('creation','sim_acces',u,{jours:j});}catch(e){}toast('✅ Accès ouvert jusqu’au '+fin.toLocaleDateString('fr-FR'));closeModal();v4Render('simulateur-pmo');}
+async function simFormAjout(){const r=g('sfRef');if(!r){toast('❌ Référence requise');return;}const{error}=await sb.from('sim_formations').upsert({formation_ref:r,jours:Math.max(1,numIn(gv('sfJ'))||90)});if(error){toast('❌ '+error.message);return;}toast('✅ Formation liée');v4Render('simulateur-pmo');}
+async function simFormSuppr(r){if(!confirm('Retirer cette formation ? Les accès déjà ouverts restent valables.'))return;await sb.from('sim_formations').delete().eq('formation_ref',r);v4Render('simulateur-pmo');}
+(function(){try{Object.entries(NAV).forEach(([ro,nav])=>{if(!nav||['client','apprenant','formateur'].includes(ro)||nav.some(x=>x.id==='simulateur-pmo'))return;
+    let k=-1;nav.forEach((x,i)=>{if(x.id&&/academy|hta|formation/i.test(x.id))k=i;});nav.splice(k<0?nav.length:k+1,0,{id:'simulateur-pmo',i:'🎯',l:'Simulateur PMO'});});PAGE_LABELS['simulateur-pmo']='Simulateur PMO';}catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-simulateur-pmo')){const d=document.createElement('div');d.className='page';d.id='page-simulateur-pmo';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
+
+</script>
 </body>
 </html>
 
