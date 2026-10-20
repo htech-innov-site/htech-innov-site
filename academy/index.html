@@ -709,8 +709,12 @@ async function pageEspace(){
   }
   const titre=i=>i.formation_titre||CATALOGUE.find(f=>f.reference===i.formation_ref)?.designation||i.formation_ref;
   const st={en_cours:['En cours',''],terminee:['Terminée','vert'],suspendue:['Suspendue','gris'],abandon:['Abandonnée','gris']};
+  let simCarte='';
+  if(!VUE){try{const{data:sa}=await sb.rpc('sim_mon_acces');const sx=(sa||[])[0]||{};const sj=sx.fin?Math.max(0,Math.ceil((new Date(sx.fin)-new Date())/864e5)):0;
+    simCarte=`<div class="panel" style="margin:18px 0;display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;border-left:4px solid #3F8A1E"><div><span class="kick">Simulateur PMO</span><h3 style="margin:6px 0 4px">Guide d’étude, entraînement et examens blancs</h3><div class="note">${sx.actif?'Accès actif : '+sj+' jour'+(sj>1?'s':'')+' restant'+(sj>1?'s':'')+'. Vos résultats sont suivis par votre expert.':'Inclus dans nos formations PMO, ou 100 000 FCFA pour 30 jours de préparation.'}</div></div><a class="btn ${sx.actif?'btn-g':'btn-o'}" href="simulateur/">${sx.actif?'Ouvrir le simulateur':'Découvrir l’offre'}</a></div>`;}catch(e){}}
   app(`<div class="wrap espace">${bandeauVue()}
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><span class="kick">Espace apprenant</span><h1 style="font-size:30px;margin-top:6px">Bonjour ${esc(VUE?VUE.nom:(MOI?.prenom||''))}</h1></div>${VUE?'':'<button class="btn btn-o btn-s" onclick="seDeconnecter()">Se déconnecter</button>'}</div>
+    ${simCarte}
     ${L.length?`<div class="kpis"><div class="kpi"><span>Formations suivies</span><b>${L.length}</b></div><div class="kpi"><span>En cours</span><b>${L.filter(i=>i.statut==='en_cours').length}</b></div><div class="kpi"><span>Progression moyenne</span><b>${Math.round(L.reduce((s,i)=>s+progr[i.id],0)/L.length)} %</b></div></div>
     <div class="grid">${L.map(i=>`<article class="card"><span class="badge ${st[i.statut]?.[1]||''}">${esc(st[i.statut]?.[0]||i.statut)}</span><h3>${esc(titre(i))}</h3>
       <div class="meta"><span>👤 Expert : ${esc(i.expert_nom||'en cours d’attribution')}</span>${i.date_debut?`<span>📅 depuis le ${esc(dateFr(i.date_debut))}</span>`:''}</div>
