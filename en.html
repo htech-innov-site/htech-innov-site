@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PMO Simulator — H TECH ACADEMY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F5F7F6; --surface:#FFFFFF; --ink:#18222F; --muted:#5A6572; --rule:#D9DFE3; --soft:#EBEFF1;
+  --good:#2F7A4F; --bad:#B04A3A; --warn:#A8761F;
+  --d1:#2E7D7A; --d2:#B07C2A; --d3:#6E4C8E; --d4:#3C6AA6; --d5:#5C7F36; --d6:#A4513F;
+  --serif:"Newsreader", Georgia, "Times New Roman", serif;
+  --sans:"Public Sans", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#141A21; --surface:#1C242D; --ink:#E7ECEF; --muted:#A3AEB8; --rule:#323D48; --soft:#252F39;
+    --good:#5DBB84; --bad:#E07C6B; --warn:#D9A64E;
+    --d1:#4FB3AE; --d2:#D9A54E; --d3:#A585C4; --d4:#6E9AD6; --d5:#8DB664; --d6:#D5806C;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141A21; --surface:#1C242D; --ink:#E7ECEF; --muted:#A3AEB8; --rule:#323D48; --soft:#252F39;
+  --good:#5DBB84; --bad:#E07C6B; --warn:#D9A64E;
+  --d1:#4FB3AE; --d2:#D9A54E; --d3:#A585C4; --d4:#6E9AD6; --d5:#8DB664; --d6:#D5806C;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--d4);outline-offset:2px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);border-bottom:1px solid var(--rule)}
+.top .wrap{display:flex;align-items:center;gap:16px;min-height:58px;flex-wrap:wrap}
+.brand{font-family:var(--serif);font-size:1.2rem;font-weight:600;margin-right:auto;letter-spacing:-.01em}
+nav.tabs{display:flex;gap:4px;flex-wrap:wrap}
+nav.tabs button{background:none;border:0;padding:8px 12px;border-radius:6px;color:var(--muted);font-weight:500}
+nav.tabs button[aria-current="true"]{color:var(--ink);background:var(--soft)}
+main{padding:28px 0 64px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,4.6vw,3.1rem)}
+h2{font-size:1.65rem}
+h3{font-size:1.2rem}
+p{margin:0 0 .8em}
+.muted{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:8px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.small{padding:6px 12px;font-size:.9rem}
+
+/* Hero */
+.hero{display:grid;grid-template-columns:minmax(260px,400px) 1fr;gap:40px;align-items:center}
+.ringbox{position:relative}
+.ringbox svg{width:100%;height:auto;display:block}
+.ring-seg{cursor:pointer;transition:stroke-width .2s}
+.ring-seg:hover,.ring-seg:focus-visible{stroke-width:30}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}
+.ring-center .big{font-family:var(--serif);font-size:3.2rem;font-weight:600;line-height:1}
+.ring-center .lbl{font-size:.85rem;color:var(--muted);max-width:140px}
+.facts{display:flex;gap:28px;flex-wrap:wrap;margin:20px 0 26px}
+.facts div{font-size:.9rem;color:var(--muted)}
+.facts strong{display:block;font-family:var(--serif);font-size:1.6rem;color:var(--ink);font-weight:600}
+.legend{list-style:none;padding:0;margin:32px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2px 28px}
+.legend li{display:grid;grid-template-columns:14px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--rule)}
+.legend button{background:none;border:0;padding:0;text-align:left;font-weight:500}
+.sw{width:14px;height:14px;border-radius:3px}
+.legend .pct{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.9rem}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+
+/* Guide */
+.guide-layout{display:grid;grid-template-columns:240px 1fr;gap:36px}
+.dlist{list-style:none;margin:0;padding:0;position:sticky;top:80px;align-self:start}
+.dlist button{display:flex;gap:10px;align-items:baseline;width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:6px;color:var(--muted);font-size:.95rem}
+.dlist button[aria-current="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 3px 0 0 var(--c)}
+.dlist .rn{font-family:var(--serif);font-weight:600;color:var(--c);min-width:22px}
+.dhead{border-left:4px solid var(--c);padding-left:16px;margin-bottom:22px}
+.dhead .w{font-size:.95rem;color:var(--muted);margin-top:6px}
+.lead{font-family:var(--serif);font-size:1.18rem;line-height:1.6;max-width:68ch;margin:0 0 26px}
+.task{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:18px 20px;margin-bottom:12px}
+.task h3{font-size:1.08rem;margin-bottom:8px;display:flex;gap:10px}
+.task h3 .tn{color:var(--c);min-width:62px}
+.task ul{margin:0;padding-left:20px;color:var(--muted);font-size:.95rem}
+.task li{margin:3px 0}
+.reflex{margin-top:26px;padding:18px 20px;border-radius:10px;background:var(--soft)}
+.reflex h3{margin-bottom:10px}
+.reflex ul{margin:0;padding-left:20px}
+.reflex li{margin:6px 0}
+
+/* Setup */
+.setup{max-width:760px}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:22px 24px;margin:18px 0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
+.chip{border:1px solid var(--rule);background:var(--paper);padding:7px 12px;border-radius:999px;font-size:.92rem;display:inline-flex;align-items:center;gap:8px}
+.chip[aria-pressed="true"]{border-color:var(--c,var(--ink));background:var(--surface);box-shadow:inset 0 0 0 1px var(--c,var(--ink));font-weight:600}
+.chip .dot{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.options-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+.opt-card{border:1px solid var(--rule);border-radius:10px;padding:14px 16px;background:var(--paper);text-align:left}
+.opt-card[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:var(--surface)}
+.opt-card strong{display:block;font-size:1.02rem}
+.opt-card span{font-size:.88rem;color:var(--muted)}
+
+/* Question runner */
+.runbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.runbar .count{font-weight:600;font-variant-numeric:tabular-nums}
+.timer{font-variant-numeric:tabular-nums;font-weight:600;padding:5px 10px;border-radius:6px;background:var(--soft)}
+.timer.low{color:var(--bad)}
+.progress{flex:1;min-width:120px;height:6px;background:var(--soft);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--ink)}
+.qcard{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:26px 28px;max-width:820px}
+.qmeta{font-size:.88rem;color:var(--muted);margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.qmeta .tag{color:var(--c);font-weight:600}
+.qtext{font-family:var(--serif);font-size:1.22rem;line-height:1.55;margin:0 0 8px;max-width:66ch}
+.qhint{font-size:.9rem;font-weight:600;color:var(--warn);margin-bottom:12px}
+.choices{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:10px}
+.choice{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;width:100%;text-align:left;border:1px solid var(--rule);border-radius:9px;padding:12px 14px;background:var(--paper)}
+.choice .key{width:26px;height:26px;border-radius:50%;border:1px solid var(--rule);display:grid;place-items:center;font-size:.82rem;font-weight:600;color:var(--muted)}
+.choice.multi .key{border-radius:5px}
+.choice[aria-pressed="true"]{border-color:var(--ink);background:var(--surface)}
+.choice[aria-pressed="true"] .key{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.choice.ok{border-color:var(--good);box-shadow:inset 0 0 0 1px var(--good)}
+.choice.ok .key{background:var(--good);border-color:var(--good);color:#fff}
+.choice.ko{border-color:var(--bad);box-shadow:inset 0 0 0 1px var(--bad)}
+.choice.ko .key{background:var(--bad);border-color:var(--bad);color:#fff}
+.choice:disabled{cursor:default}
+.expl{margin-top:18px;padding:16px 18px;border-radius:9px;background:var(--soft);font-size:.97rem}
+.expl strong{display:block;margin-bottom:4px}
+.expl.good strong{color:var(--good)} .expl.bad strong{color:var(--bad)}
+.qnav{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;align-items:center}
+.qnav .spacer{flex:1}
+.flag[aria-pressed="true"]{border-color:var(--warn);color:var(--warn)}
+.grid-nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px;margin-top:18px;max-width:820px}
+.grid-nav button{height:36px;border-radius:6px;border:1px solid var(--rule);background:var(--surface);font-size:.85rem;font-variant-numeric:tabular-nums}
+.grid-nav button.ans{background:var(--soft);font-weight:600}
+.grid-nav button.cur{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.grid-nav button.fl{border-color:var(--warn);color:var(--warn)}
+
+/* Results */
+.score-head{display:flex;gap:36px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.score-big{font-family:var(--serif);font-size:4.4rem;font-weight:600;line-height:1}
+.band{display:inline-block;padding:4px 10px;border-radius:6px;font-weight:600;font-size:.92rem;margin-top:6px}
+.bars{display:grid;gap:14px;margin:24px 0;max-width:760px}
+.bar-row{display:grid;grid-template-columns:minmax(150px,280px) 1fr 70px;gap:14px;align-items:center;font-size:.95rem}
+.bar{height:10px;background:var(--soft);border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c)}
+.bar-row .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.review-item{border-top:1px solid var(--rule);padding:18px 0}
+.review-item .qtext{font-size:1.06rem}
+.review-item ul{list-style:none;padding:0;margin:10px 0}
+.review-item li{padding:6px 10px;border-radius:6px;font-size:.95rem;margin:3px 0}
+.review-item li.r{background:color-mix(in srgb,var(--good) 14%,transparent)}
+.review-item li.w{background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.hist{width:100%;border-collapse:collapse;font-size:.93rem}
+.hist th,.hist td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--rule)}
+.hist th{color:var(--muted);font-weight:500}
+.tablewrap{overflow-x:auto}
+.empty{padding:28px;border:1px dashed var(--rule);border-radius:12px;color:var(--muted);max-width:640px}
+.note{font-size:.86rem;color:var(--muted);max-width:70ch}
+.modal-bg{position:fixed;inset:0;background:rgba(10,15,20,.5);display:grid;place-items:center;z-index:20;padding:20px}
+.modal{background:var(--surface);border-radius:12px;padding:24px;max-width:460px;width:100%;border:1px solid var(--rule)}
+.modal h3{margin-bottom:10px}
+
+@media (max-width:820px){
+  .hero{grid-template-columns:1fr;gap:20px}
+  .ringbox{max-width:320px;margin:0 auto}
+  .guide-layout{grid-template-columns:1fr}
+  .dlist{position:static;display:flex;overflow-x:auto;gap:4px}
+  .dlist button{white-space:nowrap}
+  .qcard{padding:20px}
+  .bar-row{grid-template-columns:1fr 60px}
+  .bar-row .bar{grid-column:1 / -1;grid-row:2}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* Charte H TECH ACADEMY */
+header.top{background:#0A2A66;border-bottom:3px solid #3F8A1E}
+header.top .brand{color:#fff;display:flex;flex-direction:column;line-height:1.1}
+header.top .brand small{font-family:var(--sans);font-size:10.5px;letter-spacing:.14em;color:#9FD27A;font-weight:700;text-transform:uppercase;margin-top:3px}
+header.top nav.tabs button{color:#C9D6EC}
+header.top nav.tabs button[aria-current="true"]{color:#fff;border-color:#9FD27A}
+.btn{background:#0A2A66;border-color:#0A2A66;color:#fff}
+.btn.ghost{background:transparent;color:#0A2A66;border-color:#0A2A66}
+.sim-outils{display:flex;gap:10px;align-items:center;font-size:12.5px;color:#C9D6EC;margin-left:auto}
+.sim-outils a{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:4px 10px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.ghost{color:#C9D6EC;border-color:#C9D6EC}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">PMO Simulator<small>H TECH ACADEMY</small></div>
+    <nav class="tabs" aria-label="Sections" style="display:none">
+      <button data-go="home">Home</button>
+      <button data-go="guide">Study guide</button>
+      <button data-go="practice">Practice</button>
+      <button data-go="exam">Mock exam</button>
+      <button data-go="history">Results</button>
+    </nav>
+    <div class="sim-outils"><span id="sim-acces"></span><a href="index.html">Français</a><a href="../#/espace">My space</a></div>
+  </div>
+</header>
+<main><div class="wrap" id="app"></div></main>
+<div id="modal-root"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+/* Référentiel PMO — H TECH ACADEMY */
+const DOMAINS = [
+ {id:1,name:"Organizational Development and Alignment",short:"Org. development & alignment",w:16,c:"var(--d1)",
+  lead:"The PMO works beyond its own projects: it elevates organizational project management (OPM). Competencies, culture, maturity and capabilities are built together, always starting from an assessment of the current state.",
+  tasks:[
+   ["Elevate Organizational Project Management",["Assess current OPM competencies across the organization","Build a tailored OPM competency framework","Individual and team development plans, targeted training by level","Mentoring program pairing experienced and developing professionals","Integrate OPM competencies into performance management and career progression","Regularly update the competency framework"]],
+   ["Shape the Organizational Project Management Culture",["Assess the current culture and its alignment with OPM principles","Define a vision and values that support project culture","Engage leadership in championing OPM practices","Use change management to enable the cultural shift"]],
+   ["Drive Organizational Project Management Maturity",["Assess OPM maturity using established models","Maturity roadmap with milestones and targets","KPIs to measure maturity progress","Targeted training to close maturity gaps","Regular benchmarking against industry standards"]],
+   ["Cultivate Organizational Project Management Capabilities",["Identify and prioritize key OPM capabilities","Gap between current capabilities and desired future state","Development plan covering people, process and technology","Risk categories, servant-leadership coaching, adoption of the risk strategy"]]
+  ],
+  reflex:["Assess before acting: the right first step is almost always a diagnosis of the current state.","Culture changes through leaders’ example and change management, not through sanctions.","Maturity grows through a realistic, measured roadmap, not by decree.","People, process and technology: fixing only one of the three is not enough."]},
+ {id:2,name:"PMO Strategic Elements",short:"Strategic elements",w:18,c:"var(--d2)",
+  lead:"Why does this PMO exist, how far does its authority reach, and how are decisions made? Strategy, mandate and governance form the foundation without which PMO services have no legitimacy.",
+  tasks:[
+   ["Architect PMO Strategy",["Assess the current state of project management and organizational needs","Define the PMO’s vision, mission and strategic objectives","Strategy aligned with organizational goals and key pain points","Risk management plan for the PMO itself","Implementation roadmap with clear milestones","Communication plan to articulate PMO value","Metrics for PMO value and strategic impact"]],
+   ["Steward the PMO Mandate",["Define the PMO’s scope and authority","Roles and responsibilities toward projects and stakeholders","PMO charter: purpose, objectives, key functions","Executive sponsorship","Stakeholder engagement plan","Regular review and update of the mandate"]],
+   ["Establish and Maintain PMO Governance",["Governance framework: oversight and decision-making","Reporting structures and communication channels","Escalation procedures","Regular governance reviews and adaptation"]]
+  ],
+  reflex:["The PMO strategy flows from the organization’s strategy, not from generic “best practices”.","An authority conflict usually reveals an unclear mandate or charter: clarify it with the sponsor.","The PMO enables and informs decisions; it does not replace governance bodies.","The mandate is a living thing: a leadership or strategy change triggers its review."]},
+ {id:3,name:"PMO Design and Structuring",short:"Design & structuring",w:18,c:"var(--d3)",
+  lead:"The PMO is a service provider to internal customers. Identify those customers, understand their needs, articulate a value proposition and design services that are standardized yet tailored.",
+  tasks:[
+   ["Managing Potential and Current PMO Customers",["Identify and categorize customers","Customer personas to understand needs and expectations","Regular check-ins and feedback with key customers","Strategy to promote services to potential customers"]],
+   ["Orchestrating Solutions to Address Customers’ Needs",["Regular surveys and interviews","Systematic approach to capture and analyze expectations","Prioritization framework based on strategic importance","Feedback loop to improve services"]],
+   ["Articulate and Evolve PMO Value Proposition",["Clearly articulate benefits and value","Case studies and success stories","Measure the PMO’s contribution","Update the value proposition","Targeted messaging by customer group","Continuous improvement of value delivery"]],
+   ["Designing and Implementing PMO Services",["Needs assessment to identify required services","Tailored offerings by customer group","Standardized processes for each service","Service catalog and benefits","SLA framework","Continuous improvement based on feedback and performance"]]
+  ],
+  reflex:["Think “customer”: the PMO’s value is the value its customers perceive.","A service is born from an assessed need, not from a PMO idea.","Standardize the process, tailor the offering: the two do not conflict.","When demand exceeds capacity, prioritize by strategic importance."]},
+ {id:4,name:"PMO Operation and Performance",short:"Operation & performance",w:15,c:"var(--d4)",
+  lead:"Design is not enough: customers must be onboarded to services, services delivered reliably, and the right resources available at the right time.",
+  tasks:[
+   ["Onboarding PMO Services",["Structured onboarding process for new customers","Documentation and user guides","Customer training on services and processes","Support during onboarding","Communication plan for new services","Feedback mechanism during onboarding"]],
+   ["Managing PMO Services",["Phased rollout of complex or high-impact services","Clear delivery processes and workflows","Resource allocation","Quality control for consistent delivery","Customer feedback","Efficiency metrics","Escalation of service delivery issues"]],
+   ["Managing PMO Resources",["Resource management plan aligned with demand","Skills matrix","Capacity planning","Management of external resources and contractors"]]
+  ],
+  reflex:["Poor adoption usually means poor onboarding: guides, training, support, feedback.","High impact = phased rollout (pilot, then waves).","Team overloaded: capacity planning before any hiring.","Quality varies by person: standardize the process and control quality."]},
+ {id:5,name:"PMO Enhancement and Effectiveness",short:"Enhancement & effectiveness",w:18,c:"var(--d5)",
+  lead:"Measure to improve: the performance of each service, the maturity of services, the PMO team’s competencies and, ultimately, the value the PMO brings to the organization.",
+  tasks:[
+   ["Optimizing PMO Service Performance",["KPIs for each service","Performance measurement system","Regular review cycles","Monitoring dashboard","Process to address performance gaps","Customer satisfaction built into evaluations"]],
+   ["Assessing and Improving PMO Services Maturity",["Services maturity model, developed or adopted","Regular assessments","Maturity roadmap","Continuous improvement based on assessments","Change management to support improvement"]],
+   ["Assessing and Improving PMO Team Competencies",["Competency framework specific to PMO roles","Skills assessments","Individual development plans","Training and certification","Mentoring and coaching","Knowledge-sharing platform","Performance management that includes competency development"]],
+   ["Optimizing PMO Value",["Metrics for contribution to organizational success","Value tracking over time","Perceived-value surveys","Case studies","Continuous improvement focused on value","Communicating value to key customers","Benchmarking against industry standards"]]
+  ],
+  reflex:["Prefer outcome indicators (decisions, benefits) over activity indicators (number of reports).","Green KPIs with unhappy customers: build in satisfaction and perceived value.","A gap found = root-cause analysis then an improvement plan, not just an alert.","The PMO team needs its own competency framework and development plans too."]},
+ {id:6,name:"People",short:"People",w:15,c:"var(--d6)",
+  lead:"The human skills of the PMO professional: a value-driven mindset, customer focus, personal impact, technical skills and the ability to influence organizational direction.",
+  tasks:[
+   ["Enabling a Value-Driven Mindset",["Data-informed decision-making","Continuous process improvement","Strategic decisions and thinking","Innovation and problem solving"]],
+   ["Fostering Customer-Centricity to Drive Improved Interpersonal Relationships",["Collaboration, communication, teamwork","Conflict management and negotiation","Interpersonal intelligence and relationship building","Customer focus and stakeholder management"]],
+   ["Elevating Personal Impact and Effectiveness",["Accuracy, objectivity, integrity and ethics","Adaptability and resilience","Proactivity and time management"]],
+   ["Leveraging Technical Skills to Deliver Results",["Optimize processes","Manage projects","Respond to risks","Deliver training"]],
+   ["Shaping Organizational Direction",["Business acumen","Cultural awareness","Lead and empower teams","Influence strategic direction"]]
+  ],
+  reflex:["Facilitate rather than decide alone; start from interests and shared criteria.","Integrity is non-negotiable: a red status stays red, with a recovery plan.","Negotiating means understanding the underlying need and offering realistic options.","The PMO influences through analysis and business acumen, not hierarchical authority."]}
+];
+
+/* ===================== Question bank (original, unofficial) ===================== */
+let Q=[];
+
+
+/* ===================== Persistence (per browser) ===================== */
+let store={last:{},history:[]};function save(){}
+
+/* ===================== Utilities ===================== */
+const $=s=>document.querySelector(s);
+const app=$("#app");
+const dom=id=>DOMAINS[id-1];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const roman=["I","II","III","IV","V","VI"];
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function mastery(d){const qs=Q.filter(q=>!d||q.d===d);const seen=qs.filter(q=>store.last[q.id]!==undefined);const ok=seen.filter(q=>store.last[q.id]);return{seen:seen.length,total:qs.length,pct:seen.length?Math.round(ok.length/seen.length*100):null}}
+function band(p){if(p>=80)return["Above Target","var(--good)"];if(p>=65)return["Target","var(--d4)"];if(p>=50)return["Below Target","var(--warn)"];return["Needs Improvement","var(--bad)"]}
+function fmt(s){const m=Math.floor(s/60),r=s%60;return (m>=60?Math.floor(m/60)+" h "+String(m%60).padStart(2,"0"):m)+" min "+String(r).padStart(2,"0")+" s"}
+
+let view="home", guideD=1, session=null, timerId=null;
+
+function setView(v){view=v;
+ document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.go===v||(v==="run"&&session&&b.dataset.go===session.mode)||(v==="result"&&b.dataset.go==="history")?"true":"false"));
+ render();window.scrollTo(0,0)}
+
+/* ===================== Domain ring ===================== */
+function ringSVG(){
+ const R=110,C=2*Math.PI*R,gap=1.2;let acc=0,out="";
+ DOMAINS.forEach(d=>{
+  const len=C*d.w/100-gap*2,off=-(C*acc/100)-gap;const m=mastery(d.id);const fill=m.pct===null?0:len*m.pct/100;
+  out+=`<circle cx="140" cy="140" r="${R}" fill="none" stroke="${d.c}" stroke-opacity=".2" stroke-width="26" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${off}" transform="rotate(-90 140 140)" class="ring-seg" data-dom="${d.id}" tabindex="0" role="button" aria-label="Domain ${roman[d.id-1]}: ${esc(d.name)}, ${d.w}%"><title>${esc(d.name)} — ${d.w}%</title></circle>`;
+  if(fill>0)out+=`<circle cx="140" cy="140" r="${R}" fill="none" stroke="${d.c}" stroke-width="26" stroke-dasharray="${fill} ${C-fill}" stroke-dashoffset="${off}" transform="rotate(-90 140 140)" pointer-events="none"/>`;
+  const mid=(acc+d.w/2)/100*2*Math.PI-Math.PI/2;const lx=140+(R+30)*Math.cos(mid),ly=140+(R+30)*Math.sin(mid);
+  out+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="Newsreader, Georgia, serif" font-size="15" font-weight="600" fill="${d.c}">${roman[d.id-1]}</text>`;
+  acc+=d.w;});
+ return `<svg viewBox="0 0 280 280" role="img" aria-label="Ring of the six exam domains, weighted per the content outline">${out}</svg>`}
+
+/* ===================== Views ===================== */
+function renderHome(){
+ const m=mastery();
+ app.innerHTML=`
+ <section class="hero">
+  <div class="ringbox">${ringSVG()}
+   <div class="ring-center"><div class="big">${m.pct===null?"—":m.pct+"<span style='font-size:.5em'>%</span>"}</div><div class="lbl">${m.seen?`correct across ${m.seen} questions seen`:"Answer questions to fill the ring"}</div></div>
+  </div>
+  <div>
+   <h1>Build your PMO skills, domain by domain</h1>
+   <p class="lead" style="margin-top:14px">Each arc is one domain of the content outline, sized by its weight on the exam. It fills as you answer correctly. Click an arc to open that domain’s study sheet.</p>
+   <div class="facts"><div><strong>6</strong>PMO framework domains</div><div><strong>1 min 22 s</strong>per question in mock exams</div><div><strong>${Q.length}</strong>questions in this simulator</div></div>
+   <div class="actions"><button class="btn" data-go="exam">Take a mock exam</button><button class="btn ghost" data-go="practice">Practice by domain</button><button class="btn ghost" data-go="guide">Open the guide</button></div>
+  </div>
+ </section>
+ <ul class="legend">${DOMAINS.map(d=>{const mm=mastery(d.id);return `<li style="--c:${d.c}"><span class="sw" style="background:${d.c}"></span><button data-guide="${d.id}">${roman[d.id-1]}. ${esc(d.name)}</button><span class="pct">${d.w}% · ${mm.pct===null?"not started":mm.pct+"%"}</span></li>`}).join("")}</ul>
+ <p class="note" style="margin-top:28px">Original questions designed by H TECH ACADEMY. Your progress is saved in your learner space and followed by your expert.</p>`}
+
+function renderGuide(){
+ const d=dom(guideD);
+ app.innerHTML=`<div class="guide-layout">
+ <ul class="dlist">${DOMAINS.map(x=>`<li><button style="--c:${x.c}" data-guide="${x.id}" aria-current="${x.id===guideD}"><span class="rn">${roman[x.id-1]}</span>${esc(x.short)}</button></li>`).join("")}</ul>
+ <article style="--c:${d.c}">
+  <div class="dhead"><h2>Domain ${roman[d.id-1]} · ${esc(d.name)}</h2><div class="w">${d.w}% of questions · ${d.tasks.length} tasks · ${Q.filter(q=>q.d===d.id).length} practice questions</div></div>
+  <p class="lead">${esc(d.lead)}</p>
+  ${d.tasks.map((t,i)=>`<div class="task"><h3><span class="tn">Task ${i+1}</span><span>${esc(t[0])}</span></h3><ul>${t[1].map(e=>`<li>${esc(e)}</li>`).join("")}</ul></div>`).join("")}
+  <div class="reflex"><h3>Exam mindset</h3><ul>${d.reflex.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>
+  <div class="actions" style="margin-top:22px"><button class="btn" data-practice-dom="${d.id}">Practice this domain</button>${d.id<6?`<button class="btn ghost" data-guide="${d.id+1}">Next domain</button>`:""}</div>
+ </article></div>`}
+
+let pSel=new Set([1,2,3,4,5,6]), pCount=10, eFormat="mini";
+function renderPracticeSetup(){
+ const avail=Q.filter(q=>pSel.has(q.d)).length;
+ app.innerHTML=`<div class="setup">
+ <h2>Practice</h2><p class="muted" style="margin-top:8px">Instant feedback after each question, with an explanation tied to the task in the content outline.</p>
+ <div class="panel"><strong>Domains</strong>
+  <div class="chips">${DOMAINS.map(d=>`<button class="chip" style="--c:${d.c}" data-psel="${d.id}" aria-pressed="${pSel.has(d.id)}"><span class="dot"></span>${roman[d.id-1]}. ${esc(d.short)}</button>`).join("")}</div>
+  <strong style="display:block;margin-top:18px">Number of questions</strong>
+  <div class="chips">${[10,20,0].map(n=>`<button class="chip" data-pcount="${n}" aria-pressed="${pCount===n}">${n?n:"All ("+avail+")"}</button>`).join("")}</div>
+  <div class="chips"><button class="chip" data-pweak="1">My mistakes only (${Q.filter(q=>pSel.has(q.d)&&store.last[q.id]===false).length})</button></div>
+ </div>
+ <button class="btn" data-start="practice" ${avail?"":"disabled"}>Start practice</button>
+ </div>`}
+
+function renderExamSetup(){
+ app.innerHTML=`<div class="setup">
+ <h2>Mock exam</h2><p class="muted" style="margin-top:8px">Exam conditions: timer (1 min 22 s per question), questions flagged for review, answers shown at the end only.</p>
+ <div class="panel"><strong>Format</strong>
+  <div class="options-row">
+   <button class="opt-card" data-eformat="mini" aria-pressed="${eFormat==="mini"}"><strong>Mini exam</strong><span>30 questions weighted by domain · 41 min</span></button>
+   <button class="opt-card" data-eformat="full" aria-pressed="${eFormat==="full"}"><strong>Full simulator exam</strong><span>${Math.min(120,Q.length)} questions · ${Math.round(Math.min(120,Q.length)*1.375)} min</span></button>
+  </div>
+ </div>
+ <button class="btn" data-start="exam">Start the exam</button>
+ <p class="note" style="margin-top:18px">The levels shown at the end of the exam (above target, target, below target, needs improvement) are H TECH ACADEMY learning benchmarks.</p>
+ </div>`}
+
+function pickExam(n){
+ const quota=DOMAINS.map(d=>({d:d.id,n:Math.round(n*d.w/100)}));
+ let sum=quota.reduce((a,b)=>a+b.n,0);let i=0;while(sum<n){quota[[1,2,4][i%3]].n++;sum++;i++}while(sum>n){quota[[0,3,5][i%3]].n--;sum--;i++}
+ return shuffle(quota.flatMap(x=>shuffle(Q.filter(q=>q.d===x.d)).slice(0,x.n)))}
+
+function startSession(mode,opts={}){
+ let qs;
+ if(mode==="practice"){qs=Q.filter(q=>pSel.has(q.d));if(opts.weak)qs=qs.filter(q=>store.last[q.id]===false);qs=shuffle(qs);if(pCount&&!opts.weak)qs=qs.slice(0,pCount);if(!qs.length)return;}
+ else qs=eFormat==="mini"?pickExam(30):pickExam(Math.min(120,Q.length));
+ session={mode,items:qs.map(q=>({q,order:shuffle(q.o.map((_,i)=>i)),sel:[],flag:false,checked:false})),i:0,start:Date.now(),
+  limit:mode==="exam"?Math.round(qs.length*1.375*60):null,label:mode==="exam"?(eFormat==="mini"?"Mini exam":"Full exam"):"Practice"};
+ clearInterval(timerId);
+ if(session.limit){timerId=setInterval(tick,1000)}
+ setView("run")}
+function remaining(){return Math.max(0,session.limit-Math.floor((Date.now()-session.start)/1000))}
+function tick(){if(!session||!session.limit)return;const r=remaining();const el=$("#timer");if(el){el.textContent=fmt(r);el.classList.toggle("low",r<300)}if(r<=0){clearInterval(timerId);finish()}}
+
+function renderRun(){
+ const s=session,it=s.items[s.i],q=it.q,d=dom(q.d),multi=q.k>1,exam=s.mode==="exam";
+ const answered=s.items.filter(x=>x.sel.length).length;
+ const letters="ABCD";
+ const showFb=!exam&&it.checked;
+ const right=it.checked&&isRight(it);
+ app.innerHTML=`
+ <div class="runbar">
+  <span class="count">${esc(s.label)} · ${s.i+1} / ${s.items.length}</span>
+  <div class="progress" aria-hidden="true"><i style="width:${(exam?answered:s.i+(it.checked?1:0))/s.items.length*100}%"></i></div>
+  ${s.limit?`<span class="timer" id="timer" aria-live="off">${fmt(remaining())}</span>`:""}
+  <button class="btn ghost small" data-act="quit">Quit</button>
+ </div>
+ <div class="qcard" style="--c:${d.c}">
+  <div class="qmeta"><span class="tag">Domain ${roman[d.id-1]}</span><span>${esc(d.short)} · Task ${q.t}</span></div>
+  <p class="qtext">${esc(q.q)}</p>
+  ${multi?`<div class="qhint">Choose ${q.k} answers.</div>`:""}
+  <ul class="choices">${it.order.map((oi,k)=>{
+    const pressed=it.sel.includes(oi);let cls="choice"+(multi?" multi":"");
+    if(showFb){if((it.a||[]).includes(oi))cls+=" ok";else if(pressed)cls+=" ko"}
+    return `<li><button class="${cls}" data-pick="${oi}" aria-pressed="${pressed}" ${showFb?"disabled":""}><span class="key">${letters[k]}</span><span>${esc(q.o[oi])}</span></button></li>`}).join("")}</ul>
+  ${showFb?`<div class="expl ${right?"good":"bad"}"><strong>${right?"Correct.":"Incorrect."}</strong>${esc(it.x||"")}</div>`:""}
+  <div class="qnav">
+   <button class="btn ghost" data-act="prev" ${s.i===0?"disabled":""}>Previous</button>
+   ${exam?`<button class="btn ghost flag" data-act="flag" aria-pressed="${it.flag}">${it.flag?"Flagged for review":"Flag for review"}</button>`:""}
+   <span class="spacer"></span>
+   ${!exam&&!it.checked?`<button class="btn" data-act="check" ${it.sel.length===q.k?"":"disabled"}>Check answer</button>`:""}
+   ${(exam||it.checked)&&s.i<s.items.length-1?`<button class="btn" data-act="next">Next</button>`:""}
+   ${(exam||it.checked)&&s.i===s.items.length-1?`<button class="btn" data-act="submit">${exam?"Finish exam":"See summary"}</button>`:""}
+  </div>
+ </div>
+ ${exam?`<div class="grid-nav" aria-label="Question navigator">${s.items.map((x,k)=>`<button data-jump="${k}" class="${x.sel.length?"ans":""} ${k===s.i?"cur":""} ${x.flag?"fl":""}" aria-label="Question ${k+1}${x.flag?", flagged":""}">${k+1}</button>`).join("")}</div>
+ <div class="actions" style="margin-top:16px"><button class="btn ghost small" data-act="submit">Finish exam</button></div>`:""}`}
+
+function isRight(it){return it.ok===true}
+
+/* finish() : voir la couche de données */
+
+let reviewFilter="all";
+function renderResult(){
+ const s=session,r=s.result;const[bl,bc]=band(r.pct);
+ const items=s.items.filter(it=>s.mode==="exam"||it.checked);
+ const shown=items.filter(it=>reviewFilter==="all"||(reviewFilter==="wrong"&&!isRight(it))||(reviewFilter==="flag"&&it.flag));
+ app.innerHTML=`
+ <h2>${esc(s.label)} complete</h2>
+ <div class="score-head" style="margin-top:18px">
+  <div><div class="score-big">${r.pct}%</div><span class="band" style="background:color-mix(in srgb,${bc} 16%,transparent);color:${bc}">${bl}</span></div>
+  <div class="muted">${r.ok} correct out of ${r.n}<br>Time: ${fmt(r.secs)}${s.limit?` of ${fmt(s.limit)}`:""}</div>
+ </div>
+ <h3 style="margin-top:28px">By domain</h3>
+ <div class="bars">${DOMAINS.filter(d=>r.byD[d.id]).map(d=>{const[o,n]=r.byD[d.id];const p=Math.round(o/n*100);return `<div class="bar-row" style="--c:${d.c}"><span>${roman[d.id-1]}. ${esc(d.short)}</span><div class="bar"><i style="width:${p}%"></i></div><span class="n">${o}/${n}</span></div>`}).join("")}</div>
+ <div class="actions"><button class="btn" data-go="${s.mode}">New session</button><button class="btn ghost" data-go="guide">Review the guide</button></div>
+ <h3 style="margin-top:36px">Detailed review</h3>
+ <div class="chips">${[["all","All"],["wrong","Mistakes"],["flag","Flagged"]].filter(f=>f[0]!=="flag"||s.mode==="exam").map(f=>`<button class="chip" data-rf="${f[0]}" aria-pressed="${reviewFilter===f[0]}">${f[1]}</button>`).join("")}</div>
+ ${shown.length?shown.map(it=>{const q=it.q,d=dom(q.d),ok=isRight(it);return `<div class="review-item" style="--c:${d.c}">
+  <div class="qmeta"><span class="tag">Domain ${roman[d.id-1]} · Task ${q.t}</span><span style="color:${ok?"var(--good)":"var(--bad)"};font-weight:600">${ok?"Correct":it.sel.length?"Incorrect":"Unanswered"}</span></div>
+  <p class="qtext">${esc(q.q)}</p>
+  <ul>${q.o.map((o,oi)=>`<li class="${(it.a||[]).includes(oi)?"r":it.sel.includes(oi)?"w":""}">${(it.a||[]).includes(oi)?"✓ ":it.sel.includes(oi)?"✗ ":"· "}${esc(o)}</li>`).join("")}</ul>
+  <p class="muted" style="max-width:70ch">${esc(it.x||"")}</p></div>`}).join(""):`<div class="empty">No questions match this filter.</div>`}`}
+
+function renderHistory(){
+ const h=store.history;
+ app.innerHTML=`<h2>Results</h2>
+ <div class="bars" style="margin-top:22px">${DOMAINS.map(d=>{const m=mastery(d.id);return `<div class="bar-row" style="--c:${d.c}"><span>${roman[d.id-1]}. ${esc(d.short)}</span><div class="bar"><i style="width:${m.pct||0}%"></i></div><span class="n">${m.pct===null?"—":m.pct+"%"}</span></div>`}).join("")}</div>
+ <p class="note">Mastery is based on your latest answer to each question you have seen.</p>
+ <h3 style="margin-top:30px;margin-bottom:12px">Session history</h3>
+ ${h.length?`<div class="tablewrap"><table class="hist"><thead><tr><th>Date</th><th>Session</th><th>Score</th><th>Time</th></tr></thead><tbody>${h.map(x=>`<tr><td>${new Date(x.date).toLocaleString("en-GB",{dateStyle:"short",timeStyle:"short"})}</td><td>${esc(x.label)}</td><td><strong>${x.pct}%</strong> <span class="muted">(${x.ok}/${x.n})</span></td><td>${fmt(x.secs)}</td></tr>`).join("")}</tbody></table></div>
+ `
+ :`<div class="empty">No sessions yet. Start a practice session or a mock exam to track your progress here.<div class="actions" style="margin-top:14px"><button class="btn small" data-go="practice">Start practicing</button></div></div>`}`}
+
+function modal(title,body,okLabel,onOk){
+ $("#modal-root").innerHTML=`<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt"><h3 id="mt">${title}</h3><p class="muted">${body}</p><div class="actions" style="margin-top:16px;justify-content:flex-end"><button class="btn ghost" data-m="no">Cancel</button><button class="btn" data-m="ok">${okLabel}</button></div></div></div>`;
+ $("#modal-root [data-m=ok]").focus();
+ $("#modal-root").onclick=e=>{const m=e.target.closest("[data-m]");if(!m&&!e.target.classList.contains("modal-bg"))return;$("#modal-root").innerHTML="";if(m&&m.dataset.m==="ok")onOk()}}
+
+function render(){
+ if(view==="home")renderHome();else if(view==="guide")renderGuide();else if(view==="practice")renderPracticeSetup();
+ else if(view==="exam")renderExamSetup();else if(view==="run")renderRun();else if(view==="result")renderResult();else renderHistory()}
+
+/* ===================== Events ===================== */
+document.addEventListener("click",e=>{
+ const t=e.target.closest("button, .ring-seg");if(!t)return;
+ if(t.dataset.go){if(view==="run"&&session&&!session.done){confirmQuit(()=>setView(t.dataset.go));return}setView(t.dataset.go);return}
+ if(t.dataset.guide||t.dataset.dom){guideD=+(t.dataset.guide||t.dataset.dom);setView("guide");return}
+ if(t.dataset.practiceDom){pSel=new Set([+t.dataset.practiceDom]);pCount=0;setView("practice");return}
+ if(t.dataset.psel){const n=+t.dataset.psel;pSel.has(n)?pSel.delete(n):pSel.add(n);render();return}
+ if(t.dataset.pcount!==undefined){pCount=+t.dataset.pcount;render();return}
+ if(t.dataset.pweak){startSession("practice",{weak:true});return}
+ if(t.dataset.eformat){eFormat=t.dataset.eformat;render();return}
+ if(t.dataset.start){startSession(t.dataset.start);return}
+ if(t.dataset.rf){reviewFilter=t.dataset.rf;render();return}
+ if(t.dataset.jump!==undefined){session.i=+t.dataset.jump;render();return}
+ if(t.dataset.pick!==undefined){const it=session.items[session.i],oi=+t.dataset.pick,multi=it.q.k>1;
+  if(multi){if(it.sel.includes(oi))it.sel=it.sel.filter(x=>x!==oi);else if(it.sel.length<it.q.k)it.sel.push(oi)}else it.sel=[oi];render();return}
+ const a=t.dataset.act;if(!a)return;
+ if(a==="prev"){session.i--;render()}
+ else if(a==="next"){session.i++;render()}
+ else if(a==="check"){simCorriger(session.items[session.i])}
+ else if(a==="flag"){const it=session.items[session.i];it.flag=!it.flag;render()}
+ else if(a==="submit"){if(session.mode!=="exam"){finish();return}
+  const un=session.items.filter(x=>!x.sel.length).length,fl=session.items.filter(x=>x.flag).length;
+  modal("Finish the exam?",`${un?un+" unanswered question"+(un>1?"s":"")+". ":""}${fl?fl+" question"+(fl>1?"s":"")+" flagged for review. ":""}Once you finish, you can no longer change your answers.`,"Finish",finish)}
+ else if(a==="quit"){confirmQuit(()=>{clearInterval(timerId);setView(session.mode)})}
+});
+document.addEventListener("keydown",e=>{
+ if(e.target.classList&&e.target.classList.contains("ring-seg")&&(e.key==="Enter"||e.key===" ")){e.preventDefault();guideD=+e.target.dataset.dom;setView("guide")}
+ if(e.key==="Escape"&&$("#modal-root").innerHTML){$("#modal-root").innerHTML=""}
+});
+function confirmQuit(cb){const answered=session.items.some(x=>x.sel.length);if(!answered){clearInterval(timerId);cb();return}
+ modal("Quit this session?","Answers from this session will not be saved.","Quit",()=>{clearInterval(timerId);session.done=true;cb()})}
+
+
+/* ===================== Données : base H TECH ACADEMY (questions sans réponses, correction par le serveur) ===================== */
+const SIM={lang:document.documentElement.lang==='en'?'en':'fr',espace:'../#/espace',wa:'2250714942421'};
+const sbSim=supabase.createClient('https://mgdpbngmjybqphonshsl.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZHBibmdtanlicXBob25zaHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzk4NTUsImV4cCI6MjA5Njk1NTg1NX0.Xe0cONWJBxIltu7WlAq_aGGbQ5MoRZk1zhmrCIn3XWA',{auth:{persistSession:true,autoRefreshToken:true,storageKey:'hti-academy-auth'}});
+const TP={chargement:'Loading the simulator…',connexionT:'Sign in to access the simulator',connexionP:'The PMO Simulator is reserved for H TECH ACADEMY learners. Sign in with the username you received when you enrolled.',connexionB:'Sign in to my space',
+accesT:'Get access to the PMO Simulator',accesP:'Study guide for the 6 domains, practice with explained answers, timed mock exams and progress tracking by your H TECH ACADEMY expert.',
+offre1:'Included in our PMO training courses',offre1p:'Access opens automatically when you enrol.',offre2:'100,000 FCFA',offre2p:'30 days of preparation, without a course.',
+waB:'Order on WhatsApp',wa:'Hello H TECH ACADEMY, I would like to buy 30 days of access to the PMO Simulator (100,000 FCFA). My username: ',expire:'Your access ended on ',retour:'Back to my space',
+enreg:'Saving and marking your answers…',erreur:'Could not save',verif:'Checking…'};
+async function simDemarrer(){
+ app.innerHTML=`<div class="empty">${TP.chargement}</div>`;
+ try{
+  const{data:{session:s}}=await sbSim.auth.getSession();if(!s)return simPorte('connexion');SIM.user=s.user;
+  const{data:acc}=await sbSim.rpc('sim_mon_acces');const a=(acc||[])[0]||{};SIM.acces=a;
+  if(!a.actif&&!a.equipe)return simPorte('acces',a);
+  const{data:qs,error}=await sbSim.rpc('sim_questions_pour',{p_langue:SIM.lang});if(error)return simPorte('acces',a);
+  Q=(qs||[]).map(r=>({id:r.id,d:r.domaine,t:r.tache,q:r.enonce,o:r.options,k:r.nb}));
+  const{data:m}=await sbSim.rpc('sim_maitrise');store.last={};(m||[]).forEach(x=>store.last[x.question_id]=x.correct);
+  const{data:h}=await sbSim.from('sim_tentatives').select('*').eq('user_id',s.user.id).order('created_at',{ascending:false}).limit(40);
+  store.history=(h||[]).map(x=>({date:x.created_at,label:x.libelle,ok:x.ok,n:x.nb,pct:x.pct,byD:x.par_domaine||{},secs:x.duree_s||0}));
+  const j=a.fin?Math.max(0,Math.ceil((new Date(a.fin)-new Date())/864e5)):null,b=document.getElementById('sim-acces');
+  if(b)b.textContent=a.equipe&&!a.actif?'H TECH INNOV team access':(j!=null?j+' day(s) of access left':'');
+  document.querySelector('nav.tabs').style.display='';setView('home');
+ }catch(e){app.innerHTML=`<div class="empty">${esc(e.message||String(e))}</div>`;}
+}
+function simPorte(type,a){
+ document.querySelector('nav.tabs').style.display='none';
+ if(type==='connexion'){app.innerHTML=`<div class="setup"><h2>${TP.connexionT}</h2><p class="muted" style="margin-top:8px">${TP.connexionP}</p><div class="actions" style="margin-top:18px"><a class="btn" href="${SIM.espace}">${TP.connexionB}</a></div></div>`;return;}
+ const id=SIM.user?.user_metadata?.identifiant||SIM.user?.email||'';
+ app.innerHTML=`<div class="setup"><h2>${TP.accesT}</h2><p class="muted" style="margin-top:8px">${TP.accesP}</p>
+  ${a&&a.fin?`<p class="note">${TP.expire}${new Date(a.fin).toLocaleDateString(SIM.lang==='en'?'en-GB':'fr-FR')}.</p>`:''}
+  <div class="options-row" style="margin-top:18px"><div class="opt-card"><strong>${TP.offre1}</strong><span>${TP.offre1p}</span></div><div class="opt-card"><strong>${TP.offre2}</strong><span>${TP.offre2p}</span></div></div>
+  <div class="actions" style="margin-top:18px"><a class="btn" target="_blank" rel="noopener" href="https://wa.me/${SIM.wa}?text=${encodeURIComponent(TP.wa+id)}">${TP.waB}</a><a class="btn ghost" href="${SIM.espace}">${TP.retour}</a></div></div>`;
+}
+async function simCorriger(it){
+ const b=document.querySelector('[data-act=check]');if(b){b.disabled=true;b.textContent=TP.verif;}
+ const{data,error}=await sbSim.rpc('sim_corriger',{p_langue:SIM.lang,p_reponses:{[it.q.id]:it.sel}});
+ if(error){modal(TP.erreur,esc(error.message),'OK',()=>{});render();return;}
+ const r=(data||[])[0]||{};it.ok=!!r.correct;it.a=r.reponses||[];it.x=r.explication||'';it.checked=true;store.last[it.q.id]=it.ok;render();
+}
+async function finish(){
+ clearInterval(timerId);const s=session;const counted=s.items.filter(it=>s.mode==="exam"||it.checked);
+ if(!counted.length){s.done=true;setView(s.mode);return;}
+ app.innerHTML=`<div class="empty">${TP.enreg}</div>`;const rep={};counted.forEach(it=>rep[it.q.id]=it.sel);const secs=Math.floor((Date.now()-s.start)/1000);
+ const{data,error}=await sbSim.rpc('sim_enregistrer',{p_mode:s.mode,p_libelle:s.label,p_langue:SIM.lang,p_duree:secs,p_reponses:rep});
+ if(error){s.done=false;modal(TP.erreur,esc(error.message),'OK',()=>{});setView("run");return;}
+ s.done=true;counted.forEach(it=>{const c=(data.corrections||{})[it.q.id];if(c){it.ok=!!c.correct;it.a=c.reponses||[];it.x=c.explication||'';store.last[it.q.id]=it.ok;}});
+ s.result={ok:data.ok,n:data.nb,pct:data.pct,byD:data.par_domaine||{},secs};
+ store.history.unshift({date:new Date().toISOString(),label:s.label,ok:data.ok,n:data.nb,pct:data.pct,byD:s.result.byD,secs});
+ reviewFilter="all";setView("result");
+}
+
+simDemarrer();
+</script>
+</body>
+</html>
