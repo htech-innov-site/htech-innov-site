@@ -500,34 +500,55 @@ accesT:'Get access to the PMO Simulator',accesP:'Study guide for the 6 domains, 
 offre1:'Included in our PMO training courses',offre1p:'Access opens automatically when you enrol.',offre2:'100,000 FCFA',offre2p:'30 days of preparation, without a course.',
 waB:'Order on WhatsApp',wa:'Hello H TECH ACADEMY, I would like to buy 30 days of access to the PMO Simulator (100,000 FCFA). My username: ',expire:'Your access ended on ',retour:'Back to my space',
 enreg:'Saving and marking your answers…',erreur:'Could not save',verif:'Checking…'};
+Object.assign(TP,{"codeT": "Do you have an access code?", "codeP": "Enter the code you received by email or WhatsApp once your request was approved.", "codeB": "Validate code", "codeKo": "This code is invalid or has expired.", "apprT": "H TECH ACADEMY learner", "apprP": "Sign in with the username you received when you enrolled.", "demT": "No access yet?", "demP": "Request 30 days of access (100,000 FCFA): our team sends you your code once approved.", "demB": "Request access", "changer": "Use another code", "jours": "day(s) of access left", "ph": "PMO-XXXX-XXXX"});
+SIM.sim='pmo';
+SIM.code=((new URLSearchParams(location.search).get('code'))||localStorage.getItem('hti-sim-code-pmo')||'').trim().toUpperCase()||null;
+const simArgs=o=>Object.assign({p_code:SIM.code,p_simulateur:SIM.sim},o||{});
 async function simDemarrer(){
  app.innerHTML=`<div class="empty">${TP.chargement}</div>`;
  try{
-  const{data:{session:s}}=await sbSim.auth.getSession();if(!s)return simPorte('connexion');SIM.user=s.user;
-  const{data:acc}=await sbSim.rpc('sim_mon_acces');const a=(acc||[])[0]||{};SIM.acces=a;
-  if(!a.actif&&!a.equipe)return simPorte('acces',a);
-  const{data:qs,error}=await sbSim.rpc('sim_questions_pour',{p_langue:SIM.lang});if(error)return simPorte('acces',a);
+  const{data:{session:s}}=await sbSim.auth.getSession();SIM.user=s?s.user:null;
+  if(!s&&!SIM.code)return simPorte('connexion');
+  let{data:acc}=await sbSim.rpc('sim_mon_acces',{p_simulateur:SIM.sim,p_code:SIM.code});let a=(acc||[])[0]||{};
+  if(SIM.code&&!a.actif&&s){const r=await sbSim.rpc('sim_mon_acces',{p_simulateur:SIM.sim,p_code:null});const b=(r.data||[])[0]||{};if(b.actif||b.equipe){a=b;SIM.code=null;localStorage.removeItem('hti-sim-code-pmo');}}
+  SIM.acces=a;
+  if(!a.actif&&!a.equipe){if(SIM.code)localStorage.removeItem('hti-sim-code-pmo');return simPorte(SIM.code?'code':(s?'acces':'connexion'),a);}
+  if(SIM.code)localStorage.setItem('hti-sim-code-pmo',SIM.code);
+  if(location.search.includes('code='))history.replaceState(null,'',location.pathname);
+  const{data:qs,error}=await sbSim.rpc('sim_questions_pour',simArgs({p_langue:SIM.lang}));if(error)return simPorte('acces',a);
   Q=(qs||[]).map(r=>({id:r.id,d:r.domaine,t:r.tache,q:r.enonce,o:r.options,k:r.nb}));
-  const{data:m}=await sbSim.rpc('sim_maitrise');store.last={};(m||[]).forEach(x=>store.last[x.question_id]=x.correct);
-  const{data:h}=await sbSim.from('sim_tentatives').select('*').eq('user_id',s.user.id).order('created_at',{ascending:false}).limit(40);
+  const{data:m}=await sbSim.rpc('sim_maitrise',simArgs());store.last={};(m||[]).forEach(x=>store.last[x.question_id]=x.correct);
+  const{data:h}=await sbSim.rpc('sim_historique',simArgs());
   store.history=(h||[]).map(x=>({date:x.created_at,label:x.libelle,ok:x.ok,n:x.nb,pct:x.pct,byD:x.par_domaine||{},secs:x.duree_s||0}));
-  const j=a.fin?Math.max(0,Math.ceil((new Date(a.fin)-new Date())/864e5)):null,b=document.getElementById('sim-acces');
-  if(b)b.textContent=a.equipe&&!a.actif?'H TECH INNOV team access':(j!=null?j+' day(s) of access left':'');
+  const jr=a.fin?Math.max(0,Math.ceil((new Date(a.fin)-new Date())/864e5)):null,b=document.getElementById('sim-acces');
+  if(b)b.textContent=a.equipe&&!a.actif?'H TECH INNOV team access':((a.titulaire?a.titulaire+' · ':'')+(jr!=null?jr+' '+TP.jours:''));
   document.querySelector('nav.tabs').style.display='';setView('home');
  }catch(e){app.innerHTML=`<div class="empty">${esc(e.message||String(e))}</div>`;}
 }
+function simCodeValider(){const v=(document.getElementById('simCode').value||'').trim().toUpperCase();if(!v){document.getElementById('simCode').focus();return;}SIM.code=v;localStorage.setItem('hti-sim-code-pmo',v);simDemarrer();}
+function simCodeOublier(){localStorage.removeItem('hti-sim-code-pmo');SIM.code=null;simDemarrer();}
+function simBlocCode(ko){return `<div class="opt-card" style="text-align:left"><strong>${TP.codeT}</strong><span>${TP.codeP}</span>${ko?`<span style="color:#B42318;font-weight:600">${TP.codeKo}</span>`:''}
+  <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input id="simCode" placeholder="${TP.ph}" value="${esc(SIM.code||'')}" style="flex:1;min-width:150px;padding:10px 12px;border:1px solid var(--line,#ccd);border-radius:10px;font:inherit;text-transform:uppercase" onkeydown="if(event.key==='Enter')simCodeValider()"><button class="btn" onclick="simCodeValider()">${TP.codeB}</button></div></div>`;}
 function simPorte(type,a){
  document.querySelector('nav.tabs').style.display='none';
- if(type==='connexion'){app.innerHTML=`<div class="setup"><h2>${TP.connexionT}</h2><p class="muted" style="margin-top:8px">${TP.connexionP}</p><div class="actions" style="margin-top:18px"><a class="btn" href="${SIM.espace}">${TP.connexionB}</a></div></div>`;return;}
+ const dem=`<div class="opt-card" style="text-align:left"><strong>${TP.demT}</strong><span>${TP.demP}</span><div style="margin-top:10px"><a class="btn ghost" href="../#/simulateurs">${TP.demB}</a></div></div>`;
+ if(type==='connexion'||type==='code'){
+  app.innerHTML=`<div class="setup"><h2>${TP.accesT}</h2><p class="muted" style="margin-top:8px">${TP.accesP}</p>
+   <div class="options-row" style="margin-top:18px;align-items:stretch">
+    <div class="opt-card" style="text-align:left"><strong>${TP.apprT}</strong><span>${TP.apprP}</span><div style="margin-top:10px"><a class="btn" href="${SIM.espace}">${TP.connexionB}</a></div></div>
+    ${simBlocCode(type==='code')}</div>
+   <div class="options-row" style="margin-top:12px">${dem}</div>
+   ${type==='code'?`<p class="note" style="margin-top:12px"><a href="#" onclick="simCodeOublier();return false">${TP.changer}</a></p>`:''}</div>`;return;}
  const id=SIM.user?.user_metadata?.identifiant||SIM.user?.email||'';
  app.innerHTML=`<div class="setup"><h2>${TP.accesT}</h2><p class="muted" style="margin-top:8px">${TP.accesP}</p>
   ${a&&a.fin?`<p class="note">${TP.expire}${new Date(a.fin).toLocaleDateString(SIM.lang==='en'?'en-GB':'fr-FR')}.</p>`:''}
   <div class="options-row" style="margin-top:18px"><div class="opt-card"><strong>${TP.offre1}</strong><span>${TP.offre1p}</span></div><div class="opt-card"><strong>${TP.offre2}</strong><span>${TP.offre2p}</span></div></div>
+  <div class="options-row" style="margin-top:12px">${simBlocCode(false)}${dem}</div>
   <div class="actions" style="margin-top:18px"><a class="btn" target="_blank" rel="noopener" href="https://wa.me/${SIM.wa}?text=${encodeURIComponent(TP.wa+id)}">${TP.waB}</a><a class="btn ghost" href="${SIM.espace}">${TP.retour}</a></div></div>`;
 }
 async function simCorriger(it){
  const b=document.querySelector('[data-act=check]');if(b){b.disabled=true;b.textContent=TP.verif;}
- const{data,error}=await sbSim.rpc('sim_corriger',{p_langue:SIM.lang,p_reponses:{[it.q.id]:it.sel}});
+ const{data,error}=await sbSim.rpc('sim_corriger',{p_langue:SIM.lang,p_reponses:{[it.q.id]:it.sel},p_code:SIM.code,p_simulateur:SIM.sim});
  if(error){modal(TP.erreur,esc(error.message),'OK',()=>{});render();return;}
  const r=(data||[])[0]||{};it.ok=!!r.correct;it.a=r.reponses||[];it.x=r.explication||'';it.checked=true;store.last[it.q.id]=it.ok;render();
 }
@@ -535,7 +556,7 @@ async function finish(){
  clearInterval(timerId);const s=session;const counted=s.items.filter(it=>s.mode==="exam"||it.checked);
  if(!counted.length){s.done=true;setView(s.mode);return;}
  app.innerHTML=`<div class="empty">${TP.enreg}</div>`;const rep={};counted.forEach(it=>rep[it.q.id]=it.sel);const secs=Math.floor((Date.now()-s.start)/1000);
- const{data,error}=await sbSim.rpc('sim_enregistrer',{p_mode:s.mode,p_libelle:s.label,p_langue:SIM.lang,p_duree:secs,p_reponses:rep});
+ const{data,error}=await sbSim.rpc('sim_enregistrer',{p_mode:s.mode,p_libelle:s.label,p_langue:SIM.lang,p_duree:secs,p_reponses:rep,p_code:SIM.code,p_simulateur:SIM.sim});
  if(error){s.done=false;modal(TP.erreur,esc(error.message),'OK',()=>{});setView("run");return;}
  s.done=true;counted.forEach(it=>{const c=(data.corrections||{})[it.q.id];if(c){it.ok=!!c.correct;it.a=c.reponses||[];it.x=c.explication||'';store.last[it.q.id]=it.ok;}});
  s.result={ok:data.ok,n:data.nb,pct:data.pct,byD:data.par_domaine||{},secs};
