@@ -197,6 +197,7 @@ footer .bas{border-top:1px solid rgba(255,255,255,.15);margin-top:28px;padding-t
     <a href="#/" data-r="accueil">Accueil</a>
     <a href="#/formations" data-r="formations">Formations</a>
     <a href="#/formateurs" data-r="formateurs">Formateurs</a>
+    <a href="#/simulateurs" data-r="simulateurs">Simulateurs</a>
     <a href="#/financement" data-r="financement">Financement</a>
     <a href="#/besoin" data-r="besoin">Exprimer mon besoin</a>
     <a href="#/verifier" data-r="verifier">Vérifier un certificat</a>
@@ -1037,6 +1038,69 @@ async function rendreDevoir(pubId){
   if(r.error){toast('Rendu impossible : '+r.error.message);return;}toast('✅ Travail rendu à votre formateur');pageCours(i.id,'travaux');verifierCertificat(i.id);
 }
 
+
+// ═══ Simulateurs H TECH ACADEMY : catalogue, demande d'accès, code de 30 jours ═══
+let SIMS=null;
+async function chargerSimulateurs(){if(SIMS)return SIMS;const{data}=await sb.from('sim_simulateurs').select('*').eq('actif',true).order('ordre');SIMS=data||[];return SIMS;}
+async function pageSimulateurs(code){
+  app(`<section class="sec"><div class="wrap"><p class="vide">Chargement…</p></div></section>`);
+  let L=[];try{L=await chargerSimulateurs();}catch(e){}
+  if(code){const sim=L.find(x=>x.code===code);if(sim)return pageDemandeSimulateur(sim);}
+  await session();
+  const carte=x=>{const dispo=x.statut==='disponible';return `<div class="panel" style="display:flex;flex-direction:column;gap:12px;border-top:4px solid ${dispo?'var(--green)':'#D9A441'}">
+     <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><span class="kick">${dispo?'Disponible':'Bientôt disponible'}</span><h2 style="font-size:24px;margin:6px 0 2px">${esc(x.nom)}</h2><div class="note">${esc(x.sous_titre||'')}</div></div>
+      <div style="text-align:right;white-space:nowrap"><b style="font-size:20px;color:var(--navy)">${fcfa(x.prix)}</b><div class="note">${x.jours} jours d’accès</div></div></div>
+     <p style="margin:0;color:var(--muted)">${esc(x.description||'')}</p>
+     <ul class="check" style="margin:0"><li>Inclus dans nos formations correspondantes</li><li>Correction expliquée et suivi de progression</li><li>Code d’accès personnel envoyé par e-mail ou WhatsApp</li></ul>
+     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:auto">${dispo?`${USER?`<a class="btn btn-g" href="${esc(x.url||'simulateur/')}">Ouvrir le simulateur</a>`:`<a class="btn btn-g" href="#/espace">Je suis apprenant : me connecter</a>`}
+       <a class="btn btn-o" href="${esc(x.url||'simulateur/')}">J’ai un code d’accès</a><a class="btn btn-o" href="#/simulateurs/${esc(x.code)}">Demander un accès</a>`
+       :`<a class="btn btn-o" href="#/simulateurs/${esc(x.code)}">Me préinscrire</a>`}</div></div>`;};
+  app(`<section class="sec"><div class="wrap"><span class="kick">Simulateurs H TECH ACADEMY</span><h1 style="font-size:36px;margin:8px 0 6px">Entraînez-vous dans les conditions de l’examen</h1>
+    <p class="note" style="font-size:16px;max-width:780px">Guides d’étude, entraînement corrigé et examens blancs chronométrés. Nos apprenants y accèdent avec leur compte ; vous pouvez aussi demander un accès de 30 jours, sans formation.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:22px">${L.map(carte).join('')||'<p class="vide">Aucun simulateur pour le moment.</p>'}</div>
+    <div class="panel" style="margin-top:22px"><h3 style="margin:0 0 8px">Comment obtenir mon accès ?</h3>
+     <ol style="margin:0;padding-left:20px;line-height:1.8"><li>Choisissez un simulateur et remplissez la demande d’accès.</li><li>Notre équipe vous contacte pour le règlement et valide votre demande.</li><li>Vous recevez votre code personnel par e-mail ou WhatsApp, valable 30 jours.</li><li>Saisissez-le sur la page du simulateur : vos résultats sont enregistrés et suivis.</li></ol></div></div></section>`);
+}
+function pageDemandeSimulateur(sim){
+  const dispo=sim.statut==='disponible';
+  app(`<section class="sec"><div class="wrap" style="max-width:760px"><p class="note"><a href="#/simulateurs">← Tous les simulateurs</a></p>
+    <span class="kick">${dispo?'Demande d’accès':'Préinscription'}</span><h1 style="font-size:32px;margin:8px 0 6px">${esc(sim.nom)}</h1>
+    <p class="note" style="font-size:15.5px">${dispo?`Accès de <b>${sim.jours} jours</b> pour <b>${fcfa(sim.prix)}</b>. Notre équipe vous contacte pour le règlement, puis vous envoie votre code d’accès.`:'Ce simulateur ouvre prochainement. Laissez vos coordonnées : nous vous prévenons dès son ouverture.'}</p>
+    <form class="panel" novalidate onsubmit="envoyerDemandeSimulateur(event,'${esc(sim.code)}')" style="margin-top:18px"><div class="form">
+     <div><label class="f" for="sdPrenom">Prénom *</label><input id="sdPrenom" autocomplete="given-name"></div><div><label class="f" for="sdNom">Nom *</label><input id="sdNom" autocomplete="family-name"></div>
+     <div><label class="f" for="sdEmail">E-mail *</label><input id="sdEmail" type="email" autocomplete="email"></div><div><label class="f" for="sdTel">Téléphone WhatsApp *</label><input id="sdTel" type="tel" autocomplete="tel" placeholder="07 00 00 00 00"></div>
+     ${dispo?`<div class="full"><span class="f" style="display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:8px">Je souhaite recevoir mon code d’accès par *</span>
+       <div style="display:flex;gap:18px;flex-wrap:wrap"><label><input type="radio" name="sdCanal" value="whatsapp" checked> WhatsApp</label><label><input type="radio" name="sdCanal" value="email"> E-mail</label></div></div>`:''}
+     <div class="full"><label class="f" for="sdMsg">Message (facultatif)</label><textarea id="sdMsg" rows="3" placeholder="Date de votre examen, questions…"></textarea></div>
+     <input id="sdSite" tabindex="-1" autocomplete="off" style="position:absolute;left:-5000px" aria-hidden="true">
+     <div class="full"><label style="display:flex;gap:8px;align-items:flex-start;font-size:14px"><input type="checkbox" id="sdOk" style="margin-top:3px"> J’accepte que mes informations soient transmises à H TECH INNOV (info@htechinnov.com) pour traiter ma demande.</label></div></div>
+     <p id="sdErr" class="err" role="alert" style="color:#B42318;min-height:20px"></p>
+     <button class="btn btn-g" id="sdBtn" type="submit">${dispo?'Envoyer ma demande':'Me préinscrire'}</button></form></div></section>`);
+}
+async function envoyerDemandeSimulateur(ev,code){
+  ev.preventDefault();const err=document.getElementById('sdErr');err.textContent='';if(document.getElementById('sdSite').value)return;
+  const v=id=>document.getElementById(id).value.trim(),sim=(SIMS||[]).find(x=>x.code===code)||{nom:code};
+  if(!v('sdPrenom')||!v('sdNom')){err.textContent='Indiquez votre prénom et votre nom.';return;}
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v('sdEmail'))){err.textContent='Adresse e-mail invalide.';document.getElementById('sdEmail').focus();return;}
+  if(v('sdTel').replace(/\D/g,'').length<8){err.textContent='Numéro de téléphone invalide.';document.getElementById('sdTel').focus();return;}
+  if(!document.getElementById('sdOk').checked){err.textContent='Merci d’accepter la transmission de vos informations.';return;}
+  const canal=document.querySelector('input[name=sdCanal]:checked')?.value||'whatsapp',b=document.getElementById('sdBtn');b.disabled=true;b.textContent='Envoi…';
+  const{data,error}=await sb.rpc('sim_demander',{p_simulateur:code,p_prenom:v('sdPrenom'),p_nom:v('sdNom'),p_email:v('sdEmail'),p_telephone:v('sdTel'),p_canal:canal,p_message:v('sdMsg')||null});
+  b.disabled=false;b.textContent='Envoyer ma demande';
+  if(error){err.innerHTML=esc((error.message||'').replace(/^.*?:\s(?=[A-ZÉ])/,''))+' — vous pouvez aussi nous écrire sur <a href="https://wa.me/'+CONFIG.WHATSAPP+'" target="_blank" rel="noopener">WhatsApp</a>.';return;}
+  const ref=data.reference,dispo=data.statut==='disponible';
+  const txt=`${dispo?'Demande d’accès':'Préinscription'} ${data.simulateur} — réf. ${ref}\n${v('sdPrenom')} ${v('sdNom')}\nE-mail : ${v('sdEmail')}\nWhatsApp : ${v('sdTel')}\n${dispo?'Formule : '+data.jours+' jours — '+fcfa(data.prix)+'\nCode à envoyer par : '+(canal==='email'?'e-mail':'WhatsApp'):''}${v('sdMsg')?'\nMessage : '+v('sdMsg'):''}`;
+  // Copie par e-mail à info@htechinnov.com (service FormSubmit ; la demande est de toute façon enregistrée dans l’ERP)
+  try{fetch('https://formsubmit.co/ajax/info@htechinnov.com',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
+    body:JSON.stringify({_subject:`[H TECH ACADEMY] ${dispo?'Demande d’accès':'Préinscription'} ${data.simulateur} — ${ref}`,_template:'table',_captcha:'false',Référence:ref,Simulateur:data.simulateur,Prénom:v('sdPrenom'),Nom:v('sdNom'),'E-mail':v('sdEmail'),WhatsApp:v('sdTel'),'Code à envoyer par':canal==='email'?'E-mail':'WhatsApp',Montant:dispo?fcfa(data.prix):'—',Message:v('sdMsg')||'—'})}).catch(()=>{});}catch(e){}
+  app(`<section class="sec"><div class="wrap" style="max-width:720px;text-align:center"><div style="font-size:52px">✅</div>
+    <h1 style="font-size:30px;margin:10px 0">Merci ${esc(v('sdPrenom'))}, votre ${dispo?'demande':'préinscription'} est enregistrée</h1>
+    <p style="color:var(--muted);font-size:16.5px">Référence <b>${esc(ref)}</b>. ${dispo?`Notre équipe vous contacte pour le règlement de ${fcfa(data.prix)}, puis vous envoie votre code d’accès de ${data.jours} jours par ${canal==='email'?'e-mail':'WhatsApp'}.`:'Nous vous prévenons dès l’ouverture du simulateur.'}</p>
+    <p style="margin-top:18px"><a class="btn btn-g" target="_blank" rel="noopener" href="https://wa.me/${CONFIG.WHATSAPP}?text=${encodeURIComponent(txt)}">Prévenir l’équipe sur WhatsApp</a></p>
+    <p class="note">Ce bouton ouvre WhatsApp avec votre demande déjà rédigée : il vous suffit d’appuyer sur Envoyer pour accélérer le traitement.</p>
+    <p style="margin-top:14px"><a href="#/simulateurs">← Retour aux simulateurs</a></p></div></section>`);
+}
+
 // ═══ Routage ═══
 async function route(){
   const h=decodeURIComponent(location.hash.replace(/^#\/?/,''));
@@ -1059,6 +1123,7 @@ async function route(){
   if(p==='formateur'&&a==='apprenant'&&b)return pageFicheApprenant(b);
   if(p==='formateur')return pageFormateur();
   if(p==='espace')return pageEspace();
+  if(p==='simulateurs')return pageSimulateurs(a);
   pageAccueil();
 }
 window.addEventListener('hashchange',route);
