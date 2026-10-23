@@ -16802,15 +16802,36 @@ async function omSupprimer(id){
 
 
 // ══════════════════════════════════════════════════════════════════════
-// ATTESTATIONS DE BONNE EXÉCUTION (ABE) — travaux et formations, à faire signer par le client
+// ATTESTATIONS DE BONNE EXÉCUTION (ABE) — travaux et formations à faire signer par le client ; ABE délivrées aux prestataires
 // ══════════════════════════════════════════════════════════════════════
 var ABE_ST={brouillon:['Brouillon','#7A90A8'],envoyee:['À signer','#D97706'],signee:['Signée','#3F8A1E'],annulee:['Annulée','#DC2626']};
 var ABE_ROWS=[],ABE_EDIT=null,ABE_FILTRE={};
 const ABE_APPRECIATIONS=['Très satisfaisant','Satisfaisant','Peu satisfaisant'];
+const ABE_CRITERES=[['qualite','Qualité des travaux et des livrables'],['delais','Respect des délais'],['securite','Sécurité et HSE sur site'],['conformite','Conformité technique et documentation'],['collaboration','Réactivité et collaboration']];
+const abeStLabel=(r,k)=>r&&r.type==='prestataire'?({brouillon:'Brouillon',signee:'Délivrée',annulee:'Annulée'}[k]||ABE_ST[k][0]):ABE_ST[k][0];
 function abePeriode(r){if(!r.date_debut)return'—';if(!r.date_fin||r.date_fin===r.date_debut)return 'Le '+bvDateFr(r.date_debut);return 'Du '+bvDateFr(r.date_debut)+' au '+bvDateFr(r.date_fin);}
 function abeDocument(r){
   const d=r.donnees||{},blocs=[],sig=d.signataire_nom||'[Nom du signataire]',fct=d.signataire_fonction||'[fonction]';
   const hti="la société H TECH INNOV, SARL immatriculée au RCCM d’Abidjan sous le n° CI-ABJ-03-2026-B12-06284, sise à Cocody Riviera Jules Verne, Abidjan";
+  if(r.type==='prestataire'){
+    const hsig=d.signataire_nom||'[Nom du signataire]',hfct=d.signataire_fonction||'[fonction]';
+    const ident=[d.presta_forme&&!new RegExp('\\b'+d.presta_forme.replace(/[^A-Za-z]/g,'')+'\\b','i').test(r.client_nom)?d.presta_forme:'',d.presta_rccm?'RCCM '+d.presta_rccm:'',d.presta_ncc?'compte contribuable n° '+d.presta_ncc:''].filter(Boolean).join(', ');
+    blocs.push({texte:`Nous soussignés, ${hti.replace(/^la société /,'la société ')}, représentée par ${hsig}, ${hfct}, attestons que ${r.client_nom}${ident?' ('+ident+')':''}${d.presta_adresse?', sise à '+d.presta_adresse:''}, a réalisé pour le compte de H TECH INNOV les prestations décrites ci-dessous${r.reference?' (référence : '+r.reference+')':''}.`,sz:9});
+    const g=[['Prestataire',r.client_nom],['Référence (bon de commande, contrat)',r.reference||'—'],['Objet des prestations',r.objet,1]];
+    const cf=d.afficher_client_final&&d.client_final;g.push(cf?['Lieu d’exécution',r.lieu||'—']:['Lieu d’exécution',r.lieu||'—',1]);if(cf)g.push(['Client final',d.client_final]);
+    g.push(['Période d’exécution',abePeriode(r)]);
+    g.push(['Réception',d.date_reception?('Le '+bvDateFr(d.date_reception)+({sans:', sans réserve',levees:', réserves levées',en_cours:', réserves en cours de levée'}[d.reserves]||'')):'—']);
+    if(d.afficher_montant&&r.montant_ht)g.push(['Montant des prestations',fmtF(r.montant_ht)+' FCFA HT',1]);
+    blocs.push({s:'Les prestations',grille:g});
+    if(omLignes(d.prestations).length)blocs.push({s:'Prestations réalisées',puces:omLignes(d.prestations)});
+    const ev=ABE_CRITERES.filter(([k])=>d['eval_'+k]);
+    blocs.push({s:'Évaluation de H TECH INNOV',tableau:{head:['Critère','Appréciation'],body:[...ev.map(([k,l])=>[l,d['eval_'+k]]),['Appréciation générale',d.appreciation||'—']]}});
+    if(d.observations)blocs.push({s:'Observations',texte:d.observations});
+    blocs.push({texte:`La présente attestation est délivrée à ${r.client_nom} pour servir et valoir ce que de droit.`,sz:9});
+    return{numero:r.numero,date:bvDateFr(String(r.created_at||isoJour()).slice(0,10)),type_label:'Prestataire',titre_doc:'ATTESTATION DE BONNE EXÉCUTION',
+      titre_lignes:['ATTESTATION DE','BONNE EXÉCUTION'],fait_libre:false,hauteur_signature:33,compact:true,blocs,
+      signatures:[{titre:'Pour H TECH INNOV',nom:d.signataire_nom||'',fonction:d.signataire_fonction||'',cachet:true,mention:'Signature et cachet'}]};
+  }
   if(r.type==='travaux'){
     blocs.push({texte:`Je soussigné(e), ${sig}, ${fct}, agissant pour le compte de ${r.client_nom}, atteste que ${hti}, a exécuté pour notre compte les travaux décrits ci-dessous, conformément aux termes du marché et selon les règles de l’art.`,sz:9});
     const g=[['Client',r.client_nom],['Référence du marché',r.reference||'—'],['Objet des travaux',r.objet,1],['Lieu d’exécution',r.lieu||'—',1],['Période d’exécution',abePeriode(r)]];
@@ -16834,33 +16855,33 @@ function abeDocument(r){
     titre_lignes:['ATTESTATION DE','BONNE EXÉCUTION'],fait_libre:true,hauteur_signature:33,compact:true,blocs,
     signatures:[{titre:'Pour le client — '+r.client_nom,nom:d.signataire_nom||'',fonction:d.signataire_fonction||'',mention:'Nom, fonction, date, signature et cachet du client'}]};
 }
-async function abePDF(r){await ensurePdf();return await omPDF(abeDocument(r),{logo:HTI_LOGO,cachet:null});}
+async function abePDF(r){await ensurePdf();const cachet=r.type==='prestataire'&&r.statut!=='brouillon'&&typeof HTI_STAMP==='string'&&HTI_STAMP.startsWith('data:')?HTI_STAMP:null;return await omPDF(abeDocument(r),{logo:HTI_LOGO,cachet});}
 
 v4Def('attestations-be',{titre:'Attestations de bonne exécution',icone:'🏅',custom:async pg=>{
   let err=null;try{const q=await sb.from('attestations_be').select('*').order('created_at',{ascending:false});if(q.error)err=q.error;ABE_ROWS=q.data||[];}catch(e){err=e;ABE_ROWS=[];}
   const t=ABE_FILTRE.type||'',s=ABE_FILTRE.statut||'',q=(ABE_FILTRE.q||'').toLowerCase();
   const vis=ABE_ROWS.filter(r=>(!t||r.type===t)&&(!s||r.statut===s)&&(!q||(r.numero+' '+r.client_nom+' '+r.objet+' '+(r.reference||'')).toLowerCase().includes(q)));
-  const sig=ABE_ROWS.filter(r=>r.statut==='signee'),montant=sig.reduce((a,r)=>a+numIn(r.montant_ht),0);
-  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🏅 Attestations de bonne exécution</h1><div class="page-sub">ABE à faire signer par vos clients après travaux et formations — vos références pour les appels d’offres</div></div>
-    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="abeReferences()">📋 Liste des références (PDF)</button><button class="btn btn-outline btn-sm" onclick="abeForm('formation')">+ ABE formation</button><button class="btn btn-primary btn-sm" onclick="abeForm('travaux')">+ ABE travaux</button></div></div>
+  const sig=ABE_ROWS.filter(r=>r.statut==='signee'&&r.type!=='prestataire'),delivrees=ABE_ROWS.filter(r=>r.type==='prestataire'&&r.statut==='signee'),montant=sig.reduce((a,r)=>a+numIn(r.montant_ht),0);
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🏅 Attestations de bonne exécution</h1><div class="page-sub">ABE à faire signer par vos clients (vos références pour les appels d’offres) et ABE délivrées à vos prestataires</div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="abeReferences()">📋 Liste des références (PDF)</button><button class="btn btn-outline btn-sm" onclick="abeForm('prestataire')">+ ABE à un prestataire</button><button class="btn btn-outline btn-sm" onclick="abeForm('formation')">+ ABE formation</button><button class="btn btn-primary btn-sm" onclick="abeForm('travaux')">+ ABE travaux</button></div></div>
   ${err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ La table <code>attestations_be</code> n’existe pas encore : exécutez <b>migration-attestations-be.sql</b> dans Supabase.</div>':''}
   <div class="grid-4" style="margin-bottom:.9rem">
-    <div class="kpi"><div class="kpi-icon blue">🏅</div><div class="kpi-label">Attestations</div><div class="kpi-value">${ABE_ROWS.length}</div></div>
-    <div class="kpi"><div class="kpi-icon amber">✍️</div><div class="kpi-label">À faire signer</div><div class="kpi-value">${ABE_ROWS.filter(r=>r.statut==='envoyee').length}</div></div>
+    <div class="kpi"><div class="kpi-icon blue">🤝</div><div class="kpi-label">Délivrées aux prestataires</div><div class="kpi-value">${delivrees.length}</div></div>
+    <div class="kpi"><div class="kpi-icon amber">✍️</div><div class="kpi-label">À faire signer par les clients</div><div class="kpi-value">${ABE_ROWS.filter(r=>r.statut==='envoyee').length}</div></div>
     <div class="kpi"><div class="kpi-icon green">✅</div><div class="kpi-label">Signées (références)</div><div class="kpi-value">${sig.length}</div></div>
     <div class="kpi"><div class="kpi-icon blue">💼</div><div class="kpi-label">Montant attesté</div><div class="kpi-value" style="font-size:1.05rem">${fmtF(montant)} FCFA</div></div></div>
   <div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
     <input placeholder="Rechercher (n°, client, objet, référence)…" value="${esc(ABE_FILTRE.q||'')}" oninput="ABE_FILTRE.q=this.value;clearTimeout(window._aq);window._aq=setTimeout(()=>v4Render('attestations-be'),300)" style="flex:1;min-width:180px">
-    <select onchange="ABE_FILTRE.type=this.value;v4Render('attestations-be')"><option value="">Travaux et formations</option><option value="travaux" ${t==='travaux'?'selected':''}>Travaux</option><option value="formation" ${t==='formation'?'selected':''}>Formations</option></select>
+    <select onchange="ABE_FILTRE.type=this.value;v4Render('attestations-be')"><option value="">Tous les types</option><option value="travaux" ${t==='travaux'?'selected':''}>Travaux (clients)</option><option value="formation" ${t==='formation'?'selected':''}>Formations (clients)</option><option value="prestataire" ${t==='prestataire'?'selected':''}>Délivrées aux prestataires</option></select>
     <select onchange="ABE_FILTRE.statut=this.value;v4Render('attestations-be')"><option value="">Tous les statuts</option>${Object.entries(ABE_ST).map(([k,v])=>`<option value="${k}" ${k===s?'selected':''}>${v[0]}</option>`).join('')}</select></div>
-  <div class="table-wrap"><table><thead><tr><th>N°</th><th>Client</th><th>Objet</th><th>Période</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
-  ${vis.map(r=>`<tr><td><code style="font-size:10.5px">${esc(r.numero)}</code><div class="cell-sub">${r.type==='travaux'?'🛠️ Travaux':'🎓 Formation'}</div></td>
+  <div class="table-wrap"><table><thead><tr><th>N°</th><th>Client / prestataire</th><th>Objet</th><th>Période</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
+  ${vis.map(r=>`<tr><td><code style="font-size:10.5px">${esc(r.numero)}</code><div class="cell-sub">${r.type==='travaux'?'🛠️ Travaux':r.type==='formation'?'🎓 Formation':'🤝 Délivrée au prestataire'}</div></td>
     <td><strong>${esc(r.client_nom)}</strong><div class="cell-sub">${esc(r.reference||'')}</div></td><td style="font-size:12px">${esc(r.objet)}${r.montant_ht?`<div class="cell-sub">${fmtF(r.montant_ht)} FCFA HT</div>`:''}</td>
     <td style="font-size:12px">${r.date_debut?fmtD(r.date_debut)+(r.date_fin&&r.date_fin!==r.date_debut?' → '+fmtD(r.date_fin):''):'—'}</td>
-    <td><select onchange="abeStatut('${r.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${ABE_ST[r.statut][1]};font-weight:600">${Object.entries(ABE_ST).map(([k,v])=>`<option value="${k}" ${k===r.statut?'selected':''}>${v[0]}</option>`).join('')}</select>${r.signee_le?`<div class="cell-sub">Signée le ${fmtD(r.signee_le)}</div>`:''}</td>
-    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="abeForm('${r.type}','${r.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="abePdfLigne('${r.id}')" title="PDF à faire signer">📄</button>
-      <button class="btn btn-outline btn-sm" onclick="abeEnvoyer('${r.id}')" title="Transmettre au client">📤</button>
-      <button class="btn btn-outline btn-sm" onclick="openDocs('attestations_be','${r.id}','${jsq(r.numero)}')" title="ABE signée scannée">📎</button>
+    <td><select onchange="abeStatut('${r.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${ABE_ST[r.statut][1]};font-weight:600">${Object.entries(ABE_ST).filter(([k])=>r.type!=='prestataire'||k!=='envoyee').map(([k,v])=>`<option value="${k}" ${k===r.statut?'selected':''}>${abeStLabel(r,k)}</option>`).join('')}</select>${r.signee_le?`<div class="cell-sub">Signée le ${fmtD(r.signee_le)}</div>`:''}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="abeForm('${r.type}','${r.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="abePdfLigne('${r.id}')" title="${r.type==='prestataire'?'PDF signé et cacheté':'PDF à faire signer'}">📄</button>
+      <button class="btn btn-outline btn-sm" onclick="abeEnvoyer('${r.id}')" title="${r.type==='prestataire'?'Délivrer au prestataire':'Transmettre au client'}">📤</button>
+      <button class="btn btn-outline btn-sm" onclick="openDocs('attestations_be','${r.id}','${jsq(r.numero)}')" title="${r.type==='prestataire'?'Pièces (BC, PV de réception)':'ABE signée scannée'}">📎</button>
       <button class="btn btn-outline btn-sm" onclick="abeSupprimer('${r.id}')" title="Supprimer">🗑</button></div></td></tr>`).join('')
     ||'<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:18px">Aucune attestation. Créez-en une après chaque chantier ou formation terminés.</td></tr>'}
   </tbody></table></div></div>`;
@@ -16868,6 +16889,7 @@ v4Def('attestations-be',{titre:'Attestations de bonne exécution',icone:'🏅',c
 
 async function abeForm(type,id){
   const r=id?ABE_ROWS.find(x=>x.id===id):null;ABE_EDIT={type,id:id||null,r};const d=r?.donnees||{};
+  if(type==='prestataire')return abeFormPrestataire(id);
   const[{data:dv},{data:ses}]=await Promise.all([sb.from('devis').select('id,reference,titre,client_nom,sous_total,statut').order('created_at',{ascending:false}).limit(80),
     type==='formation'?sb.from('academy_sessions').select('*').order('date_debut',{ascending:false}).limit(60):Promise.resolve({data:[]})]);
   window._ABE_DV=dv||[];window._ABE_SES=ses||[];
@@ -16910,6 +16932,7 @@ async function abeChoixSession(){const s=(window._ABE_SES||[]).find(x=>x.id===gv
     if(count)document.getElementById('abPart').value=count;
     if(sf&&sf.length){const{data:pf}=await sb.from('profiles').select('prenom,nom').in('id',sf.map(x=>x.formateur_id));document.getElementById('abForm').value=(pf||[]).map(p=>[p.prenom,(p.nom||'').toUpperCase()].filter(Boolean).join(' ')).join(', ');}}catch(e){logErr(e);}}
 function abeLire(){
+  if(ABE_EDIT.type==='prestataire')return abeLirePrestataire();
   const T=ABE_EDIT.type,d={signataire_nom:g('abSig')||'',signataire_fonction:g('abFct')||'',appreciation:gv('abApp')||'',observations:gv('abObs')||'',afficher_montant:!!document.getElementById('abAffMt')?.checked};
   if(T==='travaux')Object.assign(d,{date_reception:gv('abRec')||null,reserves:gv('abRes'),prestations:gv('abPrest')||''});
   else Object.assign(d,{duree_heures:gv('abDur')||'',modalite:gv('abMod'),participants:gv('abPart')||'',formateurs:g('abForm')||'',contenus:gv('abCont')||''});
@@ -16922,16 +16945,17 @@ async function abeSauver(){
   const b=document.getElementById('abGo');b.disabled=true;
   try{let res;
     if(ABE_EDIT.id){p.updated_at=new Date().toISOString();res=await sb.from('attestations_be').update(p).eq('id',ABE_EDIT.id);}
-    else{const{data:num,error:en}=await sb.rpc('abe_prochain_numero');if(en)throw new Error('Numérotation : '+en.message);p.numero=num;p.statut='brouillon';p.created_by=uid();res=await sb.from('attestations_be').insert(p);}
+    else{const{data:num,error:en}=await sb.rpc('abe_prochain_numero');if(p.type==='prestataire'&&!p.client_nom)throw new Error('Prestataire requis');if(en)throw new Error('Numérotation : '+en.message);p.numero=num;p.statut='brouillon';p.created_by=uid();res=await sb.from('attestations_be').insert(p);}
     if(res.error)throw new Error(res.error.message);
     try{logAudit(ABE_EDIT.id?'modification':'creation','attestations_be',p.numero||ABE_EDIT.r?.numero,{client:p.client_nom});}catch(e){}
-    toast('✅ Attestation enregistrée');closeModal();v4Render('attestations-be');
+    toast('✅ Attestation enregistrée'+(p.type==='prestataire'?' : utilisez 📤 pour la délivrer au prestataire':''),5000);closeModal();v4Render('attestations-be');
   }catch(e){b.disabled=false;toast('❌ '+e.message,9000);}
 }
-async function abePdfLigne(id){const r=ABE_ROWS.find(x=>x.id===id);if(!r)return;(await abePDF(r)).save(pdfT('ABE-'+r.numero+'-'+r.client_nom.replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');}
+async function abePdfLigne(id){const r=ABE_ROWS.find(x=>x.id===id);if(!r)return;(await abePDF(r)).save(pdfT(r.numero+'-'+r.client_nom.replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');}
 async function abeEnvoyer(id){
   const r=ABE_ROWS.find(x=>x.id===id);if(!r)return;
-  const doc=await abePDF(r),nomF=pdfT('ABE-'+r.numero)+'.pdf',fichier=new File([doc.output('blob')],nomF,{type:'application/pdf'});
+  if(r.type==='prestataire')return abeDelivrer(r);
+  const doc=await abePDF(r),nomF=pdfT(r.numero)+'.pdf',fichier=new File([doc.output('blob')],nomF,{type:'application/pdf'});
   if(r.statut==='brouillon'){await sb.from('attestations_be').update({statut:'envoyee',updated_at:new Date().toISOString()}).eq('id',id);r.statut='envoyee';}
   const msg=`Bonjour,\nSuite à ${r.type==='travaux'?'l’achèvement des travaux':'la formation'} « ${r.objet} »${r.reference?' ('+r.reference+')':''}, nous vous remercions de bien vouloir compléter, signer et revêtir de votre cachet l’attestation de bonne exécution ci-jointe, puis nous la retourner.\nAvec nos remerciements pour votre confiance,\nH TECH INNOV — 27 22 56 28 37 — info@htechinnov.com`;
   window._ABE_ENVOI={fichier,msg};const partage=!!(navigator.canShare&&navigator.canShare({files:[fichier]}));if(!partage)doc.save(nomF);
@@ -16946,11 +16970,12 @@ async function abeEnvoyer(id){
 }
 async function abeStatut(id,s){
   const r=ABE_ROWS.find(x=>x.id===id);if(!r)return;const patch={statut:s,updated_at:new Date().toISOString()};
-  if(s==='signee'){const dt=prompt('Date de signature par le client (AAAA-MM-JJ) :',r.signee_le||isoJour());if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)){v4Render('attestations-be');return;}patch.signee_le=dt;}
+  if(s==='signee'&&r.type==='prestataire'){patch.signee_le=isoJour();}
+  else if(s==='signee'){const dt=prompt('Date de signature par le client (AAAA-MM-JJ) :',r.signee_le||isoJour());if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)){v4Render('attestations-be');return;}patch.signee_le=dt;}
   if(s==='annulee'&&!confirm('Annuler l’attestation '+r.numero+' ?')){v4Render('attestations-be');return;}
   const{error}=await sb.from('attestations_be').update(patch).eq('id',id);if(error){toast('❌ '+error.message);return;}
   try{logAudit('statut','attestations_be',r.numero,patch);}catch(e){}
-  toast(s==='signee'?'✅ ABE signée — pensez à joindre le scan (📎)':'Statut : '+ABE_ST[s][0],5000);v4Render('attestations-be');
+  toast(s==='signee'?(r.type==='prestataire'?'✅ ABE délivrée au prestataire':'✅ ABE signée — pensez à joindre le scan (📎)'):'Statut : '+abeStLabel(r,s),5000);v4Render('attestations-be');
 }
 async function abeSupprimer(id){
   const r=ABE_ROWS.find(x=>x.id===id);if(!r)return;
@@ -16959,9 +16984,9 @@ async function abeSupprimer(id){
   const{error}=await sb.from('attestations_be').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
   try{logAudit('suppression','attestations_be',r.numero,{});}catch(e){}toast('Attestation supprimée');v4Render('attestations-be');
 }
-// Liste des références signées : pièce jointe type pour les appels d'offres
+// Liste des références signées : pièce jointe type pour les appels d'offres (hors ABE délivrées aux prestataires)
 async function abeReferences(){
-  const L=ABE_ROWS.filter(r=>r.statut==='signee').sort((a,b)=>String(b.date_fin||'').localeCompare(String(a.date_fin||'')));
+  const L=ABE_ROWS.filter(r=>r.statut==='signee'&&r.type!=='prestataire').sort((a,b)=>String(b.date_fin||'').localeCompare(String(a.date_fin||'')));
   if(!L.length){toast('Aucune attestation signée pour le moment');return;}
   await ensurePdf();
   const o={numero:'REF-'+isoJour(),date:bvDateFr(isoJour()),type_label:'Références',titre_doc:'LISTE DES RÉFÉRENCES',titre_lignes:['LISTE DES','RÉFÉRENCES'],
@@ -16981,6 +17006,81 @@ async function abeReferences(){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
 })();
 
+
+// ── ABE délivrées aux prestataires ──
+async function abeFormPrestataire(id){
+  const r=id?ABE_ROWS.find(x=>x.id===id):null;ABE_EDIT={type:'prestataire',id:id||null,r};const d=r?.donnees||{};
+  const[{data:bc},{data:fo}]=await Promise.all([sb.from('bons_commande').select('*').order('created_at',{ascending:false}).limit(120),sb.from('fournisseurs').select('*').order('nom')]);
+  window._ABE_BC=bc||[];window._ABE_FO=fo||[];
+  try{await htaSignataires();}catch(e){}const S0=(typeof HTA_SIGN!=='undefined'&&HTA_SIGN[0])||{};
+  const v=(k,def)=>esc(d[k]??def??'');
+  const inp=(i,l,val,cls,ty,ph)=>`<div class="form-field ${cls||''}"><label for="${i}">${l}</label><input id="${i}" type="${ty||'text'}" value="${val??''}" placeholder="${esc(ph||'')}"></div>`;
+  const ta=(i,l,val,rows,aide)=>`<div class="form-field full"><label for="${i}">${l}</label><textarea id="${i}" rows="${rows||4}">${val}</textarea>${aide?`<div class="cell-sub">${aide}</div>`:''}</div>`;
+  const evalSel=([k,l])=>`<div class="form-field"><label for="abEv_${k}">${l}</label><select id="abEv_${k}"><option value="">— Non évalué —</option>${ABE_APPRECIATIONS.map(a=>`<option ${d['eval_'+k]===a?'selected':''}>${a}</option>`).join('')}</select></div>`;
+  const corps=`<div class="form-grid">
+    <div class="form-field full"><label for="abBc">Bon de commande lié (préremplit prestataire, référence, objet, montant, prestations)</label><select id="abBc" onchange="abeChoixBC()"><option value="">— Aucun —</option>${(bc||[]).map(x=>`<option value="${x.id}" ${r?.bc_id===x.id?'selected':''}>${esc((x.reference||'')+' · '+(x.fournisseur_nom||'')+' · '+(x.titre||x.objet||''))}</option>`).join('')}</select></div>
+    <div class="v4-h3 full" style="margin-top:4px">Le prestataire</div>
+    <div class="form-field full"><label for="abPresta">Raison sociale du prestataire *</label><input id="abPresta" list="abFoListe" value="${esc(r?.client_nom||'')}" onchange="abeChoixFournisseur()"><datalist id="abFoListe">${(fo||[]).map(f=>`<option value="${esc(f.nom)}">`).join('')}</datalist></div>
+    ${inp('abPForme','Forme juridique',v('presta_forme'),'','','SARL, entreprise individuelle…')}${inp('abPRccm','RCCM',v('presta_rccm'))}${inp('abPNcc','Compte contribuable',v('presta_ncc'))}${inp('abPAdr','Adresse',v('presta_adresse'),'full')}
+    <div class="v4-h3 full" style="margin-top:4px">Les prestations</div>
+    ${inp('abRef','Référence (bon de commande, contrat)',esc(r?.reference||''),'','','BC-2026-0142')}${inp('abObjet','Objet des prestations *',esc(r?.objet||''),'full')}
+    ${inp('abLieu','Lieu d’exécution (chantier)',esc(r?.lieu||''),'full')}
+    ${inp('abClientFinal','Client final (facultatif)',v('client_final'))}<div class="form-field"><label style="display:flex;gap:7px;align-items:center;margin-top:24px"><input type="checkbox" id="abAffCF" ${d.afficher_client_final?'checked':''}> Afficher le client final sur l’attestation</label></div>
+    ${inp('abDeb','Début *',esc(r?.date_debut||''),'','date')}${inp('abFin','Fin',esc(r?.date_fin||''),'','date')}
+    ${inp('abRec','Date de réception',v('date_reception'),'','date')}
+    <div class="form-field"><label for="abRes">Réserves</label><select id="abRes">${[['sans','Sans réserve'],['levees','Réserves levées'],['en_cours','Réserves en cours de levée']].map(([k,l])=>`<option value="${k}" ${d.reserves===k?'selected':''}>${l}</option>`).join('')}</select></div>
+    ${inp('abMt','Montant HT (FCFA)',esc(r?.montant_ht??''),'','number')}<div class="form-field"><label style="display:flex;gap:7px;align-items:center;margin-top:24px"><input type="checkbox" id="abAffMt" ${d.afficher_montant?'checked':''}> Afficher le montant sur l’attestation</label></div>
+    ${ta('abPrest','Prestations réalisées',v('prestations'),5,'Une ligne par prestation (ex. « Câblage courant faible du bâtiment B »).')}
+    <div class="v4-h3 full" style="margin-top:4px">Évaluation par H TECH INNOV</div>
+    ${ABE_CRITERES.map(evalSel).join('')}
+    <div class="form-field"><label for="abApp">Appréciation générale *</label><select id="abApp">${ABE_APPRECIATIONS.map(a=>`<option ${(d.appreciation||'Satisfaisant')===a?'selected':''}>${a}</option>`).join('')}</select></div>
+    ${ta('abObs','Observations (facultatif)',v('observations'),2)}
+    <div class="v4-h3 full" style="margin-top:4px">Signataire pour H TECH INNOV</div>
+    ${inp('abSig','Nom du signataire *',v('signataire_nom',S0.nom||''))}${inp('abFct','Fonction *',v('signataire_fonction',S0.fonction||''))}</div>
+    <p class="cell-sub">Le cachet de H TECH INNOV est apposé sur le PDF une fois l’attestation délivrée. Elle ne figure pas dans votre liste de références.</p>`;
+  document.getElementById('modalBox').style.width='min(880px,96vw)';
+  document.getElementById('modalTitle').textContent=(r?'✏️ '+r.numero:'+ Nouvelle ABE')+' — délivrée à un prestataire';
+  document.getElementById('modalBody').innerHTML=corps;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="abeApercu()">👁 Aperçu</button><button class="btn btn-primary" id="abGo" onclick="abeSauverPrestataire()">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function abeChoixFournisseur(){const f=(window._ABE_FO||[]).find(x=>(x.nom||'').toLowerCase()===g('abPresta').toLowerCase());if(!f)return;
+  const put=(i,val)=>{const e=document.getElementById(i);if(e&&!e.value&&val)e.value=val;};put('abPAdr',f.adresse||f.ville);put('abPRccm',f.rccm);put('abPNcc',f.ncc||f.compte_contribuable||f.numero_contribuable);put('abPForme',f.forme_juridique);}
+function abeChoixBC(){const x=(window._ABE_BC||[]).find(y=>y.id===gv('abBc'));if(!x)return;
+  const set=(i,val,force)=>{const e=document.getElementById(i);if(e&&(force||!e.value)&&val!=null&&val!=='')e.value=val;};
+  set('abPresta',x.fournisseur_nom,true);abeChoixFournisseur();set('abRef',x.reference||'',true);set('abObjet',x.titre||x.objet||x.description);set('abMt',x.total_ht);
+  const L=(Array.isArray(x.lignes)?x.lignes:[]).map(l=>[l.designation||l.libelle||l.description,l.quantite||l.qte?`(${l.quantite||l.qte}${l.unite?' '+l.unite:''})`:''].filter(Boolean).join(' ')).filter(Boolean);
+  if(L.length&&!g('abPrest'))document.getElementById('abPrest').value=L.join('\n');
+  if(x.date_livraison_prevue)set('abFin',String(x.date_livraison_prevue).slice(0,10));}
+function abeLirePrestataire(){
+  const d={presta_forme:g('abPForme')||'',presta_rccm:g('abPRccm')||'',presta_ncc:g('abPNcc')||'',presta_adresse:g('abPAdr')||'',client_final:g('abClientFinal')||'',afficher_client_final:!!document.getElementById('abAffCF')?.checked,
+    date_reception:gv('abRec')||null,reserves:gv('abRes'),prestations:gv('abPrest')||'',appreciation:gv('abApp')||'',observations:gv('abObs')||'',afficher_montant:!!document.getElementById('abAffMt')?.checked,
+    signataire_nom:g('abSig')||'',signataire_fonction:g('abFct')||''};
+  ABE_CRITERES.forEach(([k])=>{d['eval_'+k]=gv('abEv_'+k)||'';});
+  return{type:'prestataire',client_nom:g('abPresta')||'',objet:g('abObjet')||'',reference:g('abRef')||null,lieu:g('abLieu')||null,date_debut:gv('abDeb')||null,date_fin:gv('abFin')||gv('abDeb')||null,
+    montant_ht:gv('abMt')?numIn(gv('abMt')):null,bc_id:gv('abBc')||null,devis_id:null,session_id:null,donnees:d};
+}
+async function abeSauverPrestataire(){const p=abeLirePrestataire();
+  if(!p.client_nom||!p.objet||!p.date_debut){toast('❌ Prestataire, objet et date de début requis');return;}
+  if(!p.donnees.signataire_nom||!p.donnees.signataire_fonction){toast('❌ Indiquez le signataire de H TECH INNOV');return;}
+  if(ABE_EDIT.r&&ABE_EDIT.r.statut==='signee'&&!confirm('Cette attestation a déjà été délivrée. La modifier ?'))return;
+  return abeSauver();}
+async function abeDelivrer(r){
+  if(r.statut==='annulee'){toast('❌ Attestation annulée');return;}
+  if(r.statut==='brouillon'){if(!confirm(`Délivrer l’attestation ${r.numero} à ${r.client_nom} ?\nElle sera signée et revêtue du cachet de H TECH INNOV.`))return;
+    const{error}=await sb.from('attestations_be').update({statut:'signee',signee_le:isoJour(),updated_at:new Date().toISOString()}).eq('id',r.id);if(error){toast('❌ '+error.message);return;}
+    r.statut='signee';r.signee_le=isoJour();try{logAudit('delivrance','attestations_be',r.numero,{prestataire:r.client_nom});}catch(e){}}
+  const doc=await abePDF(r),nomF=pdfT(r.numero+'-'+r.client_nom.replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf',fichier=new File([doc.output('blob')],nomF,{type:'application/pdf'});
+  const msg=`Bonjour,\nVeuillez trouver ci-jointe l’attestation de bonne exécution n° ${r.numero} délivrée par H TECH INNOV pour les prestations « ${r.objet} »${r.reference?' ('+r.reference+')':''}.\nNous vous remercions pour la qualité de votre collaboration.\nCordialement,\nH TECH INNOV`;
+  window._ABE_ENVOI={fichier,msg};const partage=!!(navigator.canShare&&navigator.canShare({files:[fichier]}));if(!partage)doc.save(nomF);
+  document.getElementById('modalBox').style.width='min(560px,96vw)';document.getElementById('modalTitle').textContent='🤝 '+r.numero+' — délivrée à '+r.client_nom;
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #3F8A1E;font-size:13px">Statut : <b>Délivrée</b> le ${fmtD(r.signee_le||isoJour())}. Le PDF porte la signature et le cachet de H TECH INNOV.</div>
+    <p class="cell-sub" style="margin-top:10px">${partage?'« Partager » envoie le PDF par WhatsApp ou e-mail.':'Le PDF est téléchargé : joignez-le à votre e-mail ou à votre message WhatsApp.'}</p>`;
+  document.getElementById('modalFooter').innerHTML=`${partage?`<button class="btn btn-accent" onclick="navigator.share({files:[window._ABE_ENVOI.fichier],text:window._ABE_ENVOI.msg}).catch(()=>{})">📤 Partager</button>`:''}
+    <a class="btn btn-outline" href="mailto:?subject=${encodeURIComponent('Attestation de bonne exécution '+r.numero+' — H TECH INNOV')}&body=${encodeURIComponent(msg)}">✉️ E-mail</a>
+    <button class="btn btn-outline" onclick="navigator.clipboard.writeText(window._ABE_ENVOI.msg).then(()=>toast('Message copié'))">Copier le message</button><button class="btn btn-primary" onclick="closeModal();v4Render('attestations-be')">Terminé</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
 </script>
 <script>
 
