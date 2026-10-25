@@ -1738,7 +1738,6 @@ label.grille-sel select{font:inherit;font-size:12px;border:1px solid var(--g200)
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.6rem">
     <div><div class="page-title">📒 Comptabilité</div><div class="page-sub">Plan comptable SYSCOHADA, écritures, journaux, grand livre, balance</div></div>
     <div style="display:flex;gap:6px">
-      <button class="btn btn-outline btn-sm" onclick="genEcrituresAuto()">🔄 Générer depuis ventes</button>
       <button class="btn btn-primary btn-sm" onclick="openModal('ecriture')">+ Écriture manuelle</button>
     </div>
   </div>
@@ -1807,9 +1806,10 @@ label.grille-sel select{font:inherit;font-size:12px;border:1px solid var(--g200)
       <div class="card-title">📚 Grand livre par compte</div>
       <div style="margin-bottom:12px">
         <select id="cptGLCompte" onchange="renderGrandLivre()" style="padding:7px 10px;border:1px solid var(--g200);border-radius:var(--r-md);font-size:12px;min-width:280px"><option value="">Sélectionnez un compte...</option></select>
+        <button class="btn btn-primary btn-sm" id="glAjout" onclick="glEditer(null)" style="margin-left:6px">+ Ligne sur ce compte</button> <span id="glResume" class="cell-sub" style="margin-left:8px"></span>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Date</th><th>Journal</th><th>Pièce</th><th>Libellé</th><th>Débit</th><th>Crédit</th><th>Solde</th></tr></thead>
+        <thead><tr><th>Date</th><th>Journal</th><th>Pièce</th><th>Tiers</th><th>Libellé</th><th>Débit</th><th>Crédit</th><th>Solde</th><th></th></tr></thead>
         <tbody id="grandLivreTable"><tr><td colspan="7" style="text-align:center;color:var(--g400);padding:18px">Sélectionnez un compte pour afficher ses mouvements.</td></tr></tbody>
       </table></div>
     </div>
@@ -1829,7 +1829,8 @@ label.grille-sel select{font:inherit;font-size:12px;border:1px solid var(--g200)
   <!-- Onglet Plan comptable -->
   <div id="cptPane-plan" style="display:none">
     <div class="card">
-      <div class="card-title">🗂️ Plan comptable SYSCOHADA <button class="btn btn-primary btn-sm" onclick="openModal('compte')">+ Compte</button></div>
+      <div class="card-title">🗂️ Plan comptable SYSCOHADA révisé <button class="btn btn-primary btn-sm" onclick="openModal('compte')">+ Sous-compte de l’entité</button></div>
+      <div id="planOutils" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px"></div><div id="planInfo" class="cell-sub" style="margin-bottom:8px"></div>
       <div class="table-wrap"><table>
         <thead><tr><th>N° Compte</th><th>Intitulé</th><th>Classe</th><th>Type</th><th>Actions</th></tr></thead>
         <tbody id="planTable"><tr><td colspan="5" style="text-align:center;color:var(--g400);padding:18px">Chargement...</td></tr></tbody>
@@ -4416,9 +4417,10 @@ const MODALS={
     </div></div>
   </div>`,s:'sauverCyber'},
   compte:{t:'🗂️ Nouveau compte comptable',b:`<div class="form-grid">
-    <div class="form-field"><label>N° de compte *</label><input type="text" id="cmpNum" placeholder="Ex: 706000"/></div>
-    <div class="form-field"><label>Classe</label><select id="cmpClasse"><option value="1">1 - Capitaux</option><option value="2">2 - Immobilisations</option><option value="3">3 - Stocks</option><option value="4">4 - Tiers</option><option value="5">5 - Trésorerie</option><option value="6">6 - Charges</option><option value="7">7 - Produits</option><option value="8">8 - Autres</option></select></div>
+    <div class="form-field"><label>N° de compte *</label><input type="text" id="cmpNum" placeholder="Ex. 5521 (Orange Money), 4011001"/></div>
+    <div class="form-field"><label>Classe</label><select id="cmpClasse"><option value="1">1 - Capitaux</option><option value="2">2 - Immobilisations</option><option value="3">3 - Stocks</option><option value="4">4 - Tiers</option><option value="5">5 - Trésorerie</option><option value="6">6 - Charges</option><option value="7">7 - Produits</option><option value="8">8 - Autres charges et produits (HAO)</option><option value="9">9 - Engagements et analytique</option></select></div>
     <div class="form-field full"><label>Intitulé *</label><input type="text" id="cmpLib" placeholder="Ex: Services vendus"/></div>
+    <div class="form-field full cell-sub" style="margin-top:-4px">Le SYSCOHADA révisé s’arrête à 4 chiffres : créez vos sous-comptes en prolongeant un compte officiel (ex. 5521 « Orange Money » sous 552, 5211001 « Banque Atlantique » sous 5211).</div>
     <div class="form-field full"><label>Type</label><select id="cmpType"><option value="general">Général</option><option value="client">Client</option><option value="fournisseur">Fournisseur</option><option value="tresorerie">Trésorerie</option></select></div>
   </div>`,s:'sauverCompte'},
   ecriture:{t:'📝 Nouvelle écriture comptable',b:'ECRITURE_DOC',s:'sauverEcriture'},
@@ -5113,7 +5115,7 @@ async function loadComptabilite(){
     if(cd)cd.innerHTML='<div style="color:var(--g400);font-size:12px;text-align:center;padding:14px">—</div>';
     const tb=document.getElementById('ecrituresTable');
     if(tb)tb.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--g400);padding:24px">'+
-      (e.code==='42P01'?'&#9888; Tables comptabilit&#233; manquantes. Ex&#233;cutez module-comptabilite.sql dans Supabase.':'Aucune &#233;criture. <button class="btn btn-primary btn-sm" onclick="openModal(&quot;ecriture&quot;)">+ Saisir</button> ou <button class="btn btn-outline btn-sm" onclick="genEcrituresAuto()">&#128260; G&#233;n&#233;rer depuis ventes</button>')+
+      (e.code==='42P01'?'&#9888; Tables comptabilit&#233; manquantes. Ex&#233;cutez module-comptabilite.sql dans Supabase.':'Aucune &#233;criture. <button class="btn btn-primary btn-sm" onclick="openModal(&quot;ecriture&quot;)">+ Saisir</button>')+
       '</td></tr>';
   }
 }
@@ -5164,7 +5166,7 @@ function renderEcritures(){
   const totalC=ecr.reduce((s,e)=>s+(e.credit||0),0);
   const eq=document.getElementById('cptEcrituresEquilibre');
   if(eq)eq.innerHTML=`— Débit: <strong>${totalD.toLocaleString('fr')}</strong> · Crédit: <strong>${totalC.toLocaleString('fr')}</strong> ${Math.abs(totalD-totalC)<1?'<span style="color:var(--green)">✓ équilibré</span>':'<span style="color:var(--red)">⚠ déséquilibré</span>'}`;
-  if(!ecr.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--g400);padding:18px">Aucune écriture. <button class="btn btn-primary btn-sm" onclick="openModal(\'ecriture\')">+ Saisir</button> ou <button class="btn btn-outline btn-sm" onclick="genEcrituresAuto()">🔄 Générer depuis ventes</button></td></tr>';return;}
+  if(!ecr.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;color:var(--g400);padding:18px">Aucune écriture. <button class="btn btn-primary btn-sm" onclick="openModal(\'ecriture\')">+ Saisir</button></td></tr>';return;}
   tb.innerHTML=ecr.map(e=>`<tr>
     <td style="font-size:11px">${e.date_ecriture||'—'}</td>
     <td><span class="badge badge-blue">${esc(e.journal_code||'OD')}</span></td>
@@ -5175,7 +5177,7 @@ function renderEcritures(){
     <td style="font-size:11px">${esc(e.libelle||'—')}</td>
     <td style="text-align:right;font-weight:600">${e.debit?e.debit.toLocaleString('fr'):'—'}</td>
     <td style="text-align:right;font-weight:600">${e.credit?e.credit.toLocaleString('fr'):'—'}</td>
-    <td><button class="btn btn-outline btn-sm" onclick="delEcriture('${e.id}')">🗑</button></td>
+    <td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="glEditer('${e.id}')" title="Modifier">✏️</button> <button class="btn btn-outline btn-sm" onclick="glSupprimer('${e.id}')" title="Supprimer">🗑</button></td>
   </tr>`).join('');
 }
 function delEcriture(id){delGeneric('compta_ecritures',id,loadComptabilite,'cette écriture');}
@@ -5194,32 +5196,76 @@ function renderJournaux(){
 
 // ── Grand livre ──
 function fillGLCompteSelect(){
-  const sel=document.getElementById('cptGLCompte');
-  if(!sel)return;
-  // Ne montre que les comptes ayant des écritures
-  const comptesAvecEcr=[...new Set(ECRITURES.map(e=>e.compte_numero))];
-  const list=COMPTES.filter(c=>comptesAvecEcr.includes(c.numero));
-  sel.innerHTML='<option value="">Sélectionnez un compte...</option>'+list.map(c=>`<option value="${esc(c.numero)}">${esc(c.numero)} - ${esc(c.intitule)}</option>`).join('');
+  const sel=document.getElementById('cptGLCompte');if(!sel)return;const cur=sel.value;
+  const nums=[...new Set(ECRITURES.map(e=>String(e.compte_numero||'')).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">Sélectionnez un compte...</option>'+nums.map(n=>{const c=COMPTES.find(x=>x.numero===n);const lib=c?cptLibelle(c):(ECRITURES.find(e=>e.compte_numero===n)?.compte_intitule||'compte hors plan');
+    return `<option value="${esc(n)}" ${n===cur?'selected':''}>${esc(n)} - ${esc(lib)}</option>`;}).join('');
 }
+function glPieceEquilibre(piece){if(!piece)return true;const L=ECRITURES.filter(e=>e.numero_piece===piece);const d=L.reduce((s,e)=>s+(+e.debit||0),0),c=L.reduce((s,e)=>s+(+e.credit||0),0);return Math.abs(d-c)<1;}
 function renderGrandLivre(){
   const compte=document.getElementById('cptGLCompte')?.value;
-  const tb=document.getElementById('grandLivreTable');if(!tb)return;
-  if(!compte){tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--g400);padding:18px">Sélectionnez un compte.</td></tr>';return;}
-  const mvts=ECRITURES.filter(e=>e.compte_numero===compte).sort((a,b)=>(a.date_ecriture||'').localeCompare(b.date_ecriture||''));
-  let solde=0;
-  tb.innerHTML=mvts.map(e=>{
-    solde+=(e.debit||0)-(e.credit||0);
+  const tb=document.getElementById('grandLivreTable');if(!tb)return;const res=document.getElementById('glResume');
+  if(!compte){tb.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--g400);padding:18px">Sélectionnez un compte.</td></tr>';if(res)res.textContent='';return;}
+  const mvts=ECRITURES.filter(e=>e.compte_numero===compte).sort((a,b)=>(a.date_ecriture||'').localeCompare(b.date_ecriture||'')||String(a.numero_piece||'').localeCompare(String(b.numero_piece||'')));
+  let solde=0,td=0,tc=0;
+  tb.innerHTML=mvts.map(e=>{const d=+e.debit||0,c=+e.credit||0;solde+=d-c;td+=d;tc+=c;const ok=glPieceEquilibre(e.numero_piece);
     return `<tr>
       <td style="font-size:11px">${e.date_ecriture||'—'}</td>
       <td><span class="badge badge-blue">${esc(e.journal_code||'OD')}</span></td>
-      <td style="font-size:11px">${esc(e.numero_piece||'—')}</td>
-      <td style="font-size:11px">${esc(e.libelle||'—')}</td>
-      <td style="text-align:right">${e.debit?e.debit.toLocaleString('fr'):'—'}</td>
-      <td style="text-align:right">${e.credit?e.credit.toLocaleString('fr'):'—'}</td>
+      <td style="font-size:11px">${esc(e.numero_piece||'—')}${ok?'':' <span title="Pièce déséquilibrée : le total des débits diffère du total des crédits" style="color:var(--red)">⚠</span>'}</td>
+      <td style="font-size:11px">${esc(e.tiers||'—')}</td>
+      <td style="font-size:11px">${esc(e.libelle||'—')}${e.designation?`<div class="cell-sub">${esc(e.designation)}</div>`:''}</td>
+      <td style="text-align:right">${d?d.toLocaleString('fr'):'—'}</td>
+      <td style="text-align:right">${c?c.toLocaleString('fr'):'—'}</td>
       <td style="text-align:right;font-weight:700;color:${solde>=0?'var(--navy)':'var(--red)'}">${solde.toLocaleString('fr')}</td>
-    </tr>`;
-  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--g400);padding:14px">Aucun mouvement.</td></tr>';
+      <td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="glEditer('${e.id}')" title="Modifier la ligne" aria-label="Modifier">✏️</button> <button class="btn btn-outline btn-sm" onclick="glSupprimer('${e.id}')" title="Supprimer la ligne" aria-label="Supprimer">🗑</button></td>
+    </tr>`;}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--g400);padding:14px">Aucun mouvement.</td></tr>';
+  if(mvts.length)tb.innerHTML+=`<tr style="font-weight:700;background:var(--g50,#F6F8FB)"><td colspan="5" style="text-align:right">Totaux du compte</td><td style="text-align:right">${td.toLocaleString('fr')}</td><td style="text-align:right">${tc.toLocaleString('fr')}</td><td style="text-align:right;color:${solde>=0?'var(--navy)':'var(--red)'}">${solde.toLocaleString('fr')}</td><td></td></tr>`;
+  if(res)res.textContent=mvts.length?`${mvts.length} ligne(s) · solde ${solde>=0?'débiteur':'créditeur'} de ${Math.abs(solde).toLocaleString('fr')} F`:'';
 }
+// Modification complète d’une ligne d’écriture (ou ajout d’une ligne sur le compte affiché)
+function glEditer(id){
+  const e=id?ECRITURES.find(x=>x.id===id):null,compte=e?e.compte_numero:document.getElementById('cptGLCompte')?.value;
+  if(!e&&!compte){toast('Sélectionnez d’abord un compte');return;}
+  const comptes=COMPTES.filter(c=>cptSaisissable(c)||c.numero===compte),v=k=>esc(e?(e[k]??''):'');
+  const nbPiece=e&&e.numero_piece?ECRITURES.filter(x=>x.numero_piece===e.numero_piece).length:0;
+  document.getElementById('modalBox').style.width='min(720px,96vw)';
+  document.getElementById('modalTitle').textContent=e?'✏️ Modifier la ligne d’écriture':'+ Nouvelle ligne sur le compte '+compte;
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field"><label for="glDate">Date *</label><input type="date" id="glDate" value="${e?esc(String(e.date_ecriture||'').slice(0,10)):isoJour()}"></div>
+    <div class="form-field"><label for="glJrn">Journal *</label><select id="glJrn">${(JOURNAUX.length?JOURNAUX:[{code:'OD',libelle:'Opérations diverses'}]).map(j=>`<option value="${esc(j.code)}" ${(e?e.journal_code:'OD')===j.code?'selected':''}>${esc(j.code)} - ${esc(j.libelle||'')}</option>`).join('')}</select></div>
+    <div class="form-field"><label for="glPiece">N° de pièce *</label><input id="glPiece" value="${v('numero_piece')}"></div>
+    <div class="form-field"><label for="glCpt">Compte *</label><select id="glCpt">${comptes.map(c=>`<option value="${esc(c.numero)}" ${c.numero===compte?'selected':''}>${esc(c.numero)} - ${esc(cptLibelle(c))}</option>`).join('')}${COMPTES.some(c=>c.numero===compte)?'':`<option value="${esc(compte)}" selected>${esc(compte)} - ${esc(e?.compte_intitule||'hors plan')}</option>`}</select></div>
+    <div class="form-field"><label for="glTiers">Tiers</label><input id="glTiers" value="${v('tiers')}"></div>
+    <div class="form-field"><label for="glDesi">Désignation</label><input id="glDesi" value="${v('designation')}"></div>
+    <div class="form-field full"><label for="glLib">Libellé *</label><input id="glLib" value="${v('libelle')}"></div>
+    <div class="form-field"><label for="glD">Débit (F)</label><input type="number" min="0" step="1" id="glD" value="${e&&+e.debit?+e.debit:''}"></div>
+    <div class="form-field"><label for="glC">Crédit (F)</label><input type="number" min="0" step="1" id="glC" value="${e&&+e.credit?+e.credit:''}"></div>
+    ${nbPiece>1?`<div class="form-field full"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="glToute"> Appliquer la date, le journal et le n° de pièce aux ${nbPiece} lignes de la pièce ${esc(e.numero_piece)}</label></div>`:''}
+  </div><p class="cell-sub">Une ligne porte soit un débit, soit un crédit. Après l’enregistrement, l’ERP vérifie que la pièce reste équilibrée.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="glSauver(${e?`'${e.id}'`:'null'})">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function glSauver(id){
+  const e=id?ECRITURES.find(x=>x.id===id):null,d=numIn(gv('glD')),c=numIn(gv('glC')),cpt=gv('glCpt'),piece=g('glPiece'),lib=g('glLib'),date=gv('glDate');
+  if(!date||!piece||!cpt||!lib){toast('❌ Date, n° de pièce, compte et libellé requis');return;}
+  if(d<0||c<0){toast('❌ Montants négatifs interdits');return;}
+  if((d>0)===(c>0)){toast('❌ Saisissez soit un débit, soit un crédit');return;}
+  const c0=COMPTES.find(x=>x.numero===cpt);
+  const p={date_ecriture:date,journal_code:gv('glJrn')||'OD',numero_piece:piece,compte_numero:cpt,compte_intitule:c0?cptLibelle(c0):(e?.compte_intitule||''),tiers:g('glTiers')||null,designation:g('glDesi')||null,libelle:lib,debit:d,credit:c};
+  let r;if(e)r=await sb.from('compta_ecritures').update(p).eq('id',id);else r=await sb.from('compta_ecritures').insert({...p,source_module:'manuel',created_by:typeof uid==='function'?uid():null});
+  if(r.error){toast('❌ '+r.error.message);return;}
+  if(e&&document.getElementById('glToute')?.checked&&e.numero_piece){const r2=await sb.from('compta_ecritures').update({date_ecriture:date,journal_code:p.journal_code,numero_piece:piece}).eq('numero_piece',e.numero_piece);if(r2.error){toast('❌ '+r2.error.message);return;}}
+  try{logAudit(e?'modification':'creation','compta_ecritures',id||piece,e?{avant:{date:e.date_ecriture,piece:e.numero_piece,compte:e.compte_numero,debit:e.debit,credit:e.credit,libelle:e.libelle},apres:p}:p);}catch(x){}
+  closeModal();const sel=document.getElementById('cptGLCompte');await loadComptabilite();
+  if(sel){fillGLCompteSelect();sel.value=cpt;}renderGrandLivre();
+  toast(glPieceEquilibre(piece)?'✅ Écriture enregistrée — pièce équilibrée':'⚠ Écriture enregistrée, mais la pièce '+piece+' est déséquilibrée : complétez la contrepartie',6000);
+}
+async function glSupprimer(id){const e=ECRITURES.find(x=>x.id===id);if(!e)return;
+  if(!confirm(`Supprimer la ligne ${e.numero_piece||''} « ${e.libelle||''} » (${(+e.debit||+e.credit||0).toLocaleString('fr')} F) ?\nLa pièce risque d’être déséquilibrée si vous ne corrigez pas sa contrepartie.`))return;
+  const{error}=await sb.from('compta_ecritures').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('suppression','compta_ecritures',id,{piece:e.numero_piece,compte:e.compte_numero,debit:e.debit,credit:e.credit,libelle:e.libelle});}catch(x){}
+  const cpt=document.getElementById('cptGLCompte')?.value;await loadComptabilite();fillGLCompteSelect();const sel=document.getElementById('cptGLCompte');if(sel&&cpt)sel.value=cpt;renderGrandLivre();toast('Ligne supprimée');}
 
 // ── Balance ──
 function renderBalance(){
@@ -5251,17 +5297,36 @@ function renderBalance(){
 }
 
 // ── Plan comptable ──
+const CPT_CLASSES={1:'Ressources durables',2:'Actif immobilisé',3:'Stocks',4:'Tiers',5:'Trésorerie',6:'Charges des activités ordinaires',7:'Produits des activités ordinaires',8:'Autres charges et produits (HAO)',9:'Engagements hors bilan et analytique'};
+var CPT_FILTRE={q:'',classe:'',vue:'tout'};
+// Intitulé complet pour les sous-comptes qui complètent l’intitulé de leur parent (ex. 6011 « Dans la Région »)
+function cptLibelle(c){if(!c)return'';const lib=c.intitule||'';
+  if(String(c.numero).length===4&&/^(Dans la Région|Hors Région|Aux entités|Sur internet|En monnaie|En devises|Frais sur achat|Rabais, remises)/i.test(lib)){
+    const par=COMPTES.find(x=>x.numero===String(c.numero).slice(0,3));if(par)return par.intitule+' — '+lib.charAt(0).toLowerCase()+lib.slice(1);}
+  return lib;}
+function cptSaisissable(c){return c&&c.imputable!==false&&String(c.numero).length>=3;}
 function renderPlan(){
   const tb=document.getElementById('planTable');if(!tb)return;
-  if(!COMPTES.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:18px">Aucun compte. Exécutez le SQL module-comptabilite.</td></tr>';return;}
-  const classeLabels={1:'Capitaux',2:'Immobilisations',3:'Stocks',4:'Tiers',5:'Trésorerie',6:'Charges',7:'Produits',8:'Autres'};
-  tb.innerHTML=COMPTES.map(c=>`<tr>
-    <td><code style="font-size:11px;background:var(--g100);padding:2px 6px;border-radius:3px;font-weight:700">${esc(c.numero)}</code></td>
-    <td>${editCell('compta_comptes',c.id,'intitule',c.intitule)}</td>
-    <td><span class="chip">${c.classe} - ${classeLabels[c.classe]||''}</span></td>
-    <td><span class="badge ${esc(c.type==='client'?'badge-blue':c.type==='fournisseur'?'badge-amber':c.type==='tresorerie'?'badge-green':'badge-gray')}">${esc(c.type)}</span></td>
-    <td><button class="btn btn-outline btn-sm" onclick="delGeneric('compta_comptes','${c.id}',loadComptabilite,'ce compte')">🗑</button></td>
-  </tr>`).join('');
+  if(!COMPTES.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:18px">Aucun compte. Exécutez « migration-plan-comptable-syscohada-revise.sql » dans le SQL Editor.</td></tr>';return;}
+  const outils=document.getElementById('planOutils');
+  if(outils&&!outils.dataset.ok){outils.dataset.ok=1;outils.innerHTML=`<input id="planQ" placeholder="🔍 Numéro ou intitulé (ex. 6324, caisse, TVA)" style="flex:1;min-width:220px" oninput="CPT_FILTRE.q=this.value;renderPlan()">
+    <select id="planCl" onchange="CPT_FILTRE.classe=this.value;renderPlan()"><option value="">Toutes les classes</option>${Object.entries(CPT_CLASSES).map(([k,v])=>`<option value="${k}">Classe ${k} — ${v}</option>`).join('')}</select>
+    <select id="planVue" onchange="CPT_FILTRE.vue=this.value;renderPlan()"><option value="tout">Tous les comptes</option><option value="saisie">Comptes de saisie uniquement</option><option value="hors">Comptes hors plan</option></select>`;}
+  const q=(CPT_FILTRE.q||'').trim().toLowerCase(),nrm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const L=COMPTES.filter(c=>(!CPT_FILTRE.classe||String(c.classe)===CPT_FILTRE.classe)&&(CPT_FILTRE.vue!=='saisie'||cptSaisissable(c))&&(CPT_FILTRE.vue!=='hors'||c.officiel===false)
+    &&(!q||String(c.numero).startsWith(q)||nrm(cptLibelle(c)).includes(nrm(q))));
+  const nOff=COMPTES.filter(c=>c.officiel).length,nHors=COMPTES.filter(c=>c.officiel===false).length,info=document.getElementById('planInfo');
+  if(info)info.textContent=`${L.length} affiché(s) sur ${COMPTES.length} · ${nOff} comptes du SYSCOHADA révisé (AUDCIF 2017)${nHors?` · ${nHors} hors plan`:''}`;
+  const MAX=400,V=L.slice(0,MAX);
+  tb.innerHTML=V.map(c=>{const n=String(c.numero).length,niv=Math.min(n,5),gras=n<=2;
+    return `<tr style="${n===1?'background:var(--navy-ultra,#EEF3FB)':''}">
+    <td style="padding-left:${6+(niv-1)*12}px"><code style="font-size:11px;background:var(--g100);padding:2px 6px;border-radius:3px;font-weight:700">${esc(c.numero)}</code></td>
+    <td style="${gras?'font-weight:700;text-transform:none':''}">${c.officiel?esc(c.intitule)+(cptLibelle(c)!==c.intitule?`<div class="cell-sub">${esc(cptLibelle(c))}</div>`:''):editCell('compta_comptes',c.id,'intitule',c.intitule)}</td>
+    <td><span class="chip">${c.classe} - ${CPT_CLASSES[c.classe]||''}</span></td>
+    <td>${c.officiel===false?'<span class="badge badge-amber" title="Compte créé par l’entité, rattaché au compte officiel '+esc(c.parent||'')+'">hors plan</span> ':''}${cptSaisissable(c)?'':'<span class="badge badge-gray">regroupement</span> '}<span class="badge ${c.type==='client'?'badge-blue':c.type==='fournisseur'?'badge-amber':c.type==='tresorerie'?'badge-green':'badge-gray'}">${esc(c.type||'')}</span></td>
+    <td>${c.officiel?'<span class="cell-sub">officiel</span>':`<button class="btn btn-outline btn-sm" onclick="delGeneric('compta_comptes','${c.id}',loadComptabilite,'ce compte')">🗑</button>`}</td>
+  </tr>`;}).join('')+(L.length>MAX?`<tr><td colspan="5" class="cell-sub" style="text-align:center;padding:12px">${L.length-MAX} compte(s) de plus : affinez la recherche ou choisissez une classe.</td></tr>`:'')
+    ||'<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:18px">Aucun compte ne correspond.</td></tr>';
 }
 
 // ── Formulaire d'écriture (partie double) ──
@@ -5312,7 +5377,8 @@ function fillComptesSelects(){
   if(jsel&&!jsel.options.length)jsel.innerHTML=JOURNAUX.map(j=>`<option value="${esc(j.code)}">${esc(j.code)} - ${esc(j.libelle)}</option>`).join('');
   // Remplit les comptes de chaque ligne
   document.querySelectorAll('.ecr-compte-sel').forEach((sel,i)=>{
-    sel.innerHTML='<option value="">— Compte —</option>'+COMPTES.map(c=>`<option value="${esc(c.numero)}" ${esc(ECR_LIGNES[i]?.compte===c.numero?'selected':'')}>${esc(c.numero)} - ${esc(c.intitule)}</option>`).join('');
+    const cur=ECR_LIGNES[i]?.compte,grp={};COMPTES.filter(c=>cptSaisissable(c)||c.numero===cur).forEach(c=>{(grp[c.classe]=grp[c.classe]||[]).push(c);});
+    sel.innerHTML='<option value="">— Compte —</option>'+Object.keys(grp).sort().map(k=>`<optgroup label="Classe ${k} — ${CPT_CLASSES[k]||''}">${grp[k].map(c=>`<option value="${esc(c.numero)}" ${cur===c.numero?'selected':''}>${esc(c.numero)} - ${esc(cptLibelle(c))}</option>`).join('')}</optgroup>`).join('');
   });
 }
 function ecrCalc(){
@@ -5350,66 +5416,18 @@ async function sauverEcriture(){
 async function sauverCompte(){
   const num=g('cmpNum');const lib=g('cmpLib');
   if(!num||!lib){toast('❌ Numéro et intitulé requis');return;}
+  if(!/^[1-9][0-9]{1,11}$/.test(num)){toast('❌ Numéro invalide : chiffres uniquement, commençant par la classe');return;}
+  if(COMPTES.some(c=>c.numero===num)){toast('❌ Ce compte existe déjà');return;}
+  const parent=COMPTES.filter(c=>c.officiel&&num.startsWith(c.numero)&&c.numero!==num).sort((a,b)=>b.numero.length-a.numero.length)[0];
+  if(!parent&&!confirm('Ce numéro ne prolonge aucun compte du plan SYSCOHADA révisé. Le créer quand même ?'))return;
   const{error}=await sb.from('compta_comptes').insert({
-    numero:num,intitule:lib,classe:parseInt(gv('cmpClasse'))||6,type:gv('cmpType')||'general'
+    numero:num,intitule:lib,classe:parseInt(num[0])||parseInt(gv('cmpClasse'))||6,type:gv('cmpType')||'general',niveau:num.length,parent:parent?parent.numero:null,officiel:false,imputable:true,referentiel:'Hors plan (compte de l’entité)'
   });
+  if(error&&/column .* does not exist|schema cache/i.test(error.message)){const r=await sb.from('compta_comptes').insert({numero:num,intitule:lib,classe:parseInt(num[0])||6,type:gv('cmpType')||'general'});if(r.error){toast('❌ '+r.error.message);return;}toast('✅ Compte créé');closeModal();loadComptabilite();return;}
   if(error)toast('❌ '+error.message);else{toast('✅ Compte créé');closeModal();loadComptabilite();}
 }
 
-// ── Génération automatique des écritures depuis les ventes ──
-async function genEcrituresAuto(){
-  if(!confirm('Générer les écritures comptables à partir des factures payées, opérations cyber et bons de commande ?\n\nLes écritures déjà générées ne seront pas dupliquées.'))return;
-  try{
-    // Récupère les sources déjà comptabilisées
-    const{data:dejaFait}=await sb.from('compta_ecritures').select('source_id,source_module').neq('source_module','manuel');
-    const faitSet=new Set((dejaFait||[]).map(e=>e.source_module+':'+e.source_id));
-    let count=0;
-    // 1. FACTURES payées → 411 Clients (débit) / 701 Ventes + 443 TVA (crédit)
-    const{data:facs}=await sb.from('factures').select('*').eq('statut','payee');
-    for(const f of (facs||[])){
-      if(faitSet.has('facture:'+f.id))continue;
-      const ht=f.sous_total||0,tva=f.tva_montant||0,ttc=f.total_ttc||0;
-      const piece=f.reference||'FAC';
-      const tiersF=f.client_nom||'';
-      const lib='Vente'+(tiersF?' - '+tiersF:'')+(f.titre?' ('+f.titre+')':'');
-      await sb.from('compta_ecritures').insert({numero_piece:piece,date_ecriture:(f.created_at||'').slice(0,10),journal_code:'VT',compte_numero:'521000',compte_intitule:'Banque',libelle:lib,tiers:tiersF,designation:f.titre||'',debit:ttc,credit:0,source_module:'facture',source_id:f.id,created_by:uid()});
-      await sb.from('compta_ecritures').insert({numero_piece:piece,date_ecriture:(f.created_at||'').slice(0,10),journal_code:'VT',compte_numero:'706000',compte_intitule:'Services vendus (prestations)',libelle:lib,tiers:tiersF,designation:f.titre||'',debit:0,credit:ht,source_module:'facture',source_id:f.id,created_by:uid()});
-      if(tva>0)await sb.from('compta_ecritures').insert({numero_piece:piece,date_ecriture:(f.created_at||'').slice(0,10),journal_code:'VT',compte_numero:'443000',compte_intitule:'État - TVA facturée',libelle:lib,tiers:tiersF,designation:f.titre||'',debit:0,credit:tva,source_module:'facture',source_id:f.id,created_by:uid()});
-      count++;
-    }
-    // 2. CYBER → caisse/MM (débit) / 707 Ventes Cyber (crédit)
-    const{data:cyber}=await sb.from('cyber_operations').select('*');
-    for(const o of (cyber||[])){
-      if(faitSet.has('cyber:'+o.id))continue;
-      const montant=o.prix_total||0;if(montant<=0)continue;
-      const compteTreso=(o.type_paiement==='wave'||o.type_paiement==='orange_money'||o.type_paiement==='mtn')?'571000':'531000';
-      const intituleTreso=compteTreso==='571000'?'Caisse Mobile Money (Wave/OM/MTN)':'Caisse';
-      const piece=o.reference||'CYB';
-      const designCyber=o.details||o.type_service||'';
-      const lib='Cyber - '+designCyber;
-      await sb.from('compta_ecritures').insert({numero_piece:piece,date_ecriture:(o.created_at||'').slice(0,10),journal_code:o.type_paiement==='espece'?'CA':'MM',compte_numero:compteTreso,compte_intitule:intituleTreso,libelle:lib,tiers:'Client cyber',designation:designCyber,debit:montant,credit:0,source_module:'cyber',source_id:o.id,created_by:uid()});
-      await sb.from('compta_ecritures').insert({numero_piece:piece,date_ecriture:(o.created_at||'').slice(0,10),journal_code:o.type_paiement==='espece'?'CA':'MM',compte_numero:'707000',compte_intitule:'Ventes Cyber Café',libelle:lib,tiers:'Client cyber',designation:designCyber,debit:0,credit:montant,source_module:'cyber',source_id:o.id,created_by:uid()});
-      count++;
-    }
-    // 3. BONS DE COMMANDE → 601 Achats (débit) / 401 Fournisseurs (crédit)
-    const{data:bc}=await sb.from('bons_commande').select('*');
-    for(const b of (bc||[])){
-      if(faitSet.has('achat:'+b.id))continue;
-      const ht=b.montant_ht||0;if(ht<=0)continue;
-      const piece=b.reference||'BC';
-      const tiers=b.fournisseur_nom||'';
-      // Désignation = objet du BC ou liste des articles
-      let designation=b.titre||'';
-      if(!designation&&Array.isArray(b.lignes)&&b.lignes.length)designation=b.lignes.map(l=>l.designation).filter(Boolean).slice(0,3).join(', ');
-      const lib='Achat'+(tiers?' - '+tiers:'')+(designation?' ('+designation+')':'');
-      await sb.from('compta_ecritures').insert({numero_piece:piece,date_ecriture:(b.created_at||'').slice(0,10),journal_code:'AC',compte_numero:'601000',compte_intitule:'Achats de marchandises',libelle:lib,tiers:tiers,designation:designation,debit:ht,credit:0,source_module:'achat',source_id:b.id,created_by:uid()});
-      await sb.from('compta_ecritures').insert({numero_piece:piece,date_ecriture:(b.created_at||'').slice(0,10),journal_code:'AC',compte_numero:'401000',compte_intitule:'Fournisseurs',libelle:lib,tiers:tiers,designation:designation,debit:0,credit:ht,source_module:'achat',source_id:b.id,created_by:uid()});
-      count++;
-    }
-    toast(count>0?'✅ '+count+' opération(s) comptabilisée(s)':'ℹ️ Tout est déjà à jour');
-    loadComptabilite();
-  }catch(e){toast('❌ '+e.message);console.error(e);}
-}
+// La génération automatique des écritures a été retirée : les écritures sont saisies et contrôlées par le comptable.
 
 // ═══════════════════════════════════════════════════════════
 // ═══ ESPACE PARTAGÉ (type SharePoint) ═══
@@ -11896,7 +11914,7 @@ async function loadFinance(){
         <button class="btn btn-outline btn-sm" onclick="dupliquerDoc('facture','${f.id}')" title="Dupliquer" aria-label="Dupliquer">⧉</button>
         ${!av&&f.statut!=='annulee'&&f.statut!=='brouillon'?`<button class="btn btn-outline btn-sm" onclick="creerAvoir('${f.id}')" title="Émettre un avoir (annule la facture)">Avoir</button>`:''}
         <button class="btn btn-outline btn-sm" onclick="openDocs('factures','${f.id}','${jsq('Facture '+(f.reference||''))}')" title="Pièces jointes" aria-label="Pièces jointes">📎</button>
-        ${f.statut==='brouillon'?`<button class="btn btn-outline btn-sm" onclick="delFac('${f.id}')" title="Supprimer le brouillon" aria-label="Supprimer">🗑</button>`:(f.statut!=='annulee'?`<button class="btn btn-outline btn-sm" onclick="annulerFacture('${f.id}','${jsq(f.reference||'')}')" title="Annuler la facture" aria-label="Annuler">⊘</button>`:'')}
+        ${f.statut!=='brouillon'&&f.statut!=='annulee'?`<button class="btn btn-outline btn-sm" onclick="annulerFacture('${f.id}','${jsq(f.reference||'')}')" title="Annuler la facture" aria-label="Annuler">⊘</button>`:''}<button class="btn btn-outline btn-sm fac-suppr" data-fac="${f.id}" onclick="facSupprimer('${f.id}')" title="Supprimer la facture (validation requise)" aria-label="Supprimer">🗑</button>
       </div></td></tr>`;}).join('')
       :'<tr><td colspan="7" class="empty-cell">Aucune facture pour l\u2019instant. <button class="btn btn-primary btn-sm" onclick="openModal(\'facture\')">Créer une facture</button></td></tr>';
   }
@@ -19213,6 +19231,65 @@ async function simFormSuppr(r){if(!confirm('Retirer cette formation ? Les accès
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
 
 </script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// SUPPRESSION DES FACTURES SOUMISE À VALIDATION (super administrateur)
+// ══════════════════════════════════════════════════════════════════════
+function facValideur(){return CP&&CP.role==='superadmin';}
+async function facLiens(f){
+  const[pa,av,ec]=await Promise.all([sb.from('paiements').select('id,montant').eq('facture_id',f.id).then(r=>r.data||[],()=>[]),
+    sb.from('avoirs').select('id,reference').eq('facture_id',f.id).then(r=>r.data||[],()=>[]),
+    sb.from('compta_ecritures').select('id').eq('source_id',f.id).then(r=>r.data||[],()=>[])]);
+  return{pa,av,ec};}
+async function facSupprimer(id){
+  const{data:f,error}=await sb.from('factures').select('*').eq('id',id).maybeSingle();if(error||!f){toast('❌ Facture introuvable');return;}
+  const{pa,av,ec}=await facLiens(f),dem=f.suppression_demande,val=facValideur();
+  const st={brouillon:'Brouillon',envoyee:'Envoyée',emise:'Émise',payee:'Payée',partielle:'Partiellement payée',annulee:'Annulée',retard:'En retard'}[f.statut]||f.statut;
+  document.getElementById('modalBox').style.width='min(600px,96vw)';
+  document.getElementById('modalTitle').textContent=(val?'🗑 Supprimer':'📨 Demander la suppression de')+' la facture '+(f.reference||'');
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="font-size:13px;line-height:1.7"><b>${esc(f.reference||'')}</b> · ${esc(f.client_nom||'—')}<br>${esc(f.titre||'')}<br>
+     Montant TTC : <b>${fmtF(f.total_ttc||0)} FCFA</b> · Statut : <b>${esc(st)}</b>
+     ${pa.length?`<br>💳 ${pa.length} paiement(s) enregistré(s) : ${fmtF(pa.reduce((s,x)=>s+numIn(x.montant),0))} FCFA`:''}${ec.length?`<br>📒 ${ec.length} ligne(s) d’écriture comptable liée(s)`:''}</div>
+   ${av.length?`<div class="card" style="border-left:4px solid var(--red);font-size:13px">⛔ Cette facture a ${av.length} avoir(s) (${av.map(a=>esc(a.reference||'')).join(', ')}). Supprimez d’abord l’avoir.</div>`:''}
+   ${f.statut!=='brouillon'?'<p class="cell-sub" style="color:#B45309">⚠ Facture émise : sa suppression crée un trou dans la numérotation. Pour une facture déjà transmise au client, l’avoir ou l’annulation est préférable pour la traçabilité fiscale.</p>':''}
+   ${dem?`<div class="card" style="font-size:13px;border-left:4px solid #D97706">Demande de <b>${esc(dem.nom||'')}</b> le ${fmtD(dem.le)} : « ${esc(dem.motif||'')} »</div>`:''}
+   <div class="form-grid"><div class="form-field full"><label for="fsMotif">Motif de la suppression *</label><textarea id="fsMotif" rows="2">${esc(dem?.motif||'')}</textarea></div>
+   ${val?`${pa.length||ec.length?`<div class="form-field full"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="fsLiens" checked> Supprimer aussi ${[pa.length?pa.length+' paiement(s)':'',ec.length?ec.length+' ligne(s) d’écriture':''].filter(Boolean).join(' et ')}</label></div>`:''}
+     <div class="form-field full"><label for="fsRef">Pour valider, retapez la référence <b>${esc(f.reference||'')}</b> *</label><input id="fsRef" autocomplete="off"></div>`
+     :'<p class="cell-sub full">Votre demande sera soumise à la validation du super administrateur.</p>'}</div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button>${val&&dem?`<button class="btn btn-outline" onclick="facRefuserSuppr('${f.id}')">Refuser la demande</button>`:''}
+   ${av.length?'':val?`<button class="btn btn-danger" style="background:var(--red);color:#fff" onclick="facValiderSuppr('${f.id}')">Valider et supprimer</button>`:`<button class="btn btn-primary" onclick="facDemanderSuppr('${f.id}')">${dem?'Mettre à jour la demande':'Envoyer la demande'}</button>`}`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function facDemanderSuppr(id){const m=g('fsMotif');if(!m){toast('❌ Indiquez le motif');return;}
+  const dem={par:CU?.id||null,nom:(typeof nomUser==='function'?nomUser(CP):'')||CP?.email||'',motif:m,le:new Date().toISOString()};
+  const{error}=await sb.from('factures').update({suppression_demande:dem}).eq('id',id);
+  if(error){toast('❌ '+(/suppression_demande/.test(error.message)?'Exécutez migration-factures-suppression.sql dans Supabase':error.message),7000);return;}
+  try{logAudit('demande_suppression','factures',id,dem);}catch(x){}closeModal();toast('📨 Demande envoyée : le super administrateur doit la valider',5000);loadFinance();}
+async function facRefuserSuppr(id){if(!facValideur())return;const{error}=await sb.from('factures').update({suppression_demande:null}).eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('refus_suppression','factures',id,{motif_refus:g('fsMotif')});}catch(x){}closeModal();toast('Demande refusée : la facture est conservée');loadFinance();}
+async function facValiderSuppr(id){
+  if(!facValideur()){toast('🔒 Réservé au super administrateur');return;}
+  const{data:f}=await sb.from('factures').select('*').eq('id',id).maybeSingle();if(!f){toast('❌ Facture introuvable');return;}
+  const motif=g('fsMotif');if(!motif){toast('❌ Indiquez le motif');return;}
+  if(g('fsRef').toUpperCase()!==String(f.reference||'').toUpperCase()){toast('❌ La référence saisie ne correspond pas');return;}
+  const{pa,av,ec}=await facLiens(f);if(av.length){toast('❌ Supprimez d’abord l’avoir lié');return;}
+  if(document.getElementById('fsLiens')?.checked){
+    if(pa.length){const r=await sb.from('paiements').delete().eq('facture_id',id);if(r.error){toast('❌ Paiements : '+r.error.message);return;}}
+    if(ec.length){const r=await sb.from('compta_ecritures').delete().eq('source_id',id);if(r.error){toast('❌ Écritures : '+r.error.message);return;}}}
+  const{error}=await sb.from('factures').delete().eq('id',id);if(error){toast('❌ '+error.message,7000);return;}
+  try{logAudit('suppression','factures',id,{reference:f.reference,client:f.client_nom,total_ttc:f.total_ttc,statut:f.statut,motif,demande:f.suppression_demande||null,paiements:pa.length,ecritures:ec.length,instantane:f});}catch(x){}
+  closeModal();toast('✅ Facture '+(f.reference||'')+' supprimée (tracée dans le journal d’audit)',5000);loadFinance();}
+// Bandeau des demandes en attente et repérage dans la liste
+async function facSupprAnnoter(){
+  const{data,error}=await sb.from('factures').select('id,reference,client_nom,total_ttc,suppression_demande').not('suppression_demande','is',null);if(error)return;
+  const L=data||[];document.querySelectorAll('.fac-suppr').forEach(b=>{const d=L.find(x=>x.id===b.dataset.fac);if(d){b.textContent='⏳';b.title='Suppression demandée par '+(d.suppression_demande?.nom||'')+' : à valider';b.style.borderColor='#D97706';}});
+  const tb=document.getElementById('facturesTable');if(!tb)return;const tbl=tb.closest('.table-wrap')||tb.closest('table');let bd=document.getElementById('facSupprBandeau');
+  if(!L.length||!facValideur()){if(bd)bd.remove();return;}
+  if(!bd){bd=document.createElement('div');bd.id='facSupprBandeau';tbl.parentNode.insertBefore(bd,tbl);}
+  bd.innerHTML=`<div class="card" style="border-left:4px solid #D97706;margin-bottom:10px;font-size:13px">⏳ <b>${L.length} demande(s) de suppression à valider</b> : ${L.map(x=>`<a href="#" onclick="facSupprimer('${x.id}');return false">${esc(x.reference||'')}</a> (${esc(x.client_nom||'')}, ${esc(x.suppression_demande?.nom||'')})`).join(' · ')}</div>`;}
+(function(){if(typeof loadFinance==='function'){const _lf=loadFinance;loadFinance=async function(){const r=await _lf.apply(this,arguments);try{await facSupprAnnoter();}catch(e){}return r;};}})();
+</script>
 </body>
 </html>
 
@@ -19410,4 +19487,5 @@ async function delStockProduit(id){
 }
 
 </script>
+
 
