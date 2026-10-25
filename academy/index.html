@@ -1101,6 +1101,27 @@ async function envoyerDemandeSimulateur(ev,code){
     <p style="margin-top:14px"><a href="#/simulateurs">← Retour aux simulateurs</a></p></div></section>`);
 }
 
+
+// ═══ Vérification d’un rapport de préparation (QR code des rapports des simulateurs) ═══
+async function pageVerifierRapport(id){
+  id=String(id||'').trim();
+  app(`<section class="sec"><div class="wrap" style="max-width:640px"><span class="kick">Vérification</span>
+    <h1 style="font-size:32px;margin:8px 0 6px">Vérifier un rapport de préparation</h1>
+    <p class="note" style="font-size:15.5px">Ce lien est celui du QR code imprimé sur les rapports des simulateurs H TECH ACADEMY.</p>
+    <div id="vrRes" aria-live="polite" style="margin-top:16px"><p class="vide">Vérification…</p></div></div></section>`);
+  const z=document.getElementById('vrRes');
+  if(!/^[0-9a-f-]{36}$/i.test(id)){z.innerHTML='<div class="panel" style="border-left:5px solid var(--red)"><h3 style="color:var(--red)">✕ Lien de vérification invalide</h3><p class="note">Scannez de nouveau le QR code du rapport.</p></div>';return;}
+  const{data:r,error}=await sb.rpc('sim_rapport_verifier',{p_id:id});
+  if(error){z.innerHTML='<div class="panel vide">Vérification momentanément indisponible. Réessayez plus tard.</div>';return;}
+  if(!r){z.innerHTML='<div class="panel" style="border-left:5px solid var(--red)"><h3 style="color:var(--red)">✕ Rapport introuvable</h3><p class="note">Ce rapport n’a pas été émis par H TECH ACADEMY ou a été supprimé.</p></div>';return;}
+  const d=new Date(r.date);
+  z.innerHTML=`<div class="panel" style="border-left:5px solid var(--green)"><h3 style="color:var(--green);margin-top:0">✓ Rapport authentique</h3>
+    <table style="width:100%;font-size:15px;border-collapse:collapse">${[['N° du rapport',r.numero],['Apprenant(e)',r.titulaire],['Simulateur',r.simulateur],['Session',(r.session||'')+(r.mode==='exam'?' (examen blanc)':' (entraînement)')],
+      ['Date',d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})],['Résultat',r.pct+' % ('+r.ok+' bonnes réponses sur '+r.nb+')']]
+      .map(([k,v])=>`<tr><td style="padding:6px 10px 6px 0;color:var(--muted);white-space:nowrap">${k}</td><td style="padding:6px 0;font-weight:700">${esc(String(v??''))}</td></tr>`).join('')}</table>
+    <p class="note" style="margin-top:10px">Les résultats sont calculés et conservés par H TECH ACADEMY : ils ne peuvent pas être modifiés par l’apprenant.</p></div>`;
+}
+
 // ═══ Routage ═══
 async function route(){
   const h=decodeURIComponent(location.hash.replace(/^#\/?/,''));
@@ -1115,6 +1136,7 @@ async function route(){
   if(p==='financement')return pageFinancement();
   if(p==='formateurs')return pageFormateurs();
   if(p==='verifier')return pageVerifier(a);
+  if(p==='verifier-rapport')return pageVerifierRapport(a);
   if(p==='besoin')return pageBesoin(a);
   if(p==='mot-de-passe')return pageMotDePasse();
   if(p==='espace'&&a==='f'&&b)return pageCours(b);
