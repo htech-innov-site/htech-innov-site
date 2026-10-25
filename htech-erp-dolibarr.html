@@ -15735,6 +15735,11 @@ async function htaSignataires(){
   try{const{data,error}=await sb.from('hta_signataires').select('*').eq('actif',true).order('ordre');if(!error&&data&&data.length){HTA_SIGN=data;return data;}}catch(e){}
   HTA_SIGN=HTA_SIGN_DEFAUT.slice();return HTA_SIGN;
 }
+var PART_LISTE=null;
+async function partenairesListe(force){if(PART_LISTE&&!force)return PART_LISTE;try{const{data}=await sb.from('site_partenaires').select('id,nom,lien,logo_data,actif,ordre').order('ordre');PART_LISTE=data||[];}catch(e){PART_LISTE=[];}return PART_LISTE;}
+function partOptions(sel){return '<option value="">— Aucun partenaire —</option>'+(PART_LISTE||[]).map(x=>`<option value="${esc(x.id)}" ${x.id===sel?'selected':''}>${esc(x.nom)}${x.logo_data?'':' (sans logo)'}</option>`).join('');}
+function partChamp(id,sel,aide){return `<div class="form-field full"><label for="${id}">🤝 Partenaire associé (facultatif)</label><select id="${id}">${partOptions(sel)}</select><div class="cell-sub">${aide||'Son logo, son nom et son site figureront sur le document. Gérez la liste dans « Partenaires et agréments ».'}</div></div>`;}
+function partLire(id){const v=gv(id),x=(PART_LISTE||[]).find(y=>y.id===v);return{partenaire_id:x?x.id:null,partenaire_nom:x?x.nom:null,partenaire_lien:x?(x.lien||null):null};}
 async function htaImageSignature(path){
   if(!path)return null;
   try{const{data:b,error}=await sb.storage.from(HTA_BUCKET).download(path);if(error||!b)return null;
@@ -15761,6 +15766,16 @@ async function htaDessiner(c){
   try{if(HTI_LOGO)doc.addImage(HTI_LOGO,'JPEG',85,17.5,23,16.6);}catch(e){}
   doc.setFont('helvetica','bold');doc.setFontSize(23);doc.setTextColor(...NAVY);doc.text('H TECH ACADEMY',113,28.5);
   espace(P('CENTRE DE FORMATION DE H TECH INNOV · ABIDJAN'),1.15,113,32.8,6.6,['helvetica','bold'],BRONZE);
+  // Partenaire associé (facultatif) : bloc en haut à droite, dans une largeur fixe de 52 mm
+  if(c._part&&(c._part.nom||c._part.logo)){const xc=254,yt=17.6,LW=52;
+    espace(P('EN PARTENARIAT AVEC'),1.1,xc,yt,5.8,['helvetica','bold'],BRONZE,'center');
+    let yy=yt+2;
+    if(c._part.logo){try{const fmt=/^data:image\/png/i.test(c._part.logo)?'PNG':'JPEG',pr=doc.getImageProperties(c._part.logo),k=Math.min(46/pr.width,14/pr.height),lw=pr.width*k,lh=pr.height*k;
+      doc.addImage(c._part.logo,fmt,xc-lw/2,yy+(14-lh)/2,lw,lh);}catch(e){}yy+=15.5;}else yy+=2;
+    doc.setFont('helvetica','bold');let fs=7.6;doc.setFontSize(fs);let L=doc.splitTextToSize(P(c._part.nom||''),LW);
+    while(L.length>2&&fs>5.6){fs-=0.4;doc.setFontSize(fs);L=doc.splitTextToSize(P(c._part.nom||''),LW);}
+    doc.setTextColor(...NAVY);L.slice(0,2).forEach((t,k)=>doc.text(t,xc,yy+1.2+k*fs*0.42,{align:'center'}));yy+=1.2+Math.min(L.length,2)*fs*0.42;
+    if(c._part.lien){doc.setFont('helvetica','normal');doc.setFontSize(6.4);doc.setTextColor(21,101,192);const site=String(c._part.lien).replace(/^https?:\/\//,'').replace(/\/$/,'');doc.text(P(site),xc,yy+0.8,{align:'center'});doc.link(xc-LW/2,yy-2,LW,3.6,{url:c._part.lien});}}
   // Titre
   espace('CERTIFICAT',1.6,W/2,53,40,['times','bold'],BRUN,'center');
   espace(P('EST DÉCERNÉ À'),2.2,W/2,62,9,['helvetica','normal'],GRIS,'center');
@@ -15816,6 +15831,8 @@ async function htaPreparerSignataires(c){
   const f=(nom,fonc,id)=>{const s=all.find(x=>x.id===id)||all.find(x=>x.nom===nom)||{nom,fonction:fonc};return{...s,nom:nom||s.nom,fonction:fonc||s.fonction};};
   c._s1=c.signataire1_nom?f(c.signataire1_nom,c.signataire1_fonction):null;c._s2=c.signataire2_nom?f(c.signataire2_nom,c.signataire2_fonction):null;
   for(const s of [c._s1,c._s2])if(s&&s.signature_path)s._img=await htaImageSignature(s.signature_path);
+  if(c.partenaire_id||c.partenaire_nom){await partenairesListe();const x=(PART_LISTE||[]).find(y=>y.id===c.partenaire_id)||(PART_LISTE||[]).find(y=>y.nom===c.partenaire_nom);
+    c._part={nom:c.partenaire_nom||x?.nom||'',lien:c.partenaire_lien||x?.lien||'',logo:x?.logo_data||null};}
   return c;
 }
 async function htaTelecharger(c){
@@ -15844,7 +15861,9 @@ async function htaCreer(c,opts){
     heures:c.heures||null,niveau:c.niveau||null,date_obtention:c.date_obtention,date_validite:c.date_validite||null,
     signataire1_nom:c.signataire1_nom||null,signataire1_fonction:c.signataire1_fonction||null,signataire2_nom:c.signataire2_nom||null,signataire2_fonction:c.signataire2_fonction||null,
     statut:'valide',created_by:uid()};
-  const{data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single();
+  if(c.partenaire_id){row.partenaire_id=c.partenaire_id;row.partenaire_nom=c.partenaire_nom||null;row.partenaire_lien=c.partenaire_lien||null;}
+  let{data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single();
+  if(error&&/partenaire_/.test(error.message)){toast('⚠ Partenaire non enregistré : exécutez migration-partenaires-certificats-rapports.sql',8000);['partenaire_id','partenaire_nom','partenaire_lien'].forEach(k=>delete row[k]);({data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single());}
   if(error)throw new Error(error.message);
   const doc=await htaDessiner(await htaPreparerSignataires({...row}));
   const blob=doc.output('blob'),chemin='certificats-hta/'+row.numero+'.pdf';
@@ -15866,7 +15885,7 @@ async function htaFormInscription(insId){
     heures:i.heures_presentiel?i.heures_presentiel+' heures':''});
 }
 async function htaForm(p){
-  p=p||{};await htaSignataires();
+  p=p||{};await htaSignataires();await partenairesListe();
   const deja=p.inscription_id?(await sb.from('hta_certificats').select('numero').eq('inscription_id',p.inscription_id).eq('statut','valide')).data||[]:[];
   const opt=(sel)=>HTA_SIGN.map(s=>`<option value="${esc(s.id)}" ${s.id===sel?'selected':''}>${esc(s.nom+' — '+(s.fonction||''))}</option>`).join('')+'<option value="">— Aucun —</option>';
   document.getElementById('modalBox').style.width='min(720px,96vw)';
@@ -15882,6 +15901,7 @@ async function htaForm(p){
       <div class="form-field"><label for="htV">Validité</label><select id="htV"><option value="3">3 ans</option><option value="2">2 ans</option><option value="1">1 an</option><option value="aucune">Sans date d’expiration</option></select></div>
       <div class="form-field"><label for="htS1">Signataire de gauche</label><select id="htS1">${opt(HTA_SIGN[0]?.id)}</select></div>
       <div class="form-field"><label for="htS2">Signataire de droite</label><select id="htS2">${opt(HTA_SIGN[1]?.id)}</select></div>
+      ${partChamp('htPart',p.partenaire_id)}
       <p class="cell-sub full" style="margin:0">Le numéro HTA est attribué à la création. Le PDF est déposé dans l’espace de l’apprenant sur H TECH ACADEMY et le certificat devient vérifiable en ligne.</p>
     </div>`;
   window._HTA_P=p;
@@ -15891,7 +15911,7 @@ async function htaForm(p){
 function htaLireForm(){
   const p=window._HTA_P||{},s1=HTA_SIGN.find(s=>s.id===gv('htS1')),s2=HTA_SIGN.find(s=>s.id===gv('htS2'));
   return{...p,titulaire:g('htT')||'',formation_titre:g('htF')||'',heures:g('htH')||'',niveau:gv('htN')||'',date_obtention:gv('htD')||isoJour(),
-    date_validite:htaValidite(gv('htD')||isoJour(),gv('htV')),signataire1_nom:s1?.nom||'',signataire1_fonction:s1?.fonction||'',signataire2_nom:s2?.nom||'',signataire2_fonction:s2?.fonction||''};
+    date_validite:htaValidite(gv('htD')||isoJour(),gv('htV')),signataire1_nom:s1?.nom||'',signataire1_fonction:s1?.fonction||'',signataire2_nom:s2?.nom||'',signataire2_fonction:s2?.fonction||'',...partLire('htPart')};
 }
 async function htaApercu(){const c=htaLireForm();c.numero='HTA-'+(c.date_obtention||'').slice(0,4)+'-APERÇU';await htaTelecharger(c);}
 async function htaValider(){
@@ -15957,7 +15977,7 @@ v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
       <button class="btn btn-primary btn-sm" onclick="htaFormInscription('${x.i.id}')">🎓 Générer</button></div>`).join('')||'<div class="cell-sub">Aucun apprenant en attente de certificat.</div>'}
   </div>
   <div class="card" style="margin-bottom:14px"><div class="card-title">Certificats délivrés (${HTA_ROWS.length})</div><div class="table-wrap"><table><thead><tr><th>N°</th><th>Titulaire</th><th>Formation</th><th>Obtention</th><th>Validité</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
-  ${HTA_ROWS.map(c=>`<tr><td><code style="font-size:10.5px">${esc(c.numero)}</code></td><td><strong>${esc(c.titulaire)}</strong></td><td style="font-size:12px">${esc(c.formation_titre)}<div class="cell-sub">${esc([c.heures,c.niveau].filter(Boolean).join(' · '))}</div></td>
+  ${HTA_ROWS.map(c=>`<tr><td><code style="font-size:10.5px">${esc(c.numero)}</code></td><td><strong>${esc(c.titulaire)}</strong></td><td style="font-size:12px">${esc(c.formation_titre)}<div class="cell-sub">${esc([c.heures,c.niveau].filter(Boolean).join(' · '))}</div>${c.partenaire_nom?`<div class="cell-sub" style="color:#1565C0">🤝 ${esc(c.partenaire_nom)}</div>`:''}</td>
     <td style="font-size:12px">${fmtD(c.date_obtention)}</td><td style="font-size:12px">${c.date_validite?fmtD(c.date_validite)+(expire(c)?' <span style="color:#D97706">(expiré)</span>':''):'Sans expiration'}</td>
     <td><select onchange="htaStatut('${c.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${(st[c.statut]||st.valide)[1]};font-weight:600">${Object.entries(st).map(([k,v])=>`<option value="${k}" ${k===c.statut?'selected':''}>${v[0]}</option>`).join('')}</select></td>
     <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="htaModifier('${c.id}')" title="Modifier le certificat">✏️</button><button class="btn btn-outline btn-sm" onclick="htaPdf('${c.id}')" title="Télécharger le PDF">📄</button><a class="btn btn-outline btn-sm" href="${esc(htaUrlVerif(c.numero))}" target="_blank" title="Vérifier en ligne">🔗</a><button class="btn btn-outline btn-sm" onclick="htaSupprimer('${c.id}')" title="Supprimer définitivement">🗑</button></div>${c.motif_statut&&c.statut!=='valide'?`<div class="cell-sub">Motif : ${esc(c.motif_statut)}</div>`:''}${c.modifie_le?`<div class="cell-sub">Modifié le ${fmtD(c.modifie_le)}</div>`:''}</td></tr>`).join('')
@@ -15983,7 +16003,7 @@ async function htaStatut(id,s){
 }
 // Modification : mêmes numéro et QR code, PDF régénéré et remplacé dans l’espace de l’apprenant
 async function htaModifier(id){
-  const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;await htaSignataires();
+  const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;await htaSignataires();await partenairesListe();
   const opt=(nom)=>{const l=HTA_SIGN.map(s=>`<option value="${esc(s.id)}" ${s.nom===nom?'selected':''}>${esc(s.nom+' — '+(s.fonction||''))}</option>`).join('');
     const connu=HTA_SIGN.some(s=>s.nom===nom);return (nom&&!connu?`<option value="__actuel" selected>${esc(nom)} (actuel)</option>`:'')+l+`<option value="" ${!nom?'selected':''}>— Aucun —</option>`;};
   window._HTA_EDIT=c;
@@ -15999,6 +16019,7 @@ async function htaModifier(id){
       <div class="form-field"><label for="heV">Valable jusqu’au (vide = sans expiration)</label><input id="heV" type="date" value="${esc(c.date_validite||'')}"></div>
       <div class="form-field"><label for="heS1">Signataire de gauche</label><select id="heS1">${opt(c.signataire1_nom)}</select></div>
       <div class="form-field"><label for="heS2">Signataire de droite</label><select id="heS2">${opt(c.signataire2_nom)}</select></div>
+      ${partChamp('hePart',c.partenaire_id)}
     </div>`;
   document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="htaModifApercu()">👁 Aperçu</button><button class="btn btn-primary" id="heGo" onclick="htaModifValider()">💾 Enregistrer et régénérer</button>`;
   document.getElementById('modalOverlay').classList.add('open');
@@ -16007,14 +16028,16 @@ function htaModifLire(){
   const c=window._HTA_EDIT,sig=(v,n,f)=>v==='__actuel'?[n,f]:v?[HTA_SIGN.find(s=>s.id===v)?.nom||'',HTA_SIGN.find(s=>s.id===v)?.fonction||'']:['',''];
   const[s1n,s1f]=sig(gv('heS1'),c.signataire1_nom,c.signataire1_fonction),[s2n,s2f]=sig(gv('heS2'),c.signataire2_nom,c.signataire2_fonction);
   return{titulaire:g('heT')||'',formation_titre:g('heF')||'',heures:g('heH')||null,niveau:gv('heN')||null,date_obtention:gv('heD')||c.date_obtention,date_validite:gv('heV')||null,
-    signataire1_nom:s1n||null,signataire1_fonction:s1f||null,signataire2_nom:s2n||null,signataire2_fonction:s2f||null};
+    signataire1_nom:s1n||null,signataire1_fonction:s1f||null,signataire2_nom:s2n||null,signataire2_fonction:s2f||null,...partLire('hePart')};
 }
 async function htaModifApercu(){await htaTelecharger({...window._HTA_EDIT,...htaModifLire()});}
 async function htaModifValider(){
   const c=window._HTA_EDIT,m=htaModifLire();if(!m.titulaire||!m.formation_titre){toast('❌ Titulaire et formation requis');return;}
   const b=document.getElementById('heGo');b.disabled=true;b.textContent='Régénération…';
   try{
-    const{error}=await sb.from('hta_certificats').update({...m,modifie_le:new Date().toISOString()}).eq('id',c.id);if(error)throw new Error(error.message);
+    let{error}=await sb.from('hta_certificats').update({...m,modifie_le:new Date().toISOString()}).eq('id',c.id);
+    if(error&&/partenaire_/.test(error.message)){toast('⚠ Partenaire non enregistré : exécutez migration-partenaires-certificats-rapports.sql',8000);const m2={...m};['partenaire_id','partenaire_nom','partenaire_lien'].forEach(k=>delete m2[k]);({error}=await sb.from('hta_certificats').update({...m2,modifie_le:new Date().toISOString()}).eq('id',c.id));}
+    if(error)throw new Error(error.message);
     const n={...c,...m},doc=await htaDessiner(await htaPreparerSignataires({...n}));
     const chemin=c.fichier_path||('certificats-hta/'+c.numero+'.pdf');
     const up=await sb.storage.from(HTA_BUCKET).upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
@@ -19123,7 +19146,8 @@ v4Def('simulateur-pmo',{titre:'Simulateurs',icone:'🎯',custom:async pg=>{
   let A,F,T,P,D,C,S;try{[A,F,T,P]=await Promise.all([q('sim_acces'),q('sim_formations'),sb.from('sim_tentatives').select('*').order('created_at',{ascending:false}).limit(500).then(r=>{if(r.error)throw r.error;return r.data||[];}),q('profiles','id,prenom,nom,email,role')]);
     [D,C,S]=await Promise.all([q0('sim_demandes','created_at'),q0('sim_codes','created_at'),q0('sim_simulateurs')]);}
   catch(e){pg.innerHTML=`<div class="card">⚠️ ${/does not exist|PGRST205|42P01|schema cache|Could not find/i.test((e.code||'')+' '+(e.message||''))?'Exécutez les fichiers « simulateur-1 » à « simulateur-6 » dans le SQL Editor du projet de l’ERP, puis rechargez la page.':esc(e.message)}</div>`;return;}
-  SIMP.P=P;SIMP.D=D;SIMP.C=C;SIMP.S=S;const pp=id=>P.find(p=>p.id===id),now=new Date(),actifs=A.filter(a=>new Date(a.debut)<=now&&new Date(a.fin)>=now);
+  SIMP.P=P;SIMP.D=D;SIMP.C=C;SIMP.S=S;await partenairesListe();
+  const partSel=(table,id,val)=>`<select onchange="simPartenaire('${table}','${id}',this.value)" style="font-size:11.5px;max-width:170px">${partOptions(val)}</select>`;const pp=id=>P.find(p=>p.id===id),now=new Date(),actifs=A.filter(a=>new Date(a.debut)<=now&&new Date(a.fin)>=now);
   const codesActifs=C.filter(c=>!c.revoque&&new Date(c.debut)<=now&&new Date(c.fin)>=now),attente=D.filter(d=>d.statut==='nouvelle'),preins=D.filter(d=>d.statut==='preinscription');
   const m0=new Date(now.getFullYear(),now.getMonth(),1),ventes=D.filter(d=>d.statut==='validee'&&new Date(d.traite_le||d.created_at)>=m0),achats=A.filter(a=>a.origine==='achat'&&new Date(a.created_at)>=m0);
   const t30=T.filter(t=>new Date(t.created_at)>=new Date(Date.now()-30*864e5)),ex=t30.filter(t=>t.mode==='exam');
@@ -19140,10 +19164,10 @@ v4Def('simulateur-pmo',{titre:'Simulateurs',icone:'🎯',custom:async pg=>{
       <td><span class="badge" style="background:${x[1]};color:${x[2]}">${x[0]}</span>${d.motif_refus?`<div class="cell-sub">${esc(d.motif_refus)}</div>`:''}</td>
       <td style="white-space:nowrap">${d.statut==='nouvelle'?`<button class="btn btn-primary btn-sm" onclick="simValider('${d.id}')">Valider et générer le code</button> <button class="btn btn-outline btn-sm" onclick="simRefuser('${d.id}')">Refuser</button>`:d.statut==='preinscription'?`<button class="btn btn-outline btn-sm" onclick="simContacter('${d.id}')">Contacter</button> <button class="btn btn-outline btn-sm" onclick="simRefuser('${d.id}')">Classer</button>`:d.code_id?`<button class="btn btn-outline btn-sm" onclick="simRenvoyer('${d.code_id}')">Renvoyer le code</button>`:''}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucune demande.</td></tr>'}</tbody></table></div></div>`;}
   else if(SIMP.onglet==='codes'){
-    corps=`<div class="card"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Titulaire</th><th>Simulateur</th><th>Validité</th><th>État</th><th>Sessions</th><th></th></tr></thead><tbody>
+    corps=`<div class="card"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Titulaire</th><th>Simulateur</th><th>Validité</th><th>État</th><th>Sessions</th><th>Partenaire du rapport</th><th></th></tr></thead><tbody>
      ${C.map(c=>{const act=!c.revoque&&new Date(c.debut)<=now&&new Date(c.fin)>=now,n=T.filter(t=>t.code_id===c.id).length;return `<tr><td><code>${esc(c.code)}</code></td><td><b>${esc((c.prenom||'')+' '+(c.nom||''))}</b><div class="cell-sub">${esc(c.email||'')} · ${esc(c.telephone||'')}</div></td><td>${esc(nomSim(c.simulateur))}</td>
-      <td style="font-size:12px">${fmtD(c.debut)} → ${fmtD(c.fin)}</td><td>${c.revoque?'<span class="badge">révoqué</span>':act?`<span class="badge badge-green">actif · ${simJ(c.fin)} j</span>`:'<span class="badge">expiré</span>'}</td><td>${n}</td>
-      <td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="simRenvoyer('${c.id}')">Renvoyer</button> <button class="btn btn-outline btn-sm" onclick="simProlonger('${c.id}')">+30 jours</button>${c.revoque?'':` <button class="btn btn-outline btn-sm" onclick="simRevoquer('${c.id}')">Révoquer</button>`}</td></tr>`;}).join('')||'<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--g400)">Aucun code généré.</td></tr>'}</tbody></table></div></div>`;}
+      <td style="font-size:12px">${fmtD(c.debut)} → ${fmtD(c.fin)}</td><td>${c.revoque?'<span class="badge">révoqué</span>':act?`<span class="badge badge-green">actif · ${simJ(c.fin)} j</span>`:'<span class="badge">expiré</span>'}</td><td>${n}</td><td>${partSel('sim_codes',c.id,c.partenaire_id)}</td>
+      <td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="simRenvoyer('${c.id}')">Renvoyer</button> <button class="btn btn-outline btn-sm" onclick="simProlonger('${c.id}')">+30 jours</button>${c.revoque?'':` <button class="btn btn-outline btn-sm" onclick="simRevoquer('${c.id}')">Révoquer</button>`}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucun code généré.</td></tr>'}</tbody></table></div></div>`;}
   else if(SIMP.onglet==='catalogue'){
     corps=`<div class="card"><p class="cell-sub" style="margin-top:0">Ce catalogue alimente l’onglet « Simulateurs » du site de l’Academy. Passez un simulateur en « Disponible » quand sa banque de questions est chargée.</p>
      ${S.map(x=>`<div style="border:1px solid var(--g100);border-radius:10px;padding:12px;margin-bottom:10px"><div class="form-grid">
@@ -19167,9 +19191,9 @@ v4Def('simulateur-pmo',{titre:'Simulateurs',icone:'🎯',custom:async pg=>{
      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="sfRef" placeholder="Référence (ex. PMO-01)" style="min-width:180px"><input id="sfJ" type="number" value="90" min="1" style="width:110px" title="jours"><button class="btn btn-primary btn-sm" onclick="simFormAjout()">Ajouter</button></div></div>`;}
   else{const L=[...A].sort((x,y)=>String(y.fin).localeCompare(String(x.fin)));
     corps=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 class="v4-h3">Accès des apprenants (comptes)</h3><button class="btn btn-primary btn-sm" onclick="simAccorder()">+ Ouvrir un accès à un apprenant</button></div>
-     <div class="table-wrap"><table><thead><tr><th>Apprenant</th><th>Origine</th><th>Début</th><th>Fin</th><th>État</th><th>Référence</th></tr></thead><tbody>
+     <div class="table-wrap"><table><thead><tr><th>Apprenant</th><th>Origine</th><th>Début</th><th>Fin</th><th>État</th><th>Référence</th><th>Partenaire du rapport</th></tr></thead><tbody>
      ${L.map(a=>{const j=simJ(a.fin),act=new Date(a.debut)<=now&&new Date(a.fin)>=now;return `<tr><td><b>${esc(simNom(pp(a.user_id)))}</b><div class="cell-sub">${esc(pp(a.user_id)?.email||'')}</div></td><td>${{formation:'Formation',achat:'Achat',offert:'Offert'}[a.origine]||a.origine}${a.montant?`<div class="cell-sub">${fmtF(a.montant)} FCFA</div>`:''}</td>
-      <td style="font-size:12px">${fmtD(a.debut)}</td><td style="font-size:12px">${fmtD(a.fin)}</td><td>${act?`<span class="badge badge-green">actif · ${j} j</span>`:new Date(a.debut)>now?'<span class="badge">à venir</span>':'<span class="badge">expiré</span>'}</td><td style="font-size:12px">${esc(a.reference||'')}</td></tr>`;}).join('')||'<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--g400)">Aucun accès.</td></tr>'}</tbody></table></div></div>`;}
+      <td style="font-size:12px">${fmtD(a.debut)}</td><td style="font-size:12px">${fmtD(a.fin)}</td><td>${act?`<span class="badge badge-green">actif · ${j} j</span>`:new Date(a.debut)>now?'<span class="badge">à venir</span>':'<span class="badge">expiré</span>'}</td><td style="font-size:12px">${esc(a.reference||'')}</td><td>${partSel('sim_acces',a.id,a.partenaire_id)}</td></tr>`;}).join('')||'<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--g400)">Aucun accès.</td></tr>'}</tbody></table></div></div>`;}
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🎯 Simulateurs H TECH ACADEMY</h1><div class="page-sub">Demandes, codes d’accès, apprenants, résultats et catalogue</div></div><div class="v4-tools"><a class="btn btn-outline btn-sm" href="https://www.htechinnov.com/academy/#/simulateurs" target="_blank" rel="noopener">Voir l’onglet sur le site</a></div></div>
    <div class="grid-4" style="margin-bottom:.9rem"><div class="kpi"><div class="kpi-icon amber">📨</div><div class="kpi-label">Demandes à traiter</div><div class="kpi-value" style="${attente.length?'color:#B45309':''}">${attente.length}</div><div class="cell-sub">${preins.length} préinscription(s)</div></div>
     <div class="kpi"><div class="kpi-icon green">🔑</div><div class="kpi-label">Accès actifs</div><div class="kpi-value">${actifs.length+codesActifs.length}</div><div class="cell-sub">${actifs.length} apprenant(s) · ${codesActifs.length} code(s)</div></div>
@@ -19204,6 +19228,9 @@ function simContacter(id){const d=(SIMP.D||[]).find(x=>x.id===id);if(!d)return;c
 async function simProlonger(id){const c=(SIMP.C||[]).find(x=>x.id===id);if(!c||!confirm('Prolonger ce code de 30 jours ?'))return;const base=new Date(Math.max(Date.now(),new Date(c.fin).getTime()));
   const{error}=await sb.from('sim_codes').update({fin:new Date(base.getTime()+30*864e5).toISOString(),revoque:false}).eq('id',id);if(error){toast('❌ '+error.message);return;}toast('✅ Code prolongé de 30 jours');v4Render('simulateur-pmo');}
 async function simRevoquer(id){if(!confirm('Révoquer ce code ? Il ne permettra plus d’accéder au simulateur.'))return;const{error}=await sb.from('sim_codes').update({revoque:true}).eq('id',id);if(error){toast('❌ '+error.message);return;}toast('Code révoqué');v4Render('simulateur-pmo');}
+async function simPartenaire(table,id,val){const{error}=await sb.from(table).update({partenaire_id:val||null}).eq('id',id);
+  if(error){toast('❌ '+(/partenaire_id/.test(error.message)?'Exécutez migration-partenaires-certificats-rapports.sql dans Supabase':error.message),7000);return;}
+  try{logAudit('partenaire_rapport',table,id,{partenaire_id:val||null});}catch(e){}toast(val?'✅ Partenaire associé aux rapports de cet apprenant':'Partenaire retiré');}
 async function simCatalogue(code){const v=k=>document.getElementById(`sc_${k}_${code}`)?.value;
   const{error}=await sb.from('sim_simulateurs').update({nom:v('nom'),sous_titre:v('st')||null,prix:numIn(v('prix')),jours:Math.max(1,numIn(v('j'))||30),statut:v('stat'),url:v('url')||null,description:v('desc')||null}).eq('code',code);
   if(error){toast('❌ '+error.message);return;}toast('✅ Catalogue mis à jour');v4Render('simulateur-pmo');}
@@ -19216,12 +19243,13 @@ function simAccorder(){const L=(SIMP.P||[]).filter(p=>['apprenant','client'].inc
   document.getElementById('modalBody').innerHTML=`<div class="form-grid"><div class="form-field full"><label for="saU">Apprenant *</label><select id="saU"><option value="">Choisir…</option>${L.map(p=>`<option value="${p.id}">${esc(simNom(p))} — ${esc(p.email||'')}</option>`).join('')}</select><div class="cell-sub">Le compte apprenant doit exister (H TECH Academy › Mes apprenants).</div></div>
    <div class="form-field"><label for="saO">Origine</label><select id="saO"><option value="achat">Achat</option><option value="offert">Offert</option></select></div><div class="form-field"><label for="saJ">Durée (jours)</label><input id="saJ" type="number" value="30" min="1"></div>
    <div class="form-field"><label for="saM">Montant (FCFA)</label><input id="saM" type="number" value="100000"></div><div class="form-field"><label for="saR">Référence (facture, paiement)</label><input id="saR" placeholder="FAC-2026-…"></div></div>
+   ${partChamp('saPart',null,'Le logo, le nom et le site du partenaire figureront sur les rapports de cet apprenant.')}
    <p class="cell-sub">Si l’apprenant a déjà un accès en cours, le nouvel accès commence à sa date de fin.</p>`;
   document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="simAccorderOk()">Ouvrir l’accès</button>`;document.getElementById('modalOverlay').classList.add('open');}
 async function simAccorderOk(){const u=gv('saU');if(!u){toast('❌ Choisissez un apprenant');return;}const j=Math.max(1,numIn(gv('saJ'))||30);
   const{data:ex}=await sb.from('sim_acces').select('fin').eq('user_id',u);const der=(ex||[]).map(a=>new Date(a.fin)).filter(d=>d>new Date()).sort((a,b)=>b-a)[0];
   const debut=der||new Date(),fin=new Date(debut.getTime()+j*864e5);
-  const{error}=await sb.from('sim_acces').insert({user_id:u,debut:debut.toISOString(),fin:fin.toISOString(),origine:gv('saO'),montant:gv('saO')==='achat'?numIn(gv('saM')):null,reference:g('saR')||null});
+  const{error}=await sb.from('sim_acces').insert({user_id:u,debut:debut.toISOString(),fin:fin.toISOString(),origine:gv('saO'),montant:gv('saO')==='achat'?numIn(gv('saM')):null,reference:g('saR')||null,...(gv('saPart')?{partenaire_id:gv('saPart')}:{})});
   if(error){toast('❌ '+error.message);return;}try{logAudit('creation','sim_acces',u,{jours:j});}catch(e){}toast('✅ Accès ouvert jusqu’au '+fin.toLocaleDateString('fr-FR'));closeModal();v4Render('simulateur-pmo');}
 async function simFormAjout(){const r=g('sfRef');if(!r){toast('❌ Référence requise');return;}const{error}=await sb.from('sim_formations').upsert({formation_ref:r,jours:Math.max(1,numIn(gv('sfJ'))||90)});if(error){toast('❌ '+error.message);return;}toast('✅ Formation liée');v4Render('simulateur-pmo');}
 async function simFormSuppr(r){if(!confirm('Retirer cette formation ? Les accès déjà ouverts restent valables.'))return;await sb.from('sim_formations').delete().eq('formation_ref',r);v4Render('simulateur-pmo');}
