@@ -657,7 +657,7 @@ async function simRapport(source){
       doc.setFont('helvetica','bold');doc.setTextColor(...col(x.p));doc.text(x.p+' %',cx[3]+22,y);doc.setFontSize(7.6);doc.text(P(band(x.p)[0]),cx[4]+2,y);y+=7.2;});
     y+=3;
     // Erreurs par tâche (session en cours uniquement)
-    const err={};if(s&&s.items&&!source)s.items.filter(it=>(s.mode==='exam'||it.checked)&&it.ok===false).forEach(it=>{const k=it.q.d+':'+it.q.t;err[k]=(err[k]||0)+1;});
+    const err=Object.assign({},r.erreurs||{});if(s&&s.items&&!source)s.items.filter(it=>(s.mode==='exam'||it.checked)&&it.ok===false).forEach(it=>{const k=it.q.d+':'+it.q.t;err[k]=(err[k]||0)+1;});
     // ── Points forts ──
     titre(RT.forts);const forts=D.filter(x=>x.p>=80).sort((a,b)=>b.p-a.p);
     if(forts.length)forts.forEach(x=>para('•  '+x.d.name+' — '+x.p+' %',9,[40,60,90],2));else para(RT.aucunFort,9,GRIS,2);
