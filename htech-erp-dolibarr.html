@@ -13671,12 +13671,13 @@ v4Def('site-partenaires',{table:'site_partenaires',titre:'Partenaires et agréme
   champs:[{k:'nom',l:'Nom de la structure',req:1},{k:'type',l:'Type',t:'select',o:Object.entries(SITE_TYPES).map(([k,v])=>[k,v[0]]),def:'partenaire'},
     {k:'logo_data',l:'Logo (JPG ou PNG, réduit automatiquement)',t:'img',col:'logo_data',taille:320},
     {k:'lien',l:'Lien vers leur site (https://…)',ph:'https://www.exemple.ci'},
+    {k:'numero_agrement',l:'N° d’agrément (ATP, convention) — affiché sur les certificats et rapports',ph:'Ex. ATP-4521'},
     {k:'description',l:'Description courte (ex. « Centre agréé ATP pour la certification PMP® »)',t:'textarea',rows:2},
     {k:'sites',l:'Afficher sur',t:'multi',o:SITE_SITES,def:['principal','academy']},
     {k:'ordre',l:'Ordre d’affichage (petit = en premier)',t:'number',def:100},{k:'actif',l:'Visible sur le site',t:'check',def:true}],
   avant:p=>{if(p.lien&&!/^https?:\/\//i.test(p.lien))p.lien='https://'+p.lien;if(Array.isArray(p.sites)&&!p.sites.length){toast('❌ Choisissez au moins un site');return false;}},
   colonnes:[{l:'Logo',f:r=>vignette(r.logo_data||'','cat-thumb')},
-    {l:'Structure',f:r=>`<div class="cell-main">${esc(r.nom)}</div><div class="cell-sub">${esc(r.description||'')}</div>`},
+    {l:'Structure',f:r=>`<div class="cell-main">${esc(r.nom)}</div><div class="cell-sub">${esc(r.description||'')}${r.numero_agrement?' · N° '+esc(r.numero_agrement):''}</div>`},
     {l:'Type',f:r=>badge(SITE_TYPES[r.type]?.[0]||r.type,SITE_TYPES[r.type]?.[1]||'badge-gray')},
     {l:'Lien',f:r=>r.lien?`<a href="${esc(r.lien)}" target="_blank" rel="noopener">${esc(r.lien.replace(/^https?:\/\//,'').slice(0,34))}</a>`:'<span class="cell-sub">—</span>'},
     {l:'Sites',f:r=>(r.sites||[]).map(x=>badge(x==='academy'?'Academy':'Principal','badge-blue')).join(' ')},
@@ -15736,10 +15737,11 @@ async function htaSignataires(){
   HTA_SIGN=HTA_SIGN_DEFAUT.slice();return HTA_SIGN;
 }
 var PART_LISTE=null;
-async function partenairesListe(force){if(PART_LISTE&&!force)return PART_LISTE;try{const{data}=await sb.from('site_partenaires').select('id,nom,lien,logo_data,actif,ordre').order('ordre');PART_LISTE=data||[];}catch(e){PART_LISTE=[];}return PART_LISTE;}
-function partOptions(sel){return '<option value="">— Aucun partenaire —</option>'+(PART_LISTE||[]).map(x=>`<option value="${esc(x.id)}" ${x.id===sel?'selected':''}>${esc(x.nom)}${x.logo_data?'':' (sans logo)'}</option>`).join('');}
+async function partenairesListe(force){if(PART_LISTE&&!force)return PART_LISTE;try{let r=await sb.from('site_partenaires').select('id,nom,lien,logo_data,actif,ordre,type,numero_agrement').order('ordre');
+  if(r.error)r=await sb.from('site_partenaires').select('id,nom,lien,logo_data,actif,ordre,type').order('ordre');PART_LISTE=r.data||[];}catch(e){PART_LISTE=[];}return PART_LISTE;}
+function partOptions(sel){return '<option value="">— Aucun partenaire —</option>'+(PART_LISTE||[]).map(x=>`<option value="${esc(x.id)}" ${x.id===sel?'selected':''}>${esc(x.nom)}${x.type==='atp'?' — ATP (partenaire de formation agréé)':''}${x.logo_data?'':' (sans logo)'}</option>`).join('');}
 function partChamp(id,sel,aide){return `<div class="form-field full"><label for="${id}">🤝 Partenaire associé (facultatif)</label><select id="${id}">${partOptions(sel)}</select><div class="cell-sub">${aide||'Son logo, son nom et son site figureront sur le document. Gérez la liste dans « Partenaires et agréments ».'}</div></div>`;}
-function partLire(id){const v=gv(id),x=(PART_LISTE||[]).find(y=>y.id===v);return{partenaire_id:x?x.id:null,partenaire_nom:x?x.nom:null,partenaire_lien:x?(x.lien||null):null};}
+function partLire(id){const v=gv(id),x=(PART_LISTE||[]).find(y=>y.id===v);return{partenaire_id:x?x.id:null,partenaire_nom:x?x.nom:null,partenaire_lien:x?(x.lien||null):null,partenaire_type:x?(x.type||null):null,partenaire_agrement:x?(x.numero_agrement||null):null};}
 async function htaImageSignature(path){
   if(!path)return null;
   try{const{data:b,error}=await sb.storage.from(HTA_BUCKET).download(path);if(error||!b)return null;
@@ -15768,14 +15770,15 @@ async function htaDessiner(c){
   espace(P('CENTRE DE FORMATION DE H TECH INNOV · ABIDJAN'),1.15,113,32.8,6.6,['helvetica','bold'],BRONZE);
   // Partenaire associé (facultatif) : bloc en haut à droite, dans une largeur fixe de 52 mm
   if(c._part&&(c._part.nom||c._part.logo)){const xc=254,yt=17.6,LW=52;
-    espace(P('EN PARTENARIAT AVEC'),1.1,xc,yt,5.8,['helvetica','bold'],BRONZE,'center');
+    const atp=c._part.type==='atp';espace(P(atp?'PARTENAIRE AGRÉÉ (ATP)':'EN PARTENARIAT AVEC'),1.1,xc,yt,5.8,['helvetica','bold'],BRONZE,'center');
     let yy=yt+2;
     if(c._part.logo){try{const fmt=/^data:image\/png/i.test(c._part.logo)?'PNG':'JPEG',pr=doc.getImageProperties(c._part.logo),k=Math.min(46/pr.width,14/pr.height),lw=pr.width*k,lh=pr.height*k;
       doc.addImage(c._part.logo,fmt,xc-lw/2,yy+(14-lh)/2,lw,lh);}catch(e){}yy+=15.5;}else yy+=2;
     doc.setFont('helvetica','bold');let fs=7.6;doc.setFontSize(fs);let L=doc.splitTextToSize(P(c._part.nom||''),LW);
     while(L.length>2&&fs>5.6){fs-=0.4;doc.setFontSize(fs);L=doc.splitTextToSize(P(c._part.nom||''),LW);}
     doc.setTextColor(...NAVY);L.slice(0,2).forEach((t,k)=>doc.text(t,xc,yy+1.2+k*fs*0.42,{align:'center'}));yy+=1.2+Math.min(L.length,2)*fs*0.42;
-    if(c._part.lien){doc.setFont('helvetica','normal');doc.setFontSize(6.4);doc.setTextColor(21,101,192);const site=String(c._part.lien).replace(/^https?:\/\//,'').replace(/\/$/,'');doc.text(P(site),xc,yy+0.8,{align:'center'});doc.link(xc-LW/2,yy-2,LW,3.6,{url:c._part.lien});}}
+    if(c._part.lien){doc.setFont('helvetica','normal');doc.setFontSize(6.4);doc.setTextColor(21,101,192);const site=String(c._part.lien).replace(/^https?:\/\//,'').replace(/\/$/,'');doc.text(P(site),xc,yy+0.8,{align:'center'});doc.link(xc-LW/2,yy-2,LW,3.6,{url:c._part.lien});yy+=3.2;}
+    if(atp&&c._part.agrement){doc.setFont('helvetica','bold');doc.setFontSize(6.2);doc.setTextColor(...BRONZE);doc.text(P('N° d’agrément : '+c._part.agrement),xc,yy+0.8,{align:'center'});}}
   // Titre
   espace('CERTIFICAT',1.6,W/2,53,40,['times','bold'],BRUN,'center');
   espace(P('EST DÉCERNÉ À'),2.2,W/2,62,9,['helvetica','normal'],GRIS,'center');
@@ -15787,6 +15790,9 @@ async function htaDessiner(c){
   doc.setTextColor(...BRUN);doc.text(P(c.formation_titre),W/2,101,{align:'center'});
   const sous=[c.heures?String(c.heures).toUpperCase():'',c.niveau?('NIVEAU '+String(c.niveau).toUpperCase()):''].filter(Boolean).join('  ·  ');
   if(sous)espace(P(sous),1.3,W/2,108,8.6,['helvetica','bold'],BRONZE,'center');
+  if(c._part&&c._part.type==='atp'&&c._part.nom){doc.setFont('helvetica','italic');doc.setFontSize(7.6);doc.setTextColor(...GRIS);
+    doc.text(P('Formation dispensée par H TECH ACADEMY, partenaire de formation agréé (ATP) de '+c._part.nom+(c._part.agrement?' — agrément n° '+c._part.agrement:'')+'.'),W/2,114,{align:'center'});
+    doc.setFontSize(6.6);doc.text(P('Le présent certificat atteste la formation suivie ; il ne constitue pas une certification délivrée par '+c._part.nom+'.'),W/2,118,{align:'center'});}
   // Sceau
   const cx=W/2,cy=150,R=17;
   const pts=[];for(let i=0;i<72;i++){const a=i*Math.PI/36,r=i%2?R:R-1.3;pts.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}
@@ -15832,7 +15838,7 @@ async function htaPreparerSignataires(c){
   c._s1=c.signataire1_nom?f(c.signataire1_nom,c.signataire1_fonction):null;c._s2=c.signataire2_nom?f(c.signataire2_nom,c.signataire2_fonction):null;
   for(const s of [c._s1,c._s2])if(s&&s.signature_path)s._img=await htaImageSignature(s.signature_path);
   if(c.partenaire_id||c.partenaire_nom){await partenairesListe();const x=(PART_LISTE||[]).find(y=>y.id===c.partenaire_id)||(PART_LISTE||[]).find(y=>y.nom===c.partenaire_nom);
-    c._part={nom:c.partenaire_nom||x?.nom||'',lien:c.partenaire_lien||x?.lien||'',logo:x?.logo_data||null};}
+    c._part={nom:c.partenaire_nom||x?.nom||'',lien:c.partenaire_lien||x?.lien||'',logo:x?.logo_data||null,type:c.partenaire_type||x?.type||'',agrement:c.partenaire_agrement||x?.numero_agrement||''};}
   return c;
 }
 async function htaTelecharger(c){
@@ -15861,9 +15867,9 @@ async function htaCreer(c,opts){
     heures:c.heures||null,niveau:c.niveau||null,date_obtention:c.date_obtention,date_validite:c.date_validite||null,
     signataire1_nom:c.signataire1_nom||null,signataire1_fonction:c.signataire1_fonction||null,signataire2_nom:c.signataire2_nom||null,signataire2_fonction:c.signataire2_fonction||null,
     statut:'valide',created_by:uid()};
-  if(c.partenaire_id){row.partenaire_id=c.partenaire_id;row.partenaire_nom=c.partenaire_nom||null;row.partenaire_lien=c.partenaire_lien||null;}
+  if(c.partenaire_id){row.partenaire_id=c.partenaire_id;row.partenaire_nom=c.partenaire_nom||null;row.partenaire_lien=c.partenaire_lien||null;row.partenaire_type=c.partenaire_type||null;row.partenaire_agrement=c.partenaire_agrement||null;}
   let{data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single();
-  if(error&&/partenaire_/.test(error.message)){toast('⚠ Partenaire non enregistré : exécutez migration-partenaires-certificats-rapports.sql',8000);['partenaire_id','partenaire_nom','partenaire_lien'].forEach(k=>delete row[k]);({data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single());}
+  if(error&&/partenaire_/.test(error.message)){toast('⚠ Partenaire non enregistré : exécutez migration-partenaires-certificats-rapports.sql',8000);['partenaire_id','partenaire_nom','partenaire_lien','partenaire_type','partenaire_agrement'].forEach(k=>delete row[k]);({data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single());}
   if(error)throw new Error(error.message);
   const doc=await htaDessiner(await htaPreparerSignataires({...row}));
   const blob=doc.output('blob'),chemin='certificats-hta/'+row.numero+'.pdf';
@@ -16036,7 +16042,7 @@ async function htaModifValider(){
   const b=document.getElementById('heGo');b.disabled=true;b.textContent='Régénération…';
   try{
     let{error}=await sb.from('hta_certificats').update({...m,modifie_le:new Date().toISOString()}).eq('id',c.id);
-    if(error&&/partenaire_/.test(error.message)){toast('⚠ Partenaire non enregistré : exécutez migration-partenaires-certificats-rapports.sql',8000);const m2={...m};['partenaire_id','partenaire_nom','partenaire_lien'].forEach(k=>delete m2[k]);({error}=await sb.from('hta_certificats').update({...m2,modifie_le:new Date().toISOString()}).eq('id',c.id));}
+    if(error&&/partenaire_/.test(error.message)){toast('⚠ Partenaire non enregistré : exécutez migration-partenaires-certificats-rapports.sql',8000);const m2={...m};['partenaire_id','partenaire_nom','partenaire_lien','partenaire_type','partenaire_agrement'].forEach(k=>delete m2[k]);({error}=await sb.from('hta_certificats').update({...m2,modifie_le:new Date().toISOString()}).eq('id',c.id));}
     if(error)throw new Error(error.message);
     const n={...c,...m},doc=await htaDessiner(await htaPreparerSignataires({...n}));
     const chemin=c.fichier_path||('certificats-hta/'+c.numero+'.pdf');
