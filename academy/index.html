@@ -1117,7 +1117,7 @@ async function pageVerifierRapport(id){
   const d=new Date(r.date);
   z.innerHTML=`<div class="panel" style="border-left:5px solid var(--green)"><h3 style="color:var(--green);margin-top:0">✓ Rapport authentique</h3>
     <table style="width:100%;font-size:15px;border-collapse:collapse">${[['N° du rapport',r.numero],['Apprenant(e)',r.titulaire],['Simulateur',r.simulateur],['Session',(r.session||'')+(r.mode==='exam'?' (examen blanc)':' (entraînement)')],
-      ['Date',d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})],['Résultat',r.pct+' % ('+r.ok+' bonnes réponses sur '+r.nb+')'],...(r.partenaire?[['En partenariat avec',r.partenaire]]:[])]
+      ['Date',d.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})],['Résultat',r.pct+' % ('+r.ok+' bonnes réponses sur '+r.nb+')'],...(r.partenaire?[[r.partenaire_type==='atp'?'Partenaire de formation agréé (ATP)':'En partenariat avec',r.partenaire+(r.partenaire_type==='atp'&&r.partenaire_agrement?' — agrément n° '+r.partenaire_agrement:'')]]:[])]
       .map(([k,v])=>`<tr><td style="padding:6px 10px 6px 0;color:var(--muted);white-space:nowrap">${k}</td><td style="padding:6px 0;font-weight:700">${esc(String(v??''))}</td></tr>`).join('')}</table>
     <p class="note" style="margin-top:10px">Les résultats sont calculés et conservés par H TECH ACADEMY : ils ne peuvent pas être modifiés par l’apprenant.</p></div>`;
 }
