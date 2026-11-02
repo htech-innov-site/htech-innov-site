@@ -1895,9 +1895,10 @@ label.grille-sel select{font:inherit;font-size:12px;border:1px solid var(--g200)
 <!-- ═══ EMAIL ═══ -->
 <div class="page" id="page-emails">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.6rem">
-    <div><div class="page-title">📧 Boîte mail</div><div class="page-sub">Vos emails @htechinnov.com — envoi et réception</div></div>
+    <div><div class="page-title">📧 Boîte mail</div><div class="page-sub">Vos e-mails @htechinnov.com via Microsoft 365 — envoi, réception et e-mails internes <span id="emailEtat" style="margin-left:6px"></span></div></div>
     <div style="display:flex;gap:6px">
       <select id="emailCompteSel" onchange="loadEmails()" style="padding:7px 10px;border:1px solid var(--g200);border-radius:var(--r-md);font-size:12px"><option value="">Toutes les boîtes</option></select>
+      <button class="btn btn-outline btn-sm" id="emailBtnBoites" onclick="gererBoitesEmail()" style="display:none">⚙️ Gérer les boîtes</button>
       <button class="btn btn-outline btn-sm" onclick="syncEmails()">🔄 Actualiser</button>
       <button class="btn btn-primary btn-sm" onclick="composerEmail()">✉️ Nouveau message</button>
     </div>
@@ -2483,6 +2484,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 var _dashInterval=null,_inactiveTimer=null;
 var INACTIVE_DELAY=30*60*1000; // déconnexion automatique après 30 min sans activité
 
+// Bornes de mois : on filtre « avant le 1er du mois suivant » (valable pour 28, 29, 30 ou 31 jours, et toute la dernière journée)
+function moisSuivant(ym){const[y,m]=String(ym).split('-').map(Number);return new Date(Date.UTC(y,m,1)).toISOString().slice(0,10);}
 var CU=null,CP=null,convId=null,convNom='',projKanban=false;
 var calY=new Date().getFullYear(),calM=new Date().getMonth();
 
@@ -3380,12 +3383,12 @@ async function renderCal(){
   // Charger les événements du mois depuis Supabase
   const moisStr = String(calY)+'-'+String(calM+1).padStart(2,'0');
   const dateMin = moisStr+'-01';
-  const dateMax = moisStr+'-31';
+  const dateMax = moisSuivant(moisStr);
   let eventsData = [];
   try{
     const filtre = document.getElementById('cal-filtre-type')?.value || '';
     let q = sb.from('evenements').select('*')
-      .gte('date', dateMin).lte('date', dateMax)
+      .gte('date', dateMin).lt('date', dateMax)
       .order('date').order('heure');
     if(filtre) q = q.eq('type', filtre);
     const{data} = await q;
@@ -5722,29 +5725,42 @@ async function delFichierPartageById(id){
 // ═══ MODULE EMAIL (boîte mail intégrée) ═══
 // ═══════════════════════════════════════════════════════════
 var EMAILS=[],EMAIL_COMPTES=[],EMAIL_DOSSIER='reception';
+// ══════════════════════════════════════════════════════════════════════
+// BOÎTE MAIL — Microsoft 365 (API Microsoft Graph) via les fonctions « envoyer-email » et « recevoir-emails »
+// ══════════════════════════════════════════════════════════════════════
+var EMAIL_SYNC_TIMER=null,EMAIL_DERNIERE_SYNC=0,EMAIL_ANNUAIRE=[];
+async function mailFn(nom,body){
+  const{data,error}=await sb.functions.invoke(nom,{body});if(!error)return data||{ok:true};
+  let d=null;try{d=await error.context?.json?.();}catch(_){}if(d&&d.erreur)return d;
+  return{ok:false,erreur:/FunctionsFetchError|Failed to send|404|not found/i.test((error.name||'')+' '+(error.message||''))?'La fonction « '+nom+' » n’est pas encore déployée dans Supabase.':(error.message||'Erreur inconnue')};
+}
+const emailDate=m=>new Date(m.recu_le||m.created_at);
 async function loadEmailModule(){
   try{
-    const{data:comptes}=await sb.from('email_comptes').select('*').eq('actif',true).order('adresse');
+    const{data:comptes,error}=await sb.from('email_comptes').select('*').eq('actif',true).order('adresse');if(error)throw error;
     EMAIL_COMPTES=comptes||[];
-    // Remplit le sélecteur de boîte
+    const admin=['superadmin','admin'].includes(CP?.role);const bb=document.getElementById('emailBtnBoites');if(bb)bb.style.display=admin?'':'none';
     const sel=document.getElementById('emailCompteSel');
-    if(sel)sel.innerHTML='<option value="">Toutes les boîtes</option>'+EMAIL_COMPTES.map(c=>`<option value="${c.id}">${esc(c.adresse)}</option>`).join('');
-    // Liste des adresses
+    if(sel)sel.innerHTML='<option value="">Toutes mes boîtes</option>'+EMAIL_COMPTES.map(c=>`<option value="${c.id}">${esc(c.adresse)}</option>`).join('');
     const adrEl=document.getElementById('emailAdressesList');
-    if(adrEl)adrEl.innerHTML=EMAIL_COMPTES.length?EMAIL_COMPTES.map(c=>`<div style="padding:2px 0">📧 ${esc(c.adresse)}</div>`).join(''):'<div style="color:var(--g400)">Aucune boîte.<br/>Configurez Zoho puis ajoutez vos adresses.</div>';
+    if(adrEl)adrEl.innerHTML=EMAIL_COMPTES.length?EMAIL_COMPTES.map(c=>`<div style="padding:3px 0" title="${esc(c.erreur_synchro||(c.derniere_synchro?'Synchronisée le '+new Date(c.derniere_synchro).toLocaleString('fr-FR'):'Jamais synchronisée'))}">${c.erreur_synchro?'⚠️':c.derniere_synchro?'🟢':'⚪'} ${esc(c.adresse)}${c.type==='partagee'?' <span style="color:var(--g400)">(partagée)</span>':''}</div>`).join('')
+      :`<div style="color:var(--g400)">Aucune boîte attribuée.${admin?'<br/>Ajoutez vos adresses avec « Gérer les boîtes ».':'<br/>Demandez l’accès à un administrateur.'}</div>`;
+    try{const{data:pr}=await sb.from('profiles').select('prenom,nom,email').not('email','is',null);EMAIL_ANNUAIRE=(pr||[]).filter(x=>/@htechinnov\.com$/i.test(x.email||''));}catch(_){EMAIL_ANNUAIRE=[];}
     await loadEmails();
+    if(Date.now()-EMAIL_DERNIERE_SYNC>120000&&EMAIL_COMPTES.length)syncEmails(true);
+    if(!EMAIL_SYNC_TIMER)EMAIL_SYNC_TIMER=setInterval(()=>{if(document.getElementById('page-emails')?.classList.contains('active')&&EMAIL_COMPTES.length)syncEmails(true);},180000);
   }catch(e){
     const el=document.getElementById('emailList');
-    if(el)el.innerHTML='<div style="color:var(--red);font-size:12px;text-align:center;padding:30px">Module email non configuré.<br/>Exécutez le SQL module-emails.sql.</div>';
+    if(el)el.innerHTML='<div style="color:var(--red);font-size:12px;text-align:center;padding:30px">Module e-mail non installé.<br/>Exécutez « migration-emails-microsoft365.sql » dans le SQL Editor.</div>';
   }
 }
 async function loadEmails(){
   try{
     const compteId=document.getElementById('emailCompteSel')?.value||'';
-    let q=sb.from('emails').select('*').order('created_at',{ascending:false}).limit(200);
+    let q=sb.from('emails').select('*').order('created_at',{ascending:false}).limit(400);
     if(compteId)q=q.eq('compte_id',compteId);
     const{data}=await q;
-    EMAILS=data||[];
+    EMAILS=(data||[]).sort((a,b)=>emailDate(b)-emailDate(a));
     renderEmailList();
   }catch(e){console.error('emails',e);}
 }
@@ -5757,54 +5773,69 @@ function switchDossierEmail(d){
 function renderEmailList(){
   const el=document.getElementById('emailList');if(!el)return;
   const q=(document.getElementById('emailSearch')?.value||'').toLowerCase();
+  const txt=m=>(m.apercu||(m.corps||'').replace(/<(style|script|head)[\s\S]*?<\/\1>/gi,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ')).replace(/\s+/g,' ').trim();
   let list=EMAILS.filter(m=>{
     let inDossier;
-    if(EMAIL_DOSSIER==='favoris')inDossier=m.favori;
-    else if(EMAIL_DOSSIER==='reception')inDossier=m.dossier==='reception'||m.direction==='recu'&&m.dossier!=='corbeille';
-    else if(EMAIL_DOSSIER==='envoyes')inDossier=m.dossier==='envoyes'||m.direction==='envoye';
+    if(EMAIL_DOSSIER==='favoris')inDossier=m.favori&&m.dossier!=='corbeille';
+    else if(EMAIL_DOSSIER==='reception')inDossier=m.direction==='recu'&&m.dossier!=='corbeille';
+    else if(EMAIL_DOSSIER==='envoyes')inDossier=m.direction==='envoye'&&!['corbeille','brouillons'].includes(m.dossier);
     else inDossier=m.dossier===EMAIL_DOSSIER;
     if(!inDossier)return false;
-    if(q)return (m.sujet||'').toLowerCase().includes(q)||(m.de_nom||'').toLowerCase().includes(q)||(m.de_adresse||'').toLowerCase().includes(q)||(m.corps||'').toLowerCase().includes(q);
+    if(q)return [m.sujet,m.de_nom,m.de_adresse,m.a_adresse,txt(m)].some(x=>(x||'').toLowerCase().includes(q));
     return true;
   });
-  // Compteur non lus en réception
-  const nonLus=EMAILS.filter(m=>(m.dossier==='reception'||m.direction==='recu')&&!m.lu&&m.dossier!=='corbeille').length;
+  const nonLus=EMAILS.filter(m=>m.direction==='recu'&&!m.lu&&m.dossier!=='corbeille').length;
   setText('efCount',nonLus>0?nonLus:'');
-  if(!list.length){el.innerHTML='<div style="color:var(--g400);font-size:12px;text-align:center;padding:30px">📭 Aucun email dans ce dossier.</div>';return;}
+  if(!list.length){el.innerHTML='<div style="color:var(--g400);font-size:12px;text-align:center;padding:30px">📭 Aucun e-mail dans ce dossier.</div>';return;}
   el.innerHTML=list.map(m=>{
-    const nom=m.direction==='envoye'?('À: '+(m.a_adresse||'')):(m.de_nom||m.de_adresse||'Inconnu');
-    return `<div onclick="ouvrirEmail('${m.id}')" style="padding:11px 14px;border-bottom:1px solid var(--g100);cursor:pointer;${!m.lu&&m.direction==='recu'?'background:var(--gold-pale)':''}" onmouseover="this.style.background='var(--g50)'" onmouseout="this.style.background='${!m.lu&&m.direction==='recu'?'var(--gold-pale)':'transparent'}'">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
-        <span style="font-size:13px;font-weight:${!m.lu&&m.direction==='recu'?'700':'500'};color:var(--navy)">${m.favori?'⭐ ':''}${esc(nom)}</span>
-        <span style="font-size:10px;color:var(--g400)">${new Date(m.created_at).toLocaleDateString('fr-FR')} ${new Date(m.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>
+    const nom=m.direction==='envoye'?('À : '+(m.a_adresse||'')):(m.de_nom||m.de_adresse||'Inconnu');const d=emailDate(m),nl=!m.lu&&m.direction==='recu';
+    const interne=/@htechinnov\.com$/i.test(m.direction==='envoye'?(m.a_adresse||''):(m.de_adresse||''));
+    return `<div onclick="ouvrirEmail('${m.id}')" style="padding:11px 14px;border-bottom:1px solid var(--g100);cursor:pointer;${nl?'background:var(--gold-pale)':''}" onmouseover="this.style.background='var(--g50)'" onmouseout="this.style.background='${nl?'var(--gold-pale)':''}'">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:2px">
+        <span style="font-size:13px;font-weight:${nl?'700':'500'};color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.favori?'⭐ ':''}${esc(nom)}${interne?' <span class="badge" style="font-size:9.5px">interne</span>':''}${m.statut_envoi==='echec'?' <span class="badge" style="background:#FDECEC;color:#B42318;font-size:9.5px">non envoyé</span>':''}${m.statut_envoi==='en_cours'?' <span class="badge" style="font-size:9.5px">envoi…</span>':''}</span>
+        <span style="font-size:10px;color:var(--g400);white-space:nowrap">${(m.a_des_pj||(m.pieces_jointes||[]).length)?'📎 ':''}${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>
       </div>
-      <div style="font-size:12px;font-weight:${!m.lu&&m.direction==='recu'?'600':'400'};color:var(--g600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.sujet||'(sans objet)')}</div>
-      <div style="font-size:11px;color:var(--g400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(m.corps||'').replace(/<[^>]+>/g,'').slice(0,90)}</div>
+      <div style="font-size:12px;font-weight:${nl?'600':'400'};color:var(--g600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.sujet||'(sans objet)')}</div>
+      <div style="font-size:11px;color:var(--g400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(txt(m).slice(0,110))}</div>
     </div>`;
   }).join('');
 }
 async function ouvrirEmail(id){
   const m=EMAILS.find(e=>e.id===id);if(!m)return;
-  if(!m.lu){await sb.from('emails').update({lu:true}).eq('id',id);m.lu=true;}
+  if(!m.lu){await sb.from('emails').update({lu:true}).eq('id',id);m.lu=true;if(m.graph_id)mailFn('recevoir-emails',{action:'lu',email_id:id});}
   const pj=Array.isArray(m.pieces_jointes)?m.pieces_jointes:[];
   document.getElementById('modalTitle').textContent='📧 '+(m.sujet||'(sans objet)');
-  document.getElementById('modalBox').style.width='680px';
+  document.getElementById('modalBox').style.width='min(820px,96vw)';
   document.getElementById('modalBody').innerHTML=`
     <div style="border-bottom:1px solid var(--g100);padding-bottom:10px;margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
         <div><strong style="color:var(--navy)">${esc(m.de_nom||m.de_adresse)}</strong> <span style="color:var(--g400);font-size:12px">&lt;${esc(m.de_adresse||'')}&gt;</span></div>
-        <span style="font-size:11px;color:var(--g400)">${new Date(m.created_at).toLocaleString('fr-FR')}</span>
+        <span style="font-size:11px;color:var(--g400)">${emailDate(m).toLocaleString('fr-FR')}</span>
       </div>
       <div style="font-size:12px;color:var(--g500);margin-top:3px">À : ${esc(m.a_adresse||'')}${esc(m.cc?' · Cc : '+m.cc:'')}</div>
     </div>
-    <div style="font-size:13px;line-height:1.6;color:var(--g700);min-height:120px">${m.corps_html?m.corps:escapeHtml(m.corps||'').replace(/\n/g,'<br/>')}</div>
-    ${pj.length?`<div style="margin-top:14px;border-top:1px solid var(--g100);padding-top:10px"><div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:6px">📎 ${pj.length} pièce(s) jointe(s)</div>${pj.map(p=>`<a href="${esc(p.url)}" download="${esc(p.nom)}" class="btn btn-outline btn-sm" style="text-decoration:none;margin-right:5px">${fileIcon(fileType(p.nom))} ${esc(p.nom)}</a>`).join('')}</div>`:''}`;
+    ${m.corps_html?`<iframe id="emailCadre" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" style="width:100%;height:58vh;min-height:360px;border:1px solid var(--g100);border-radius:8px;background:#fff"></iframe>`:`<div style="font-size:13px;line-height:1.6;color:var(--g700);min-height:120px">${escapeHtml(m.corps||'').replace(/\n/g,'<br/>')}</div>`}
+    ${pj.length?`<div style="margin-top:14px;border-top:1px solid var(--g100);padding-top:10px"><div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:6px">📎 ${pj.length} pièce(s) jointe(s)</div>${pj.map((p,k)=>p.url?`<a href="${esc(p.url)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="margin:0 6px 6px 0">📄 ${esc(p.nom)}</a>`:`<button class="btn btn-outline btn-sm" style="margin:0 6px 6px 0" onclick="telechargerPjEmail('${m.id}',${k})">📄 ${esc(p.nom)}${p.taille?' ('+Math.max(1,Math.round(p.taille/1024))+' Ko)':''}</button>`).join('')}</div>`:''}`;
   document.getElementById('modalFooter').innerHTML=`
     <button class="btn btn-outline" onclick="toggleFavoriEmail('${m.id}')">${m.favori?'★ Retirer':'☆ Favori'}</button>
     <button class="btn btn-outline" onclick="supprimerEmail('${m.id}')">🗑 Supprimer</button>
+    ${m.direction==='recu'?`<button class="btn btn-outline" onclick="repondreEmail('${m.id}',true)">↩️ Répondre à tous</button>`:''}
+    <button class="btn btn-outline" onclick="transfererEmail('${m.id}')">➡️ Transférer</button>
     <button class="btn btn-primary" onclick="repondreEmail('${m.id}')">↩️ Répondre</button>`;
   document.getElementById('modalOverlay').classList.add('open');
+  // Contenu HTML affiché dans un cadre isolé (fichier temporaire, sans script ni accès à l’ERP) : compatible avec le garde de sécurité
+  if(m.corps_html){const f=document.getElementById('emailCadre');if(window._EMAIL_BLOB)URL.revokeObjectURL(window._EMAIL_BLOB);
+    const propre=(m.corps||'').replace(/<script[\s\S]*?<\/script>/gi,'');
+    window._EMAIL_BLOB=URL.createObjectURL(new Blob(['<!doctype html><meta charset="utf-8"><base target="_blank"><style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:8px}img{max-width:100%;height:auto}</style>'+propre],{type:'text/html'}));
+    if(f)f.src=window._EMAIL_BLOB;}
   renderEmailList();
+}
+async function telechargerPjEmail(id,k){
+  const m=EMAILS.find(e=>e.id===id);const p=(m?.pieces_jointes||[])[k];if(!p)return;toast('Téléchargement…');
+  const d=await mailFn('recevoir-emails',{action:'piece_jointe',email_id:id,attachment_id:p.graph_attachment_id});
+  if(!d.ok){toast('❌ '+d.erreur,7000);return;}
+  const bin=atob(d.contenu),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([u],{type:d.type||'application/octet-stream'}));a.download=d.nom||p.nom;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
 }
 async function toggleFavoriEmail(id){
   const m=EMAILS.find(e=>e.id===id);if(!m)return;
@@ -5812,77 +5843,117 @@ async function toggleFavoriEmail(id){
   closeModal();renderEmailList();toast(m.favori?'⭐ Ajouté aux favoris':'Retiré des favoris');
 }
 async function supprimerEmail(id){
-  if(!confirm('Déplacer cet email vers la corbeille ?'))return;
+  if(!confirm('Déplacer cet e-mail vers la corbeille ?\nIl sera aussi déplacé dans les « Éléments supprimés » d’Outlook.'))return;
   await sb.from('emails').update({dossier:'corbeille'}).eq('id',id);
-  const m=EMAILS.find(e=>e.id===id);if(m)m.dossier='corbeille';
+  const m=EMAILS.find(e=>e.id===id);if(m){m.dossier='corbeille';if(m.graph_id)mailFn('recevoir-emails',{action:'corbeille',email_id:id});}
   closeModal();renderEmailList();toast('🗑 Déplacé vers la corbeille');
 }
-function composerEmail(reTo,reSujet,reCorps){
-  const fromOptions=EMAIL_COMPTES.map(c=>`<option value="${esc(c.adresse)}">${esc(c.adresse)}</option>`).join('')||'<option value="">Configurez une boîte d\'abord</option>';
+function composerEmail(reTo,reSujet,reCorps,reCc,reFrom){
+  const fromOptions=EMAIL_COMPTES.map(c=>`<option value="${esc(c.adresse)}" ${c.adresse===reFrom?'selected':''}>${esc((c.nom_affiche?c.nom_affiche+' — ':'')+c.adresse)}</option>`).join('');
+  const annuaire=[...new Set([...EMAIL_ANNUAIRE.map(x=>x.email),...EMAIL_COMPTES.map(c=>c.adresse)])];
   document.getElementById('modalTitle').textContent='✉️ Nouveau message';
-  document.getElementById('modalBox').style.width='640px';
+  document.getElementById('modalBox').style.width='min(680px,96vw)';
   document.getElementById('modalBody').innerHTML=`
+    <datalist id="mailAnnuaire">${annuaire.map(a=>{const p=EMAIL_ANNUAIRE.find(x=>x.email===a);return `<option value="${esc(a)}">${esc(p?(p.prenom||'')+' '+(p.nom||''):'Boîte H TECH INNOV')}</option>`;}).join('')}</datalist>
     <div class="form-grid">
-      <div class="form-field full"><label>De</label><select id="mailFrom">${fromOptions}</select></div>
-      <div class="form-field full"><label>À *</label><input type="email" id="mailTo" value="${reTo||''}" placeholder="destinataire@exemple.com"/></div>
-      <div class="form-field full"><label>Cc</label><input type="text" id="mailCc" placeholder="copie (optionnel)"/></div>
-      <div class="form-field full"><label>Objet</label><input type="text" id="mailSujet" value="${reSujet||''}"/></div>
-      <div class="form-field full"><label>Message</label><textarea id="mailCorps" style="min-height:180px">${reCorps||''}</textarea></div>
-      <div class="form-field full"><label>📎 Pièce jointe</label><input type="file" id="mailPJ" multiple/></div>
+      <div class="form-field full"><label for="mailFrom">De</label><select id="mailFrom">${fromOptions||'<option value="">Aucune boîte attribuée</option>'}</select></div>
+      <div class="form-field full"><label for="mailTo">À * <span class="cell-sub">(plusieurs adresses séparées par « ; »)</span></label><input type="text" id="mailTo" list="mailAnnuaire" value="${esc(reTo||'')}" placeholder="client@exemple.com ou collègue@htechinnov.com"/></div>
+      <div class="form-field full"><label for="mailCc">Cc</label><input type="text" id="mailCc" list="mailAnnuaire" value="${esc(reCc||'')}" placeholder="copie (facultatif)"/></div>
+      <div class="form-field full"><label for="mailSujet">Objet</label><input type="text" id="mailSujet" value="${esc(reSujet||'')}"/></div>
+      <div class="form-field full"><label for="mailCorps">Message</label><textarea id="mailCorps" style="min-height:200px">${esc(reCorps||'')}</textarea></div>
+      <div class="form-field full"><label for="mailPJ">📎 Pièces jointes (3 Mo au total)</label><input type="file" id="mailPJ" multiple/></div>
     </div>
-    <div style="background:var(--gold-pale);border-radius:8px;padding:9px;font-size:11px;color:var(--navy);margin-top:8px">ℹ️ L'envoi réel nécessite la connexion Zoho (Edge Function). En attendant, le message est enregistré dans "Envoyés".</div>`;
-  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="envoyerEmail()">📤 Envoyer</button>`;
+    <div style="background:var(--gold-pale);border-radius:8px;padding:9px;font-size:11px;color:var(--navy);margin-top:8px">ℹ️ Le message part de Microsoft 365 : il apparaît aussi dans les « Éléments envoyés » d’Outlook. Les adresses @htechinnov.com de l’équipe sont proposées automatiquement.</div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="mailBtnEnvoyer" onclick="envoyerEmail()">📤 Envoyer</button>`;
   document.getElementById('modalOverlay').classList.add('open');
 }
-function repondreEmail(id){
+function repondreEmail(id,tous){
   const m=EMAILS.find(e=>e.id===id);if(!m)return;
+  const compte=EMAIL_COMPTES.find(c=>c.id===m.compte_id),moi=(compte?.adresse||'').toLowerCase();
+  const cc=tous?[...(m.a_adresse||'').split(/[;,]/),...(m.cc||'').split(/[;,]/)].map(x=>x.trim()).filter(x=>x&&x.toLowerCase()!==moi).join('; '):'';
+  const cite=(m.corps_html?(m.corps||'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<br\s*\/?>/gi,'\n').replace(/<\/p>/gi,'\n').replace(/<[^>]+>/g,''):(m.corps||'')).replace(/\n{3,}/g,'\n\n').trim();
   closeModal();
-  setTimeout(()=>composerEmail(m.de_adresse,'Re: '+(m.sujet||''),'\n\n--- Le '+new Date(m.created_at).toLocaleString('fr-FR')+', '+(m.de_nom||m.de_adresse)+' a écrit ---\n'+(m.corps||'').replace(/<[^>]+>/g,'')),100);
+  setTimeout(()=>composerEmail(m.direction==='recu'?m.de_adresse:m.a_adresse,(/^re\s*:/i.test(m.sujet||'')?'':'Re: ')+(m.sujet||''),'\n\n--- Le '+emailDate(m).toLocaleString('fr-FR')+', '+(m.de_nom||m.de_adresse)+' a écrit ---\n'+cite,cc,compte?.adresse),100);
+}
+function transfererEmail(id){
+  const m=EMAILS.find(e=>e.id===id);if(!m)return;const compte=EMAIL_COMPTES.find(c=>c.id===m.compte_id);
+  const cite=(m.corps_html?(m.corps||'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<br\s*\/?>/gi,'\n').replace(/<\/p>/gi,'\n').replace(/<[^>]+>/g,''):(m.corps||'')).trim();
+  closeModal();setTimeout(()=>composerEmail('','TR: '+(m.sujet||''),'\n\n--- Message transféré ---\nDe : '+(m.de_nom||'')+' <'+(m.de_adresse||'')+'>\nDate : '+emailDate(m).toLocaleString('fr-FR')+'\nObjet : '+(m.sujet||'')+'\n\n'+cite,'',compte?.adresse),100);
+}
+// Envoi : la ligne est créée dans l’ERP, puis la fonction l’envoie par Microsoft 365 et met à jour son statut
+async function emailEnvoyer(o){
+  const compte=EMAIL_COMPTES.find(c=>c.adresse===o.from);
+  const{data:ins,error}=await sb.from('emails').insert({compte_id:compte?.id||null,direction:'envoye',de_adresse:o.from||'',de_nom:'H TECH INNOV',a_adresse:o.to,cc:o.cc||null,sujet:o.sujet||'',corps:o.corps||'',
+    pieces_jointes:o.pj||[],dossier:'envoyes',lu:true,statut_envoi:'en_cours',envoye_par:CU?.id||null}).select('id').single();
+  if(error)return{ok:false,erreur:error.message};
+  const r=await mailFn('envoyer-email',{email_id:ins.id,from:o.from,to:o.to,cc:o.cc||'',sujet:o.sujet,corps:o.corps,pieces_jointes:o.pj||[],notification:!!o.notification});
+  if(!r.ok)await sb.from('emails').update({statut_envoi:'echec',dossier:'brouillons'}).eq('id',ins.id);
+  return r;
 }
 async function envoyerEmail(){
-  const from=gv('mailFrom'),to=g('mailTo'),sujet=g('mailSujet'),corps=g('mailCorps'),cc=g('mailCc');
+  const from=gv('mailFrom'),to=g('mailTo'),sujet=g('mailSujet'),corps=gv('mailCorps'),cc=g('mailCc');
+  if(!from){toast('❌ Aucune boîte d’envoi attribuée');return;}
   if(!to){toast('❌ Destinataire requis');return;}
-  // Upload des pièces jointes
-  const pjInput=document.getElementById('mailPJ');
-  const pj=[];
+  const mauvais=to.split(/[;,]/).map(x=>x.trim()).filter(Boolean).filter(x=>!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+  if(mauvais.length){toast('❌ Adresse invalide : '+mauvais.join(', '));return;}
+  const b=document.getElementById('mailBtnEnvoyer');if(b){b.disabled=true;b.textContent='Envoi…';}
+  const pjInput=document.getElementById('mailPJ'),pj=[];let total=0;
   if(pjInput&&pjInput.files.length){
-    for(const file of pjInput.files){
-      try{
-        const ext=file.name.split('.').pop();
-        const chemin='emails/'+Date.now()+'-'+rndToken(12)+'.'+ext;
+    for(const file of pjInput.files){total+=file.size;
+      if(total>3*1024*1024){toast('❌ Pièces jointes trop volumineuses (3 Mo au total)');if(b){b.disabled=false;b.textContent='📤 Envoyer';}return;}
+      try{const ext=file.name.split('.').pop();const chemin='emails/'+Date.now()+'-'+rndToken(12)+'.'+ext;
         const{error}=await sb.storage.from('partage').upload(chemin,file);
-        if(!error){const{data}=sb.storage.from('partage').getPublicUrl(chemin);pj.push({nom:file.name,url:data.publicUrl,taille:file.size});}
-      }catch(e){logErr(e)}
+        if(!error){const{data}=sb.storage.from('partage').getPublicUrl(chemin);pj.push({nom:file.name,url:data.publicUrl,taille:file.size});}}catch(e){logErr(e)}
     }
   }
-  const compte=EMAIL_COMPTES.find(c=>c.adresse===from);
-  const{error}=await sb.from('emails').insert({
-    compte_id:compte?.id||null,direction:'envoye',
-    de_adresse:from,de_nom:'H TECH INNOV',a_adresse:to,cc,sujet,corps,
-    pieces_jointes:pj,dossier:'envoyes',lu:true
-  });
-  if(error){toast('❌ '+error.message);return;}
-  // Appel de l'Edge Function d'envoi (si configurée)
-  try{
-    await sb.functions.invoke('envoyer-email',{body:{from,to,cc,sujet,corps,pieces_jointes:pj}});
-    toast('✅ Email envoyé');
-  }catch(e){
-    toast('✅ Enregistré dans Envoyés (connexion Zoho à finaliser)');
-  }
-  closeModal();loadEmails();
+  const r=await emailEnvoyer({from,to,cc,sujet,corps,pj});
+  if(b){b.disabled=false;b.textContent='📤 Envoyer';}
+  if(!r.ok){toast('❌ Non envoyé : '+r.erreur+' (message conservé dans Brouillons)',9000);closeModal();loadEmails();return;}
+  toast('✅ E-mail envoyé depuis '+(r.depuis||from));closeModal();loadEmails();
 }
-async function syncEmails(){
-  toast('🔄 Synchronisation...');
-  try{
-    await sb.functions.invoke('recevoir-emails',{body:{}});
-    await loadEmails();
-    toast('✅ Boîte à jour');
-  }catch(e){
-    await loadEmails();
-    toast('ℹ️ Réception auto à finaliser (Zoho). Emails actuels affichés.');
-  }
+// Notifications automatiques (rendez-vous, propositions…) : envoyées depuis la boîte principale
+async function emailNotification(to,sujet,corps){try{const r=await emailEnvoyer({from:'',to,sujet,corps,notification:true});if(!r.ok)console.warn('Notification e-mail non envoyée :',r.erreur);return r;}catch(e){logErr(e);return{ok:false};}}
+async function syncEmails(silencieux){
+  if(!silencieux)toast('🔄 Synchronisation avec Microsoft 365…');
+  EMAIL_DERNIERE_SYNC=Date.now();
+  const r=await mailFn('recevoir-emails',{action:'sync'});
+  if(!r.ok){if(!silencieux)toast('⚠️ '+r.erreur,9000);setText('emailEtat','⚠️ non relié à Microsoft 365');await loadEmails();return;}
+  const err=(r.boites||[]).filter(x=>x.erreur),nouv=(r.boites||[]).reduce((s,x)=>s+(x.nouveaux||0),0);
+  setText('emailEtat',err.length?'⚠️ '+err.length+' boîte(s) en erreur':'🟢 relié à Microsoft 365');
+  await loadEmails();
+  if(!silencieux)toast(err.length?'⚠️ '+err.map(x=>x.adresse+' : '+x.erreur).join(' · '):(nouv?'✅ '+nouv+' nouveau(x) message(s)':'✅ Boîte à jour'),err.length?10000:4000);
+  else if(nouv)toast('📬 '+nouv+' nouveau(x) e-mail(s)');
 }
-
+// Gestion des boîtes @htechinnov.com et des collaborateurs autorisés (administrateurs)
+async function gererBoitesEmail(){
+  const[{data:cs},{data:pr}]=await Promise.all([sb.from('email_comptes').select('*').order('adresse'),sb.from('profiles').select('id,prenom,nom,email,role').order('prenom')]);
+  const equipe=(pr||[]).filter(p=>!['client','apprenant','formateur'].includes(p.role));window._MAIL_EQ=equipe;
+  const ligne=c=>`<div class="card" style="padding:10px;margin-bottom:8px" data-boite="${c?c.id:'nouvelle'}">
+    <div class="form-grid">
+      <div class="form-field"><label>Adresse *</label><input class="mbA" value="${esc(c?.adresse||'')}" placeholder="prenom.nom@htechinnov.com"></div>
+      <div class="form-field"><label>Nom affiché</label><input class="mbN" value="${esc(c?.nom_affiche||'')}" placeholder="H TECH INNOV"></div>
+      <div class="form-field"><label>Type</label><select class="mbT"><option value="personnelle" ${c?.type!=='partagee'?'selected':''}>Personnelle (avec licence)</option><option value="partagee" ${c?.type==='partagee'?'selected':''}>Partagée (sans licence)</option></select></div>
+      <div class="form-field"><label style="display:flex;gap:6px;align-items:center;margin-top:22px"><input type="radio" name="mbSys" class="mbS" ${c?.systeme?'checked':''}> Expéditeur des notifications automatiques</label></div>
+      <div class="form-field full"><label>Collaborateurs autorisés</label><div style="display:flex;flex-wrap:wrap;gap:4px 14px">${equipe.map(p=>`<label style="font-size:12px;display:flex;gap:5px;align-items:center"><input type="checkbox" class="mbU" value="${p.id}" ${(c?.acces||[]).includes(p.id)?'checked':''}> ${esc(((p.prenom||'')+' '+(p.nom||'')).trim()||p.email)}</label>`).join('')}</div>
+        <div class="cell-sub">Les administrateurs voient toutes les boîtes.</div></div>
+    </div>${c?`<div class="cell-sub" style="margin-top:6px">${c.erreur_synchro?'⚠️ '+esc(c.erreur_synchro):c.derniere_synchro?'🟢 Synchronisée le '+new Date(c.derniere_synchro).toLocaleString('fr-FR'):'⚪ Jamais synchronisée'} · <label><input type="checkbox" class="mbX" ${c.actif?'':'checked'}> désactiver</label></div>`:''}</div>`;
+  document.getElementById('modalTitle').textContent='⚙️ Boîtes @htechinnov.com';document.getElementById('modalBox').style.width='min(860px,96vw)';
+  document.getElementById('modalBody').innerHTML=`<p class="cell-sub" style="margin-top:0">Chaque adresse doit exister dans Microsoft 365. Une boîte <b>partagée</b> (info@, academy@, compta@…) ne nécessite pas de licence et peut être confiée à plusieurs collaborateurs.</p>
+    <div id="mbListe">${(cs||[]).map(ligne).join('')}</div><button class="btn btn-outline btn-sm" onclick="document.getElementById('mbListe').insertAdjacentHTML('beforeend',window._mbNouvelle())">+ Ajouter une adresse</button>`;
+  window._mbNouvelle=()=>ligne(null);
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="sauverBoitesEmail()">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function sauverBoitesEmail(){
+  const blocs=[...document.querySelectorAll('#mbListe [data-boite]')];let n=0;
+  for(const b of blocs){const adr=b.querySelector('.mbA').value.trim().toLowerCase();if(!adr)continue;
+    if(!/^[^@\s]+@htechinnov\.com$/.test(adr)){toast('❌ '+adr+' : seules les adresses @htechinnov.com sont acceptées');return;}
+    const row={adresse:adr,nom_affiche:b.querySelector('.mbN').value.trim()||null,type:b.querySelector('.mbT').value,systeme:b.querySelector('.mbS').checked,acces:[...b.querySelectorAll('.mbU:checked')].map(x=>x.value),actif:!b.querySelector('.mbX')?.checked};
+    const id=b.dataset.boite;const r=id==='nouvelle'?await sb.from('email_comptes').insert(row):await sb.from('email_comptes').update(row).eq('id',id);
+    if(r.error){toast('❌ '+adr+' : '+r.error.message);return;}n++;}
+  try{logAudit('modification','email_comptes','boites',{n});}catch(_){}
+  toast('✅ '+n+' boîte(s) enregistrée(s)');closeModal();loadEmailModule();
+}
 // ═══ EXPORT PDF / EXCEL ═══
 // HTI_INFO est maintenant dynamique — utilise getEntreprise()
 function getHTI(){ const e=getEntreprise(); return {nom:e.nom,ville:e.ville,tel:e.tel,email:e.email,rccm:e.rccm,responsable:e.responsable,banque:e.banque,rib:e.rib,paiement:e.paiement,orange:e.orange,mtn:e.mtn,wave:e.wave,mm_benef:e.mm_benef,mentions:e.mentions}; }
@@ -8671,16 +8742,7 @@ async function confirmerRdv(btn){
 
     // 3. Email (non bloquant)
     if(email){
-      try{ await sb.from('emails').insert({
-        direction:'envoye', de_adresse:CP?.email||'noreply@htechinnov.com',
-        de_nom:'H TECH INNOV', a_adresse:email,
-        sujet:'RDV confirme - H TECH INNOV', corps:msg,
-        dossier:'envoyes', lu:true
-      }); }catch(_){logErr(_)}
-      try{ sb.functions.invoke('envoyer-email',{body:{
-        from:CP?.email||'noreply@htechinnov.com', to:email,
-        sujet:'RDV confirme', corps:msg
-      }}); }catch(_){logErr(_)}
+      emailNotification(email,'RDV confirmé - H TECH INNOV',msg);
     }
 
     // 4. WhatsApp (non bloquant)
@@ -9346,20 +9408,7 @@ ${agentNom} — H TECH INNOV`;
   // Email si disponible
   if(emailClient){
     try{
-      await sb.from('emails').insert({
-        direction:'envoye',
-        de_adresse: CP?.email || 'noreply@htechinnov.com',
-        de_nom: 'H TECH INNOV',
-        a_adresse: emailClient,
-        sujet: '📅 Proposition de rendez-vous — H TECH INNOV',
-        corps: msg, dossier:'envoyes', lu:true
-      });
-      try{sb.functions.invoke('envoyer-email',{body:{
-        from: CP?.email || 'noreply@htechinnov.com',
-        to: emailClient,
-        sujet: '📅 Proposition de rendez-vous — H TECH INNOV',
-        corps: msg
-      }})}catch(_){logErr(_)};
+      emailNotification(emailClient,'📅 Proposition de rendez-vous — H TECH INNOV',msg);
       sent.push('📧 Email');
     }catch(e){ console.error('email contre-prop',e); }
   }
@@ -10243,9 +10292,9 @@ async function loadTVA(){
   const tb = document.getElementById('tva-table');
   if(!resume||!tb) return;
   const mois = document.getElementById('tva-mois')?.value || new Date().toISOString().slice(0,7);
-  const dateMin = mois+'-01', dateMax = mois+'-31';
+  const dateMin = mois+'-01', dateMax = moisSuivant(mois);
   const{data:facs} = await sb.from('factures').select('total_ht,total_ttc,tva,statut,created_at')
-    .gte('created_at',dateMin).lte('created_at',dateMax);
+    .gte('created_at',dateMin).lt('created_at',dateMax);
   const CA_HT = (facs||[]).reduce((s,f)=>s+(f.total_ht||0),0);
   const TVA_COLL = (facs||[]).reduce((s,f)=>s+(f.tva||0),0);
   const TVA_NETTE = TVA_COLL; // TVA déductible = 0 par défaut (à configurer)
@@ -18145,7 +18194,7 @@ async function ptgPosition(){if(!navigator.geolocation)return{};return await new
 // ── Mon pointage (tout le personnel) ──
 v4Def('mon-pointage',{titre:'Mon pointage',icone:'⏱️',custom:async pg=>{
   const mois=PTG.moisPerso||isoJour().slice(0,7);
-  const{data,error}=await sb.from('pointages').select('*').eq('employe_id',uid()).gte('date_pointage',mois+'-01').lte('date_pointage',mois+'-31').order('date_pointage',{ascending:false});
+  const{data,error}=await sb.from('pointages').select('*').eq('employe_id',uid()).gte('date_pointage',mois+'-01').lt('date_pointage',moisSuivant(mois)).order('date_pointage',{ascending:false});
   if(error){pg.innerHTML=`<div class="card">${ptgErreur(error)}</div>`;return;}
   const L=data||[],auj=L.find(p=>p.date_pointage===isoJour()),R=ptgResume(L);
   const etat=!auj||!auj.heure_arrivee?'arrivee':!auj.heure_depart?'depart':'fini';
@@ -18196,7 +18245,7 @@ async function loadPointage(){
     document.getElementById('pointage-employe').innerHTML+=PTG.equipe.map(e=>`<option value="${e.id}">${esc(((e.prenom||'')+' '+(e.nom||'')).trim())}</option>`).join('');
   }
   const mois=PTG.mois=document.getElementById('pointage-mois').value||isoJour().slice(0,7),emp=document.getElementById('pointage-employe').value,st=document.getElementById('pointage-statut').value;
-  let q=sb.from('pointages').select('*').gte('date_pointage',mois+'-01').lte('date_pointage',mois+'-31').order('date_pointage',{ascending:false});
+  let q=sb.from('pointages').select('*').gte('date_pointage',mois+'-01').lt('date_pointage',moisSuivant(mois)).order('date_pointage',{ascending:false});
   if(emp)q=q.eq('employe_id',emp);
   const{data,error}=await q;const T=document.getElementById('pointageTable');
   if(error){T.innerHTML=`<tr><td colspan="9" style="text-align:center;color:var(--amber);padding:18px">${ptgErreur(error)}</td></tr>`;return;}
@@ -19849,7 +19898,7 @@ async function loadMouvementsProduits(){
       .select('*,stock_produits(designation,reference)')
       .order('created_at',{ascending:false}).limit(100);
     if(type) q=q.eq('type',type);
-    if(mois){ q=q.gte('created_at',mois+'-01').lte('created_at',mois+'-31'); }
+    if(mois){ q=q.gte('created_at',mois+'-01').lt('created_at',moisSuivant(mois)); }
     const{data}=await q;
     const items=data||[];
     if(!items.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--g400);padding:18px">Aucun mouvement</td></tr>'; return; }
