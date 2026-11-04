@@ -4693,7 +4693,7 @@ function imprimerCertificatData(c){
   const hti=getEntreprise();
   const LOGO=HTI_LOGO||'';
   const QR=HTI_QR||'';
-  const STAMP=HTI_STAMP||'';
+  const STAMP='';/*cachet apposé à la main*/
 
   const modulesHtml=modules.length
     ?'<p style="font-size:8px;letter-spacing:.08em;color:#666;text-transform:uppercase;text-align:center;line-height:1.8;margin-bottom:6px">'+
@@ -4748,9 +4748,9 @@ function imprimerCertificatData(c){
     +modulesHtml
     +'<div class="testimony">EN FOI DE QUOI, NOUS AVONS APPOSÉ NOS SIGNATURES SOUS LE SCEAU DE L’INSTITUTION</div>'
     +'<div class="sig-zone">'
-    +'<div class="sig-block">'+SVG_F+'<div class="sig-line"></div><div class="sig-label">Fatoumata Touré, DG | Directrice Générale</div></div>'
-    +'<div class="stamp-wrap"><img src="'+STAMP+'" alt="Tampon"/></div>'
-    +'<div class="sig-block">'+SVG_I+'<div class="sig-line"></div><div class="sig-label">Irié Bi | Responsable Académique &amp; Formation</div></div>'
+    +'<div class="sig-block"><div style="height:58px"></div><div class="sig-line"></div><div class="sig-label">Fatoumata Touré, DG | Directrice Générale</div></div>'
+    +''
+    +'<div class="sig-block"><div style="height:58px"></div><div class="sig-line"></div><div class="sig-label">Irié Bi | Responsable Académique &amp; Formation</div></div>'
     +'</div>'
     +'</div></div>'
     +'<div class="bottom">'
@@ -12289,7 +12289,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
   doc.setFontSize(8);color(BLUE,'bold');doc.text(T('POUR '+(E.nom||'H TECH INNOV').toUpperCase()),sx+4,y+6);
   doc.setFontSize(8);color(NAVY,'bold');doc.text(T(E.responsable||''),sx+4,y+11);
   color(GREY,'normal');doc.setFontSize(7.5);doc.text(T(E.fonction||''),sx+4,y+15);
-  try{if(typeof HTI_STAMP==='string'&&HTI_STAMP.indexOf('data:')===0)doc.addImage(HTI_STAMP,'PNG',sx+sw-36,y+5,32,24);}catch(e){logErr(e);}
+  try{if(false/*cachet apposé à la main*/)doc.addImage(HTI_STAMP,'PNG',sx+sw-36,y+5,32,24);}catch(e){logErr(e);}
 
   // Annexes contractuelles du bon de commande
   let pagesAnnexes=[];
@@ -14978,7 +14978,7 @@ async function partContratPDF(f,opts){
       doc.setFontSize(8);color(NAVY,'bold');doc.text(P(nm),x+4,y+11);
       doc.setFontSize(7.5);color(GREY,'normal');doc.text(P(fc),x+4,y+15);
       doc.text(P('« Lu et approuvé », signature et cachet'),x+4,y+33);
-      if(i===1){try{if(typeof HTI_STAMP==='string'&&HTI_STAMP.indexOf('data:')===0)doc.addImage(HTI_STAMP,'PNG',x+sw-36,y+6,32,24);}catch(e){logErr(e);}}
+      if(i===1){try{if(false/*cachet apposé à la main*/)doc.addImage(HTI_STAMP,'PNG',x+sw-36,y+6,32,24);}catch(e){logErr(e);}}
     });
     y+=40;
   }
@@ -15864,10 +15864,9 @@ async function htaDessiner(c){
   doc.setFont('helvetica','bold');doc.setFontSize(8.4);doc.setTextColor(...BRUN);doc.text(String((c.date_obtention||'').slice(0,4)||new Date().getFullYear()),cx,cy+5,{align:'center'});
   // Signatures
   const sig=async(s,x0,x1)=>{const xm=(x0+x1)/2;if(!s||!s.nom)return;
-    const img=s._img||null;
-    if(img){try{doc.addImage(img,'PNG',xm-24,149,48,15);}catch(e){}}
-    else if(window._HTA_SCRIPT_FONT){doc.setFont('GreatVibes','normal');let fs=30;doc.setFontSize(fs);while(doc.getTextWidth(s.nom)>(x1-x0-6)&&fs>16){fs--;doc.setFontSize(fs);}doc.setTextColor(...BRUN);doc.text(s.nom,xm,161.5,{align:'center'});}
-    else{doc.setFont('times','bolditalic');doc.setFontSize(20);doc.setTextColor(...BRUN);doc.text(P(s.nom),xm,161,{align:'center'});}
+    /* signature manuscrite apposée à la main au-dessus de la ligne */
+    if(false){doc.setFont('GreatVibes','normal');let fs=30;doc.setFontSize(fs);while(doc.getTextWidth(s.nom)>(x1-x0-6)&&fs>16){fs--;doc.setFontSize(fs);}doc.setTextColor(...BRUN);doc.text(s.nom,xm,161.5,{align:'center'});}
+    doc.setFont('helvetica','italic');doc.setFontSize(6.6);doc.setTextColor(170,160,140);doc.text(P('Signature'),xm,152,{align:'center'});
     doc.setDrawColor(...NAVY);doc.setLineWidth(0.3);doc.line(x0,164,x1,164);
     doc.setFont('helvetica','bold');doc.setFontSize(9.2);const a=P(s.nom),b=P('|  '+(s.fonction||''));const wa=doc.getTextWidth(a)+1.6;doc.setFont('helvetica','normal');const wb=doc.getTextWidth(b);
     doc.setTextColor(...BRUN);doc.setFont('helvetica','bold');doc.text(a,xm-(wa+wb)/2,169.5);doc.setFont('helvetica','normal');doc.text(b,xm-(wa+wb)/2+wa,169.5);};
@@ -15887,7 +15886,7 @@ async function htaPreparerSignataires(c){
   const all=HTA_SIGN.length?HTA_SIGN:await htaSignataires();
   const f=(nom,fonc,id)=>{const s=all.find(x=>x.id===id)||all.find(x=>x.nom===nom)||{nom,fonction:fonc};return{...s,nom:nom||s.nom,fonction:fonc||s.fonction};};
   c._s1=c.signataire1_nom?f(c.signataire1_nom,c.signataire1_fonction):null;c._s2=c.signataire2_nom?f(c.signataire2_nom,c.signataire2_fonction):null;
-  for(const s of [c._s1,c._s2])if(s&&s.signature_path)s._img=await htaImageSignature(s.signature_path);
+  /* signatures apposées à la main : les images de signature ne sont plus chargées */
   if(c.partenaire_id||c.partenaire_nom){await partenairesListe();const x=(PART_LISTE||[]).find(y=>y.id===c.partenaire_id)||(PART_LISTE||[]).find(y=>y.nom===c.partenaire_nom);
     c._part={nom:c.partenaire_nom||x?.nom||'',lien:c.partenaire_lien||x?.lien||'',logo:x?.logo_data||null,type:c.partenaire_type||x?.type||'',agrement:c.partenaire_agrement||x?.numero_agrement||''};}
   return c;
@@ -16584,7 +16583,7 @@ async function omPDF(o,res){
     col(BLUE,'bold',7.8);doc.text(doc.splitTextToSize(P(s.titre.toUpperCase()),sw-6),x+3,y+5.5);
     col(NAVY,'bold',8.6);doc.text(P(s.nom||''),x+3,y+14);col(GREY,'normal',7.6);doc.text(doc.splitTextToSize(P(s.fonction||''),sw-6),x+3,y+18);
     col(GREY,'italic',7);doc.text(doc.splitTextToSize(P(s.mention||'Date et signature'),sw-6),x+3,y+hs-3);
-    if(s.cachet&&res.cachet){try{doc.addImage(res.cachet,'PNG',x+sw-27,y+9,24,18);}catch(e){}}});
+    /* signature et cachet apposés à la main dans ce cadre */});
   y+=hs+6;
   // Pied
   const nb=doc.getNumberOfPages();
@@ -16651,7 +16650,7 @@ function omDocument(r){
 }
 async function omGenererPDF(r){
   await ensurePdf();
-  return await omPDF(omDocument(r),{logo:HTI_LOGO,cachet:(typeof HTI_STAMP==='string'&&HTI_STAMP.startsWith('data:'))?HTI_STAMP:null});
+  return await omPDF(omDocument(r),{logo:HTI_LOGO,cachet:null/*cachet apposé à la main*/});
 }
 
 // ── Page ──
@@ -16953,7 +16952,7 @@ function abeDocument(r){
     titre_lignes:['ATTESTATION DE','BONNE EXÉCUTION'],fait_libre:true,hauteur_signature:33,compact:true,blocs,
     signatures:[{titre:'Pour le client — '+r.client_nom,nom:d.signataire_nom||'',fonction:d.signataire_fonction||'',mention:'Nom, fonction, date, signature et cachet du client'}]};
 }
-async function abePDF(r){await ensurePdf();const cachet=r.type==='prestataire'&&r.statut!=='brouillon'&&typeof HTI_STAMP==='string'&&HTI_STAMP.startsWith('data:')?HTI_STAMP:null;return await omPDF(abeDocument(r),{logo:HTI_LOGO,cachet});}
+async function abePDF(r){await ensurePdf();const cachet=null;/*cachet apposé à la main*/return await omPDF(abeDocument(r),{logo:HTI_LOGO,cachet});}
 
 v4Def('attestations-be',{titre:'Attestations de bonne exécution',icone:'🏅',custom:async pg=>{
   let err=null;try{const q=await sb.from('attestations_be').select('*').order('created_at',{ascending:false});if(q.error)err=q.error;ABE_ROWS=q.data||[];}catch(e){err=e;ABE_ROWS=[];}
@@ -17093,7 +17092,7 @@ async function abeReferences(){
         foot:['Total','','',fmtF(L.reduce((a,r)=>a+numIn(r.montant_ht),0))+' FCFA',L.length+' ABE'],widths:{3:{halign:'right'}}}}],
     signatures:[{titre:'Pour H TECH INNOV',nom:(typeof HTA_SIGN!=='undefined'&&HTA_SIGN[0]?.nom)||'',fonction:(typeof HTA_SIGN!=='undefined'&&HTA_SIGN[0]?.fonction)||'',cachet:true,mention:'Date, signature et cachet'}]};
   try{await htaSignataires();o.signatures[0].nom=HTA_SIGN[0]?.nom||'';o.signatures[0].fonction=HTA_SIGN[0]?.fonction||'';}catch(e){}
-  (await omPDF(o,{logo:HTI_LOGO,cachet:(typeof HTI_STAMP==='string'&&HTI_STAMP.startsWith('data:'))?HTI_STAMP:null})).save('References-H-TECH-INNOV.pdf');
+  (await omPDF(o,{logo:HTI_LOGO,cachet:null/*cachet apposé à la main*/})).save('References-H-TECH-INNOV.pdf');
 }
 (function(){
   try{
@@ -17615,7 +17614,7 @@ async function dpOctets(src){if(!src)return null;try{if(String(src).startsWith('
   const rp=await fetch(src);return rp.ok?new Uint8Array(await rp.arrayBuffer()):null;}catch(e){return null;}}
 function dpTelecharger(blob,nom){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nom;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
 async function dpDonnees(id){const r=DP_ROWS.find(x=>x.id===id);return{r,d:{reference:r.reference,titre:r.objet,created_at:r.created_at,date_document:String(r.created_at).slice(0,10),date_limite:r.date_limite,lieu:r.lieu,conditions:r.conditions,notes:r.notes,lignes:r.lignes||[]},
-  ctx:{E:getEntreprise(),f:await dpTiers(r),logo:await dpOctets(typeof HTI_LOGO==='string'?HTI_LOGO:null),cachet:await dpOctets(typeof HTI_STAMP==='string'?HTI_STAMP:null)}};}
+  ctx:{E:getEntreprise(),f:await dpTiers(r),logo:await dpOctets(typeof HTI_LOGO==='string'?HTI_LOGO:null),cachet:null/*cachet apposé à la main*/}};}
 async function dpWord(id){try{await loadScript(DP_LIBS.docx);const{r,d,ctx}=await dpDonnees(id);
   const blob=await window.docx.Packer.toBlob(dpConstruireDocx(window.docx,d,ctx));dpTelecharger(blob,'Demande-de-prix-'+r.reference+'.docx');toast('✅ Demande de prix Word téléchargée');}
   catch(e){logErr(e);toast('❌ Export Word impossible : '+e.message,8000);}}
@@ -18754,7 +18753,7 @@ async function rhPDF(c,opts){opts=opts||{};await ensurePdf();
   const sig=(L)=>{saut(48);const sw=(W-2*M-(L.length-1)*6)/L.length;L.forEach(([t,nm,fc,stamp],i)=>{const x=M+i*(sw+6);doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.roundedRect(x,y,sw,38,2,2,'S');
     doc.setFontSize(7.8);col(BLUE,'bold');doc.text(doc.splitTextToSize(P(t),sw-6),x+3,y+5.5);doc.setFontSize(8);col(NAVY,'bold');doc.text(doc.splitTextToSize(P(nm||''),sw-6),x+3,y+12);
     doc.setFontSize(7.2);col(GREY,'normal');if(fc)doc.text(doc.splitTextToSize(P(fc),sw-6),x+3,y+16.5);doc.text(P(stamp?'Signature et cachet':'« Lu et approuvé », signature'),x+3,y+35);
-    if(stamp){try{if(typeof HTI_STAMP==='string'&&HTI_STAMP.indexOf('data:')===0)doc.addImage(HTI_STAMP,'PNG',x+sw-34,y+9,30,22);}catch(e){}}});y+=42;};
+    if(stamp){try{if(false/*cachet apposé à la main*/)doc.addImage(HTI_STAMP,'PNG',x+sw-34,y+9,30,22);}catch(e){}}});y+=42;};
   const emp=['POUR '+(E.nom||'H TECH INNOV').toUpperCase(),E.responsable||'',E.fonction||'Directeur général',1];
   if(T.forme==='contrat'){
     titre(T.titre+(c.type==='avenant'?' N° '+(d.numero_avenant||1):''));
@@ -18781,7 +18780,7 @@ async function rhPDF(c,opts){opts=opts||{};await ensurePdf();
   }else{
     titre(T.titre);rendreTexte(rhRemplir(mod.contenu,c));y+=2;para(lieuDate()+'.');const x=W-M-90;saut(46);
     doc.setDrawColor(...LINE);doc.roundedRect(x,y,90,38,2,2,'S');doc.setFontSize(8);col(BLUE,'bold');doc.text(P('POUR '+(E.nom||'').toUpperCase()),x+3,y+6);col(NAVY,'bold');doc.text(P(E.responsable||''),x+3,y+11);
-    doc.setFontSize(7.2);col(GREY,'normal');doc.text(P(E.fonction||''),x+3,y+15.5);doc.text(P('Signature et cachet'),x+3,y+35);try{if(typeof HTI_STAMP==='string'&&HTI_STAMP.indexOf('data:')===0)doc.addImage(HTI_STAMP,'PNG',x+56,y+9,30,22);}catch(e){}y+=42;
+    doc.setFontSize(7.2);col(GREY,'normal');doc.text(P(E.fonction||''),x+3,y+15.5);doc.text(P('Signature et cachet'),x+3,y+35);try{if(false/*cachet apposé à la main*/)doc.addImage(HTI_STAMP,'PNG',x+56,y+9,30,22);}catch(e){}y+=42;
   }
   const nb=doc.getNumberOfPages(),legal=P([E.nom,E.forme,E.rccm?'RCCM '+E.rccm:'',E.dgi?'NCC '+E.dgi:'',E.ville].filter(Boolean).join('  |  '));
   for(let i=1;i<=nb;i++){doc.setPage(i);if(opts.projet||c.statut==='brouillon'){try{doc.setGState(new doc.GState({opacity:0.07}));}catch(e){}doc.setFontSize(70);col(NAVY,'bold');doc.text('PROJET',W/2,175,{align:'center',angle:30});try{doc.setGState(new doc.GState({opacity:1}));}catch(e){}}
@@ -19563,8 +19562,7 @@ async function simRapport(source){
     doc.setFont('helvetica','normal');doc.setFontSize(8.6);doc.setTextColor(...GRIS);doc.text(P((SIM.lang==='en'?'Issued in Abidjan, on ':'Fait à Abidjan, le ')+dfr(new Date())+'.'),M,y);y+=4;
     const sigs=(I.signataires||[]).slice(0,2),zone=(W-2*M-30)/2;
     sigs.forEach((sg,i)=>{const x0=M+i*(zone+4),xm=x0+zone/2,ys=y+14;
-      if(window._SIM_SCRIPT){doc.setFont('GreatVibes','normal');let f=26;doc.setFontSize(f);while(doc.getTextWidth(sg.nom||'')>zone-8&&f>14){f--;doc.setFontSize(f);}doc.setTextColor(59,42,32);doc.text(sg.nom||'',xm,ys,{align:'center'});}
-      else{doc.setFont('times','bolditalic');doc.setFontSize(17);doc.setTextColor(59,42,32);doc.text(P(sg.nom||''),xm,ys,{align:'center'});}
+      doc.setFont('helvetica','italic');doc.setFontSize(6.6);doc.setTextColor(170,175,185);doc.text(P(SIM.lang==='en'?'Signature and stamp':'Signature et cachet'),xm,ys-9,{align:'center'});
       doc.setDrawColor(...NAVY);doc.setLineWidth(0.3);doc.line(x0+4,ys+3,x0+zone-4,ys+3);
       doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(P(sg.nom||''),xm,ys+7.5,{align:'center'});
       doc.setFont('helvetica','normal');doc.setFontSize(7.8);doc.setTextColor(...GRIS);doc.text(P(sg.fonction||''),xm,ys+11.5,{align:'center'});});
@@ -19766,8 +19764,7 @@ async function simRapport(source){
     doc.setFont('helvetica','normal');doc.setFontSize(8.6);doc.setTextColor(...GRIS);doc.text(P((SIM.lang==='en'?'Issued in Abidjan, on ':'Fait à Abidjan, le ')+dfr(new Date())+'.'),M,y);y+=4;
     const sigs=(I.signataires||[]).slice(0,2),zone=(W-2*M-30)/2;
     sigs.forEach((sg,i)=>{const x0=M+i*(zone+4),xm=x0+zone/2,ys=y+14;
-      if(window._SIM_SCRIPT){doc.setFont('GreatVibes','normal');let f=26;doc.setFontSize(f);while(doc.getTextWidth(sg.nom||'')>zone-8&&f>14){f--;doc.setFontSize(f);}doc.setTextColor(59,42,32);doc.text(sg.nom||'',xm,ys,{align:'center'});}
-      else{doc.setFont('times','bolditalic');doc.setFontSize(17);doc.setTextColor(59,42,32);doc.text(P(sg.nom||''),xm,ys,{align:'center'});}
+      doc.setFont('helvetica','italic');doc.setFontSize(6.6);doc.setTextColor(170,175,185);doc.text(P(SIM.lang==='en'?'Signature and stamp':'Signature et cachet'),xm,ys-9,{align:'center'});
       doc.setDrawColor(...NAVY);doc.setLineWidth(0.3);doc.line(x0+4,ys+3,x0+zone-4,ys+3);
       doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(P(sg.nom||''),xm,ys+7.5,{align:'center'});
       doc.setFont('helvetica','normal');doc.setFontSize(7.8);doc.setTextColor(...GRIS);doc.text(P(sg.fonction||''),xm,ys+11.5,{align:'center'});});
