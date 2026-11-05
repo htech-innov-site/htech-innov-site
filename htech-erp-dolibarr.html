@@ -14465,6 +14465,22 @@ apporteur:{groupe:'Commercial',icone:'🤝',l:'Apporteur d’affaires',titre:'CO
    {k:'duree_commission_mois',l:'Contrats commissionnés signés dans un délai de (mois)',t:'number',d:12},
    {k:'delai_paiement',l:'Paiement de la commission après encaissement (jours)',t:'number',d:15}
   ]},
+consultant_commercial:{groupe:'Commercial',icone:'💼',l:'Consultant(e) senior en développement commercial',titre:'CONTRAT DE CONSULTANT INDÉPENDANT EN DÉVELOPPEMENT COMMERCIAL',
+  personne:'physique',options:['non_sollicitation','confidentialite_renforcee','resiliation_libre'],duree:12,
+  champs:[
+   {k:'titre_mission',l:'Intitulé de la mission (utilisé auprès des clients)',t:'text',d:'Consultante senior en développement commercial',req:1},
+   {k:'missions',l:'Missions confiées (une par ligne)',t:'textarea',d:'prospection et identification d’opportunités d’affaires\nqualification des besoins et prise de rendez-vous avec les décideurs\npréparation et présentation des offres avec les équipes de H TECH INNOV\nveille et suivi des appels d’offres publics et privés\nconseil en stratégie et en organisation commerciales\ncompte rendu mensuel de son activité',req:1},
+   {k:'perimetre',l:'Offres concernées',t:'text',d:'l’ensemble des offres de H TECH INNOV (conseil, digital et IA, cybersécurité, smart building, formation)',req:1},
+   {k:'territoire',l:'Territoire et secteurs',t:'text',d:'Côte d’Ivoire'},
+   {k:'perdiem_mensuel',l:'Forfait mensuel de déplacement (per diem) HT',t:'money',req:1},
+   {k:'perdiem_conditions',l:'Modalité du forfait de déplacement',t:'select',o:{forfait:'Forfait fixe, versé sur présentation du relevé d’activité du mois',plafond:'Frais réels sur justificatifs, dans la limite du forfait mensuel'},d:'forfait'},
+   {k:'commission_pct',l:'Commission sur les marchés (%)',t:'pct',d:5,req:1},
+   {k:'commission_base',l:'Base de la commission',t:'select',o:{encaisse:'montant hors taxes effectivement encaissé',marge:'marge brute réalisée sur le marché'},d:'encaisse'},
+   {k:'duree_commission_mois',l:'Marchés commissionnés signés dans un délai de (mois) après leur enregistrement',t:'number',d:12},
+   {k:'objectif_annuel',l:'Objectif annuel indicatif de chiffre d’affaires HT (facultatif)',t:'money'},
+   {k:'reporting',l:'Compte rendu attendu',t:'text',d:'un relevé mensuel des rendez-vous, prospects et opportunités en cours'},
+   {k:'delai_paiement',l:'Paiement après réception de la facture ou de l’encaissement (jours)',t:'number',d:15}
+  ]},
 fournisseur:{groupe:'Commercial',icone:'🏭',l:'Fournisseur partenaire',titre:'CONTRAT-CADRE DE PARTENARIAT FOURNISSEUR',
   personne:'morale',options:['resiliation_libre'],duree:12,
   champs:[
@@ -14648,6 +14664,24 @@ apporteur:`**Article # – Objet.** Le Partenaire présente à H TECH INNOV des 
 
 **Article # – Transparence.** H TECH INNOV peut informer le client de l'intervention du Partenaire.`,
 
+consultant_commercial:`**Article # – Objet.** Le Partenaire, consultant(e) indépendant(e), réalise pour H TECH INNOV une mission de {{titre_mission}} portant sur {{perimetre}}, sur le territoire suivant : {{territoire}}. Cette mission comprend : {{missions}}.
+
+**Article # – Conditions d’exécution.** Le Partenaire organise librement son temps, son agenda, ses déplacements et ses méthodes de travail, avec ses propres moyens. Il n’est soumis à aucun horaire ni à aucune obligation de présence, et reste libre de conseiller d’autres clients pour des activités qui ne concurrencent pas celles de H TECH INNOV. Auprès des prospects, il se présente comme « {{titre_mission}}, consultant(e) pour H TECH INNOV ». Il peut utiliser la documentation commerciale et, sur réservation, les espaces de travail de H TECH INNOV, sans que cela crée un lien de subordination.
+
+**Article # – Pouvoirs.** Le Partenaire n’a pas le pouvoir de signer un contrat, d’engager H TECH INNOV ou d’encaisser des fonds en son nom. Les prix, remises, délais et conditions des offres sont fixés par la direction de H TECH INNOV, qui émet les propositions commerciales en son nom.
+
+**Article # – Forfait mensuel de déplacement.** Pour couvrir les frais de déplacement et de prospection engagés pour la mission, H TECH INNOV verse au Partenaire un forfait mensuel de {{perdiem_mensuel}} ({{perdiem_mensuel_lettres}}) hors taxes[[si:perdiem_conditions=forfait]], sur présentation du relevé d’activité du mois concerné[[/si]][[si:perdiem_conditions=plafond]], sous la forme d’un remboursement des frais réels justifiés dans la limite de ce montant mensuel[[/si]]. Ce forfait n’est pas un salaire : il est facturé par le Partenaire et n’est pas dû pour un mois sans activité de prospection, ni pendant une suspension de la mission.
+
+**Article # – Commission sur les marchés.** Pour tout marché signé avec un client présenté ou suivi par le Partenaire et enregistré par H TECH INNOV, dans les {{duree_commission_mois}} mois suivant cet enregistrement, le Partenaire perçoit une commission de {{commission_pct}} % du {{commission_base_label}}. La commission est due au fur et à mesure des encaissements et payée dans les {{delai_paiement}} jours suivant chacun d’eux. Aucune commission n’est due sur les sommes impayées, annulées ou remboursées. Chaque prospect est enregistré par écrit (identité, interlocuteur, besoin) ; H TECH INNOV confirme ou refuse l’enregistrement sous 5 jours ouvrés, notamment si le prospect est déjà en relation avec elle.
+
+[[si:objectif_annuel]]**Article # – Objectif indicatif.** Les parties retiennent un objectif annuel indicatif de {{objectif_annuel}} de chiffre d’affaires hors taxes. Cet objectif sert de repère au suivi de la mission ; il ne conditionne ni le forfait ni la commission, et sa non-atteinte ne constitue pas une faute.
+
+[[/si]]**Article # – Compte rendu.** Le Partenaire transmet à H TECH INNOV, au plus tard le 5 de chaque mois, {{reporting}}. Ce compte rendu justifie le forfait de déplacement du mois écoulé et permet le suivi des opportunités.
+
+**Article # – Facturation, fiscalité et protection sociale.** Le Partenaire adresse chaque mois une facture ou une note d’honoraires regroupant le forfait de déplacement et les commissions dues, mentionnant son numéro de compte contribuable. Il fait son affaire de ses déclarations et du paiement de ses impôts, taxes et cotisations sociales. À défaut de justification de son immatriculation fiscale, H TECH INNOV applique les retenues à la source prévues par le Code général des impôts.
+
+**Article # – Loyauté et intégrité.** Le Partenaire ne fait aucune promesse sur les prix, les délais ou les résultats qui n’ait été validée par H TECH INNOV. Il s’interdit de reverser tout ou partie de sa rémunération à un salarié, dirigeant ou agent public d’un prospect, ou de lui consentir un avantage quelconque. Tout manquement entraîne la résiliation immédiate et la perte des commissions non payées.`,
+
 fournisseur:`**Article # – Objet.** Le présent contrat-cadre organise l'approvisionnement de H TECH INNOV auprès du Partenaire pour les gammes suivantes : {{produits}}.
 
 **Article # – Commandes.** Les commandes sont passées par bons de commande de H TECH INNOV. Les conditions générales d'achat jointes (Annexe A) s'appliquent, sauf dispositions plus favorables du présent contrat. Le présent contrat prévaut sur les conditions générales de vente du Partenaire.
@@ -14816,7 +14850,7 @@ function partVariables(f){
   (T.champs||[]).forEach(c=>{
     const raw=dn[c.k];v['_raw_'+c.k]=raw;
     if(!partVrai(raw)&&c.t!=='number'){v[c.k]=(c.t==='money'?'néant':AC);return;}
-    if(c.t==='money'){v[c.k]=fmtF(numIn(raw))+' FCFA';v[c.k+'_lettres']=montantEnLettres(numIn(raw));}
+    if(c.t==='money'){v[c.k]=fmtF(numIn(raw))+' FCFA';v[c.k+'_lettres']=String(montantEnLettres(numIn(raw))||'').replace(/^./,x=>x.toLowerCase());}
     else if(c.t==='pct')v[c.k]=String(raw).replace('.',',');
     else if(c.t==='date')v[c.k]=fmtD(raw);
     else if(c.t==='select'){v[c.k]=raw;v[c.k+'_label']=(c.o||{})[raw]||raw;}
@@ -18422,6 +18456,68 @@ cddti:`**Article # – Engagement.** {{employeur}} engage {{salarie}}, qui l’a
 
 **Article # – Dispositions finales.** Le présent contrat est exempt de tous droits de timbre et d’enregistrement. Il est établi en deux (2) exemplaires originaux.{{conditions_particulieres_txt}}`,
 
+apporteur:`**Article # – Objet.** La Société confie à {{partenaire}} (l’« Apporteur »), qui l’accepte, la mission de rechercher et de lui présenter des clients pour les offres suivantes : {{offres}}, sur le territoire suivant : {{territoire}}.
+
+**Article # – Nature des relations.** L’Apporteur exerce sa mission en toute indépendance : il organise librement son activité, son temps et ses méthodes, avec ses propres moyens, sans lien de subordination avec la Société. Il n’a pas le pouvoir d’engager la Société, de signer en son nom, de négocier ses prix ou d’encaisser des sommes pour son compte. Le présent contrat ne lui confère pas la qualité d’agent commercial au sens de l’Acte uniforme OHADA relatif au droit commercial général.
+
+**Article # – Introduction des prospects.** Toute présentation est signalée par écrit (e-mail ou formulaire) à la Société, avec l’identité du prospect, le besoin identifié et la date. La Société confirme ou refuse l’introduction dans un délai de cinq (5) jours ouvrés. Une introduction confirmée ouvre droit à rémunération pour les affaires conclues avec ce prospect pendant {{validite_introduction}} mois. N’ouvrent pas droit à rémunération : {{clients_exclus}}.
+
+**Article # – Rémunération.** Pour chaque affaire conclue avec un prospect introduit, l’Apporteur perçoit {{remuneration_txt}}.{{remu_details_txt}} La rémunération est calculée sur les sommes effectivement encaissées par la Société, hors taxes et hors débours ; elle est due après chaque encaissement et proportionnellement à celui-ci. Aucune rémunération n’est due en cas d’annulation, d’impayé ou de remboursement.
+
+**Article # – Facturation et paiement.** L’Apporteur adresse à la Société une facture ou une note d’honoraires conforme à la réglementation, mentionnant son numéro de compte contribuable. Le paiement intervient par {{mode_paiement_label}} dans un délai de {{delai_paiement}} jours après l’encaissement correspondant. Les frais de prospection sont {{frais_txt}}.
+
+**Article # – Obligations fiscales et sociales.** L’Apporteur fait son affaire de ses déclarations et du paiement de ses impôts, taxes et cotisations sociales. À défaut de justification de son immatriculation fiscale, la Société applique les retenues à la source prévues par le Code général des impôts.
+
+**Article # – Loyauté et éthique.** L’Apporteur présente les offres de la Société de façon loyale et conforme à leur description. Il s’interdit de consentir ou de promettre tout avantage indu à un agent public ou privé pour obtenir une affaire.
+
+[[si:confidentialite]]**Article # – Confidentialité.** L’Apporteur garde confidentielles les informations relatives à la Société, à ses offres, à ses prix et à ses clients, pendant le contrat et trois (3) ans après son terme.
+
+[[/si]][[si:non_sollicitation]]**Article # – Non-sollicitation.** Pendant le contrat et douze (12) mois après son terme, l’Apporteur s’interdit de détourner au profit d’un tiers les clients introduits, et de solliciter le personnel de la Société.
+
+[[/si]][[si:exclusivite]]**Article # – Exclusivité.** Pendant la durée du contrat, l’Apporteur s’interdit de présenter, sur le territoire défini, des offres concurrentes de celles de la Société.
+
+[[/si]]**Article # – Durée.** Le présent contrat prend effet le {{date_debut}} pour une durée de {{duree}}.{{renouvellement_txt}}
+
+**Article # – Résiliation.** Chaque partie peut résilier le contrat à tout moment par écrit, moyennant un préavis de {{preavis_jours}} jours. En cas de faute grave, la résiliation est immédiate. Les rémunérations relatives aux affaires conclues avant la fin du contrat restent dues au fur et à mesure des encaissements.
+
+**Article # – Données personnelles et litiges.** Les données personnelles échangées sont traitées conformément à la loi n° 2013-450 du 19 juin 2013. Tout différend est d’abord soumis à une recherche de solution amiable ; à défaut, il relève des juridictions compétentes d’Abidjan. Le présent contrat est soumis au droit ivoirien et aux Actes uniformes de l’OHADA.
+
+**Article # – Dispositions finales.** Le présent contrat est établi en deux (2) exemplaires originaux.{{conditions_particulieres_txt}}`,
+
+freelance:`**Article # – Objet.** La Société confie à {{partenaire}} (le « Prestataire »), qui l’accepte, la réalisation des prestations suivantes : {{missions}}, à exécuter {{lieu_travail}}.
+
+**Article # – Indépendance.** Le Prestataire exécute les prestations en toute indépendance, avec {{moyens}}. Il organise librement son travail et ses horaires, dans le respect des délais et des contraintes convenus avec la Société et ses clients. Aucun lien de subordination n’existe entre les parties ; le Prestataire ne peut se prévaloir de la qualité de salarié de la Société.
+
+**Article # – Exécution et livrables.** Le Prestataire s’engage à exécuter les prestations avec diligence et selon les règles de l’art, en respectant les consignes d’hygiène, de sécurité et de confidentialité applicables chez les clients. Les livrables attendus sont : {{livrables_txt}}. Chaque livrable fait l’objet d’une réception écrite ; la Société dispose de huit (8) jours pour formuler ses réserves, que le Prestataire lève sans frais supplémentaires.
+
+**Article # – Prix.** En contrepartie des prestations, la Société verse au Prestataire {{honoraires_txt}}.{{volume_txt}} Les prix s’entendent hors taxes ; la TVA est facturée selon le régime fiscal du Prestataire. Les frais de déplacement et de mission sont {{frais_txt}}.
+
+**Article # – Facturation et paiement.** {{echeancier_txt}}. Les factures, conformes à la réglementation et mentionnant le numéro de compte contribuable du Prestataire, sont payées par {{mode_paiement_label}} dans un délai de {{delai_paiement}} jours après leur réception.
+
+**Article # – Obligations fiscales et sociales.** Le Prestataire fait son affaire de ses déclarations et du paiement de ses impôts, taxes et cotisations sociales, ainsi que de celles de son éventuel personnel. À défaut de justification de son immatriculation fiscale, la Société applique les retenues à la source prévues par le Code général des impôts.
+
+[[si:assurance_rc]]**Article # – Assurance.** Le Prestataire justifie, à la signature puis à chaque échéance, d’une assurance de responsabilité civile professionnelle couvrant les dommages qu’il pourrait causer dans l’exécution des prestations.
+
+[[/si]][[si:propriete_intellectuelle]]**Article # – Propriété des livrables.** Les livrables réalisés au titre du présent contrat deviennent la propriété de la Société au fur et à mesure de leur paiement intégral. Le Prestataire lui cède, à titre exclusif et pour la durée légale de protection, les droits d’exploitation correspondants, sans rémunération supplémentaire.
+
+[[/si]][[si:!sous_traitance]]**Article # – Sous-traitance.** Le Prestataire ne peut confier tout ou partie des prestations à un tiers sans l’accord écrit et préalable de la Société.
+
+[[/si]][[si:confidentialite]]**Article # – Confidentialité.** Le Prestataire garde confidentielles les informations dont il a connaissance au titre de ses prestations, notamment celles relatives aux clients de la Société, pendant le contrat et trois (3) ans après son terme.
+
+[[/si]][[si:non_sollicitation]]**Article # – Non-sollicitation.** Pendant le contrat et douze (12) mois après son terme, le Prestataire s’interdit de proposer directement ses services aux clients de la Société auprès desquels il est intervenu, et de solliciter le personnel de la Société.
+
+[[/si]][[si:exclusivite]]**Article # – Exclusivité.** Pendant la durée du contrat, le Prestataire s’interdit de réaliser des prestations identiques pour une entreprise concurrente de la Société sur les mêmes clients.
+
+[[/si]]**Article # – Responsabilité.** La responsabilité de chaque partie est limitée aux dommages directs et, sauf faute lourde ou intentionnelle, au montant des sommes perçues au titre du présent contrat au cours des douze (12) derniers mois.
+
+**Article # – Durée.** Le présent contrat prend effet le {{date_debut}} pour une durée de {{duree}}.{{renouvellement_txt}}
+
+**Article # – Résiliation.** Chaque partie peut résilier le contrat à tout moment par écrit, moyennant un préavis de {{preavis_jours}} jours. En cas de manquement grave, la résiliation est immédiate après une mise en demeure restée sans effet pendant huit (8) jours. Les prestations réalisées et réceptionnées jusqu’à la date d’effet de la résiliation sont payées.
+
+**Article # – Données personnelles et litiges.** Les données personnelles échangées sont traitées conformément à la loi n° 2013-450 du 19 juin 2013. Tout différend est d’abord soumis à une recherche de solution amiable ; à défaut, il relève des juridictions compétentes d’Abidjan. Le présent contrat est soumis au droit ivoirien et aux Actes uniformes de l’OHADA.
+
+**Article # – Dispositions finales.** Le présent contrat est établi en deux (2) exemplaires originaux.{{conditions_particulieres_txt}}`,
+
 journalier:`**Article # – Engagement.** {{employeur}} engage {{salarie}} en qualité de travailleur journalier, pour exercer l'activité suivante : {{poste}} ({{missions}}), à compter du {{date_debut}}{{date_fin_txt}}. Conformément à l'article 15.7 du Code du travail, le présent engagement, à l'heure ou à la journée et pour une occupation de courte durée, est assimilé à un contrat à durée déterminée à terme imprécis.
 
 **Article # – Lieu et horaires.** Le travail est effectué à {{lieu_travail}}, selon l'horaire suivant : {{horaires}}.
@@ -18557,7 +18653,7 @@ const RH_SMIG=75000;
 const rhLettres=n=>{let t=String(montantEnLettres(n)||'');t=t.charAt(0).toLowerCase()+t.slice(1);return /franc/i.test(t)?t:t+' francs CFA';};
 const rhFichier=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'');
 
-const RH_GROUPES={emploi:'Contrats de travail',formation:'Stages et apprentissage',documents:'Documents RH'};
+const RH_GROUPES={emploi:'Contrats de travail',formation:'Stages et apprentissage',partenaires:'Partenaires indépendants (freelance)',documents:'Documents RH'};
 const RH_STATUTS={brouillon:['#F1F3F7','#5E6B82','Brouillon'],a_signer:['#FEF3E2','#B45309','À signer'],signe:['#E5EFFB','#1565C0','Signé'],en_cours:['#EDF6E8','#3F8A1E','En cours'],
   termine:['#F1F3F7','#5E6B82','Terminé'],rompu:['#FDECEC','#B42318','Rompu'],annule:['#F1F3F7','#7A90A8','Annulé']};
 const RH_ESSAI={journalier:['Payé à l’heure ou à la journée',8,'jours'],mensuel:['Payé au mois',1,'mois'],maitrise:['Agent de maîtrise, technicien',2,'mois'],cadre:['Ingénieur, cadre, technicien supérieur',3,'mois'],cadre_sup:['Cadre supérieur',6,'mois']};
@@ -18585,6 +18681,18 @@ const RH_TEMPS_LIBRE=[F('temps_partiel','Temps partiel','bool',{def:true}),F('du
   F('horaires_libres_modalites','Modalités des horaires libres','text',{w:2,si:'horaires_libres',def:'du lundi au samedi, entre 7 h 00 et 19 h 00, avec présence aux réunions planifiées'}),
   F('horaires','Horaires fixes','text',{w:2,si:'!horaires_libres',def:'du lundi au vendredi, de 8 h 00 à 12 h 00'})];
 const RH_CLAUSES_DETAIL=[F('materiel_liste','Matériel remis','text',{w:2,si:'materiel'}),F('teletravail_modalites','Modalités du télétravail','text',{w:2,si:'teletravail'}),F('zone_mobilite','Périmètre de mobilité','text',{w:2,si:'mobilite'})];
+const RH_ID_INDEP=[F('statut_juridique','Statut','select',{o:{physique:'Personne physique (entreprenant, entreprise individuelle)',societe:'Société'},def:'physique',req:1}),
+  F('civilite','Civilité','select',{o:{'M.':'M.','Mme':'Mme'},si:'statut_juridique=physique'}),F('nom','Nom','text',{req:1,si:'statut_juridique=physique'}),F('prenoms','Prénoms','text',{req:1,si:'statut_juridique=physique'}),
+  F('piece','Pièce d’identité (type et n°)','text',{si:'statut_juridique=physique'}),
+  F('raison_sociale','Raison sociale','text',{req:1,si:'statut_juridique=societe'}),F('forme_juridique','Forme juridique','text',{si:'statut_juridique=societe',aide:'SARL, SAS, SA…'}),
+  F('representant','Représentant légal','text',{req:1,si:'statut_juridique=societe'}),F('representant_qualite','Qualité du représentant','text',{si:'statut_juridique=societe',def:'Gérant'}),
+  F('adresse','Adresse','text',{req:1,w:2}),F('telephone','Téléphone'),F('email','E-mail'),
+  F('rccm','N° RCCM (registre du commerce ou déclaration d’entreprenant)'),F('ncc','N° de compte contribuable (NCC)')];
+const RH_INDEPENDANCE=[F('horaires_imposes','H TECH INNOV lui impose des horaires de travail','bool'),F('outils_fournis','H TECH INNOV lui fournit le poste de travail et les outils','bool'),
+  F('client_unique','H TECH INNOV est son unique client','bool'),F('integre_equipe','Il est intégré à un service et reçoit des ordres comme un salarié','bool')];
+const RH_DUREE_INDEP=[F('date_debut','Date de prise d’effet','date',{req:1}),F('duree','Durée initiale','text',{def:'douze (12) mois',req:1}),F('renouvellement','Renouvellement tacite par périodes identiques','bool',{def:true}),
+  F('preavis_jours','Préavis de résiliation (jours)','number',{def:30}),F('date_signature','Date de signature','date')];
+const RH_CLAUSES_INDEP=[F('confidentialite','Confidentialité','bool',{def:true}),F('non_sollicitation','Non-sollicitation des clients et du personnel','bool',{def:true}),F('exclusivite','Exclusivité','bool')];
 const RH_TYPES={
   cdi:{g:'emploi',court:'CDI',titre:'CONTRAT DE TRAVAIL À DURÉE INDÉTERMINÉE',forme:'contrat',partie:'le Salarié',clauses:1,sections:[['Salarié',RH_ID],['Poste',RH_POSTE],['Durée',RH_DATES],['Période d’essai',RH_ESSAI_F],['Rémunération',RH_REMU],['Temps de travail',RH_TEMPS],['Clauses',RH_CLAUSES_DETAIL],['Divers',RH_FIN]]},
   cdd:{g:'emploi',court:'CDD',titre:'CONTRAT DE TRAVAIL À DURÉE DÉTERMINÉE',forme:'contrat',partie:'le Salarié',clauses:1,sections:[['Salarié',RH_ID],['Poste',RH_POSTE],
@@ -18596,6 +18704,24 @@ const RH_TYPES={
     ['Motif et terme',[...RH_DATES,F('motif','Motif légal (article 15.6)','select',{o:RH_MOTIFS,req:1}),F('motif_detail','Précision du motif','text',{req:1,w:2,aide:'Ex. : renfort ponctuel pour la rentrée de H TECH ACADEMY'}),
       F('terme_evenement','Événement qui mettra fin au contrat','text',{req:1,w:2,aide:'Ex. : la fin de la session de formation de décembre 2026'}),F('duree_approx','Durée approximative','text',{req:1,aide:'Ex. : environ trois mois'})]],
     ['Période d’essai',RH_ESSAI_F],['Rémunération',RH_REMU],['Temps et organisation du travail',RH_TEMPS_LIBRE],['Clauses',RH_CLAUSES_DETAIL],['Divers',RH_FIN]]},
+  apporteur:{g:'partenaires',court:'Apporteur d’affaires',titre:'CONTRAT D’APPORTEUR D’AFFAIRES',forme:'contrat',partie:'l’Apporteur',indep:1,sections:[['Apporteur d’affaires (commercial freelance)',RH_ID_INDEP],
+    ['Mission',[F('offres','Offres et services concernés','textarea',{req:1,w:2,aide:'Ex. : formations H TECH ACADEMY, installations de vidéosurveillance, prestations PMO'}),F('territoire','Territoire','text',{def:'Côte d’Ivoire',w:2}),
+      F('clients_exclus','Clients exclus (déjà connus de H TECH INNOV)','textarea',{w:2,def:'les clients et prospects figurant dans le fichier commercial de H TECH INNOV à la date de signature'}),F('validite_introduction','Durée de validité d’une introduction (mois)','number',{def:12})]],
+    ['Rémunération',[F('mode_remu','Mode de rémunération','select',{o:{pourcentage:'Commission en % du montant HT encaissé',forfait:'Forfait par affaire conclue',mixte:'Forfait par affaire + commission en %'},def:'pourcentage',req:1}),
+      F('taux_commission','Taux de commission (%)','number',{aide:'Ex. : 10'}),F('montant_forfait','Forfait par affaire conclue','money'),
+      F('remu_details','Précisions (paliers, plafonds, affaires exclues…)','textarea',{w:2}),F('delai_paiement','Délai de paiement après encaissement (jours)','number',{def:15}),
+      F('frais','Frais de prospection','select',{o:{charge:'à la charge de l’Apporteur',accord:'remboursés sur accord écrit préalable et justificatifs'},def:'charge'}),F('mode_paiement','Mode de paiement','select',{o:{virement:'virement bancaire',mobile:'mobile money',cheque:'chèque'},def:'virement'})]],
+    ['Durée',RH_DUREE_INDEP],['Indépendance (contrôle du lien de subordination)',RH_INDEPENDANCE],['Clauses',RH_CLAUSES_INDEP],['Divers',RH_FIN]]},
+  freelance:{g:'partenaires',court:'Prestataire freelance',titre:'CONTRAT DE PRESTATION DE SERVICES',forme:'contrat',partie:'le Prestataire',indep:1,sections:[['Prestataire (opérationnel freelance)',RH_ID_INDEP],
+    ['Prestations',[F('missions','Prestations confiées','textarea',{req:1,w:2,aide:'Ex. : installation et paramétrage de caméras, animation de sessions de formation, assistance PMO'}),
+      F('livrables','Livrables attendus','textarea',{w:2,aide:'Ex. : rapport d’installation, supports de formation, comptes rendus'}),F('lieu_travail','Lieu d’exécution','text',{w:2,def:'chez les clients de H TECH INNOV et dans les locaux du Prestataire'}),
+      F('moyens','Moyens mis en œuvre','text',{w:2,def:'ses propres moyens humains et matériels'})]],
+    ['Rémunération',[F('mode_honoraires','Mode de rémunération','select',{o:{forfait:'Forfait global',tjm:'Taux journalier',horaire:'Taux horaire',mensuel:'Forfait mensuel',mission:'Forfait par mission'},def:'tjm',req:1}),
+      F('montant','Montant (HT)','money',{req:1,aide:'Selon le mode choisi : par jour, par heure, par mois, par mission ou global'}),F('volume','Volume estimatif','text',{aide:'Ex. : 20 jours sur la durée du contrat'}),
+      F('echeancier','Modalités de facturation','textarea',{w:2,def:'facture mensuelle sur la base des prestations réalisées et validées'}),F('delai_paiement','Délai de paiement après réception de la facture (jours)','number',{def:30}),
+      F('frais','Frais de déplacement et de mission','select',{o:{inclus:'inclus dans la rémunération',accord:'remboursés sur accord écrit préalable et justificatifs'},def:'accord'}),F('mode_paiement','Mode de paiement','select',{o:{virement:'virement bancaire',mobile:'mobile money',cheque:'chèque'},def:'virement'})]],
+    ['Durée',RH_DUREE_INDEP],['Indépendance (contrôle du lien de subordination)',RH_INDEPENDANCE],
+    ['Clauses',[...RH_CLAUSES_INDEP,F('propriete_intellectuelle','Cession des droits sur les livrables','bool',{def:true}),F('assurance_rc','Assurance responsabilité civile professionnelle exigée','bool',{def:true}),F('sous_traitance','Sous-traitance autorisée sans accord préalable','bool')]],['Divers',RH_FIN]]},
   journalier:{g:'emploi',court:'Journalier',titre:'ENGAGEMENT DE TRAVAILLEUR JOURNALIER',forme:'contrat',partie:'le Travailleur',sections:[['Travailleur',RH_ID.filter(f=>!['filiation'].includes(f.k))],
     ['Engagement',[F('poste','Activité','text',{req:1}),F('missions','Tâches','textarea',{req:1,w:2}),F('lieu_travail','Lieu','text',{req:1,w:2}),F('horaires','Horaires','text',{w:2,def:'de 7 h 30 à 12 h 00 et de 13 h 00 à 16 h 30'}),...RH_DATES,F('date_fin','Fin prévue (si connue)','date')]],
     ['Rémunération',[F('taux','Montant','money',{req:1}),F('unite_paie','Par','select',{o:{heure:'heure',jour:'journée'},def:'jour'}),F('periodicite','Paiement','select',{o:{jour:'à la fin de chaque journée',semaine:'à la fin de chaque semaine',quinzaine:'à la fin de chaque quinzaine'},def:'semaine'})]],
@@ -18668,11 +18794,23 @@ function rhVars(c){
     const ef=rhEssaiFin(P);v.essai_initial=pd.essai_duree?`${pd.essai_duree} ${pd.essai_unite||'mois'}`:AC;v.essai_fin=fmtD(ef)||AC;v.essai_renouv=v.essai_initial;
     v.essai_nouvelle_fin=ef&&pd.essai_duree?fmtD(pd.essai_unite==='jours'?rhAjJours(ef,+pd.essai_duree):rhAjMois(rhAjJours(ef,1),pd.essai_duree)):AC;}
   v.modifications_txt=rhVrai(d.modifications)?' '+String(d.modifications).split(/\n+/).map(s=>s.trim()).filter(Boolean).map((s,i)=>`(${i+1}) ${s}`).join(' ; ')+'.':' néant.';
+  if(T.indep){const soc=d.statut_juridique==='societe';
+    v.partenaire=soc?(d.raison_sociale||AC):(rhNom(d)||AC);v.partenaire_court=soc?(d.raison_sociale||AC):(rhNom(d,true)||AC);
+    const pc=[d.taux_commission?String(d.taux_commission).replace('.',',')+' % du montant hors taxes effectivement encaissé':'',numIn(d.montant_forfait)?'un forfait de '+fmtF(numIn(d.montant_forfait))+' FCFA ('+rhLettres(numIn(d.montant_forfait))+') par affaire conclue':''];
+    v.remuneration_txt=d.mode_remu==='forfait'?(pc[1]||AC):d.mode_remu==='mixte'?([pc[1],pc[0]].filter(Boolean).join(', auquel s’ajoute une commission de ')||AC):(pc[0]||AC);
+    const unite={forfait:'forfait global',tjm:'par jour de prestation',horaire:'par heure de prestation',mensuel:'par mois',mission:'par mission'}[d.mode_honoraires]||'';
+    v.honoraires_txt=numIn(d.montant)?fmtF(numIn(d.montant))+' FCFA hors taxes ('+rhLettres(numIn(d.montant))+') '+unite:AC;
+    v.volume_txt=rhVrai(d.volume)?' Le volume estimatif est de '+d.volume+', sans engagement de volume minimal de la part de la Société.':'';
+    v.remu_details_txt=rhVrai(d.remu_details)?' '+String(d.remu_details).split(/\n+/).join(' '):'';
+    v.livrables_txt=rhVrai(d.livrables)?String(d.livrables).split(/\n+/).map(x=>x.trim()).filter(Boolean).join(' ; '):'ceux définis pour chaque mission dans un bon de commande ou un ordre de mission écrit';
+    v.renouvellement_txt=rhVrai(d.renouvellement)?' Il se renouvelle ensuite par tacite reconduction pour des périodes identiques, sauf dénonciation par l’une des parties moyennant le préavis prévu ci-après.':' Il prend fin à son terme, sans tacite reconduction.';
+    v.echeancier_txt=rhVrai(d.echeancier)?String(d.echeancier).trim().replace(/^./,x=>x.toUpperCase()).replace(/\.$/,''):AC;
+    v.frais_txt=(d.frais&&T.sections.flatMap(x=>x[1]).find(f=>f.k==='frais')?.o?.[d.frais])||AC;}
   v.emplois_table=rhVrai(d.emplois)?'| Emploi | Du | Au |\n| --- | --- | --- |\n'+String(d.emplois).split(/\n+/).filter(s=>s.trim()).map(l=>'| '+l.split(';').map(x=>x.trim()).concat(['','']).slice(0,3).join(' | ')+' |').join('\n'):'| Emploi | Du | Au |\n| --- | --- | --- |\n| [à compléter] | | |';
   return v;
 }
 function rhCond(cle,c,v){let neg=false;if(cle[0]==='!'){neg=true;cle=cle.slice(1);}const d=c.donnees||{};let r;const m=/^([a-z_0-9]+)=(.+)$/i.exec(cle);
-  if(m)r=String(d[m[1]]??'')===m[2];else if(cle in RH_CLAUSES)r=!!(c.clauses||{})[cle];else if(cle==='mineur')r=!!v.mineur;else r=rhVrai(d[cle]);return neg?!r:r;}
+  if(m)r=String(d[m[1]]??'')===m[2];else if(cle in RH_CLAUSES&&!RH_TYPES[c.type]?.indep)r=!!(c.clauses||{})[cle];else if(cle==='mineur')r=!!v.mineur;else r=rhVrai(d[cle]);return neg?!r:r;}
 function rhRemplir(txt,c){const v=rhVars(c);let t=String(txt||'');
   for(let i=0;i<5&&/\[\[si:/.test(t);i++)t=t.replace(/\[\[si:([^\]]+)\]\]((?:(?!\[\[si:)[\s\S])*?)\[\[\/si\]\]/g,(_,k,inner)=>rhCond(k.trim(),c,v)?inner:'');
   t=t.replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/gi,(_,k)=>v[k]!=null&&v[k]!==''?String(v[k]):(/_txt$/.test(k)&&k in v?'':'[à compléter]'));return t.replace(/\n{3,}/g,'\n\n').trim();}
@@ -18680,6 +18818,16 @@ function rhRemplir(txt,c){const v=rhVars(c);let t=String(txt||'');
 // ── Contrôles juridiques ──
 function rhControles(c){
   const d=c.donnees||{},T=RH_TYPES[c.type],out=[],B=m=>out.push({n:'bloquant',m}),A=m=>out.push({n:'alerte',m});if(!T)return[{n:'bloquant',m:'Type de document inconnu'}];
+  if(T.indep){
+    const sub=[['horaires_imposes','des horaires imposés'],['outils_fournis','le poste et les outils fournis'],['client_unique','un client unique'],['integre_equipe','une intégration à un service avec des ordres']].filter(([k])=>rhVrai(d[k])).map(x=>x[1]);
+    if(sub.length>=2)B('Risque élevé de requalification en contrat de travail : '+sub.join(', ')+'. Revoyez l’organisation de la mission, ou établissez un contrat de travail (CNPS, SMIG, congés…).');
+    else if(sub.length)A('Indice de lien de subordination : '+sub[0]+'. Un seul indice ne suffit pas, mais l’accumulation d’indices peut faire requalifier le contrat en contrat de travail.');
+    if(!rhVrai(d.ncc))A('Sans numéro de compte contribuable, la Société devra appliquer les retenues à la source sur chaque paiement. Demandez au partenaire de s’immatriculer (déclaration d’entreprenant au guichet unique).');
+    if(c.type==='apporteur'){if(['pourcentage','mixte'].includes(d.mode_remu)&&!numIn(d.taux_commission))B('Indiquez le taux de commission.');
+      if(['forfait','mixte'].includes(d.mode_remu)&&!numIn(d.montant_forfait))B('Indiquez le montant du forfait par affaire.');
+      if(numIn(d.taux_commission)>30)A('Taux de commission élevé ('+d.taux_commission+' %) : vérifiez qu’il reste compatible avec votre marge.');}
+    if(c.type==='freelance'&&rhVrai(d.exclusivite)&&rhVrai(d.client_unique))A('Exclusivité et client unique : ce cumul renforce fortement le risque de requalification.');
+  }
   rhChamps(c.type).forEach(f=>{if(f.req&&(!f.si||rhCond(f.si,c,rhVars(c)))&&!rhVrai(d[f.k])&&!(c._parent&&['avenant','renouvellement_essai'].includes(c.type)&&f.k!=='date_effet'&&f.k!=='nouvelle_fin'&&f.k!=='date_signature'))B('Champ obligatoire : '+f.l);});
   const age=rhAge(d.date_naissance,d.date_debut);
   if(['cdi','cdd','cddti','journalier'].includes(c.type)){
@@ -18759,16 +18907,19 @@ async function rhPDF(c,opts){opts=opts||{};await ensurePdf();
     titre(T.titre+(c.type==='avenant'?' N° '+(d.numero_avenant||1):''));
     const id=c._parent&&['avenant'].includes(c.type)?c._parent.donnees||{}:d;
     const hti=`${E.nom}, ${E.forme||'société'}${E.rccm?', immatriculée au RCCM sous le n° '+E.rccm:''}${E.dgi?', NCC '+E.dgi:''}${E.cnps?', immatriculée à la CNPS sous le n° '+E.cnps:''}, dont le siège est situé ${[E.adresse,E.ville].filter(Boolean).join(', ')||'[à compléter]'}, représentée par ${E.responsable||'[à compléter]'}${E.fonction?', '+E.fonction:''},`;
-    const pers=`${rhNom(id)||'[à compléter]'}${id.date_naissance?', '+(id.civilite==='Mme'?'née':'né')+' le '+fmtD(id.date_naissance)+(id.lieu_naissance?' à '+id.lieu_naissance:''):''}${id.filiation?', '+id.filiation:''}${id.nationalite?', de nationalité '+id.nationalite:''}, demeurant ${id.adresse||'[à compléter]'}${id.piece?', titulaire de la pièce d’identité '+id.piece:''}${id.cnps_salarie?', n° CNPS '+id.cnps_salarie:''}${id.telephone?', tél. '+id.telephone:''},`;
+    const pers=T.indep?(d.statut_juridique==='societe'
+      ?`${d.raison_sociale||'[à compléter]'}${d.forme_juridique?', '+d.forme_juridique:''}${d.rccm?', immatriculée au RCCM sous le n° '+d.rccm:''}${d.ncc?', NCC '+d.ncc:''}, dont le siège est situé ${d.adresse||'[à compléter]'}, représentée par ${d.representant||'[à compléter]'}${d.representant_qualite?', '+d.representant_qualite:''}${d.telephone?', tél. '+d.telephone:''},`
+      :`${rhNom(d)||'[à compléter]'}, exerçant à titre indépendant${d.rccm?' sous le n° RCCM '+d.rccm:''}${d.ncc?', NCC '+d.ncc:''}, demeurant ${d.adresse||'[à compléter]'}${d.piece?', titulaire de la pièce d’identité '+d.piece:''}${d.telephone?', tél. '+d.telephone:''},`)
+      :`${rhNom(id)||'[à compléter]'}${id.date_naissance?', '+(id.civilite==='Mme'?'née':'né')+' le '+fmtD(id.date_naissance)+(id.lieu_naissance?' à '+id.lieu_naissance:''):''}${id.filiation?', '+id.filiation:''}${id.nationalite?', de nationalité '+id.nationalite:''}, demeurant ${id.adresse||'[à compléter]'}${id.piece?', titulaire de la pièce d’identité '+id.piece:''}${id.cnps_salarie?', n° CNPS '+id.cnps_salarie:''}${id.telephone?', tél. '+id.telephone:''},`;
     const bloc=(lbl,txt,fin)=>{const ls=doc.splitTextToSize(P(txt),W-2*M-10),h=ls.length*4+11;saut(h+6);doc.setFontSize(7.5);col(BLUE,'bold');doc.text(P(lbl),M,y+3);y+=5;
       doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,h-5,2,2,'FD');doc.setFontSize(8.6);col([30,40,60],'normal');doc.text(ls,M+5,y+5);doc.setFont('helvetica','italic');col(GREY);doc.text(P(fin),M+5,y+5+ls.length*4);y+=h-2;};
-    bloc(c.type==='apprentissage'?'ENTRE L’EMPLOYEUR, MAÎTRE D’APPRENTISSAGE':'ENTRE LES SOUSSIGNÉS',hti,'ci-après « l’Employeur » ou « '+(E.nom||'H TECH INNOV')+' »,');
+    bloc(c.type==='apprentissage'?'ENTRE L’EMPLOYEUR, MAÎTRE D’APPRENTISSAGE':'ENTRE LES SOUSSIGNÉS',hti,T.indep?'ci-après « '+(E.nom||'H TECH INNOV')+' » ou « la Société »,':'ci-après « l’Employeur » ou « '+(E.nom||'H TECH INNOV')+' »,');
     if(T.etab)bloc('L’ÉTABLISSEMENT D’ENSEIGNEMENT',`${d.etablissement||'[à compléter]'}${d.etablissement_adresse?', '+d.etablissement_adresse:''}, représenté par ${d.etablissement_representant||'[à compléter]'}, ${d.etablissement_qualite||''},`,'ci-après « l’Établissement »,');
     bloc('ET',pers,'ci-après « '+(T.partie||'le Salarié')+' »,');
     if(c.type==='apprentissage'&&v.mineur)bloc('REPRÉSENTÉ(E) PAR',`${d.representant_legal||'[à compléter]'}, ${d.representant_qualite||'représentant légal'},`,'agissant en qualité de représentant légal,');
     saut(10);doc.setFontSize(9.5);col(NAVY,'bold');doc.text(P('IL A ÉTÉ CONVENU CE QUI SUIT :'),M,y+4);y+=10;
     rendreTexte(rhRemplir(mod.contenu,c));y+=2;para(lieuDate()+(T.etab?', en trois (3) exemplaires originaux.':v.mineur&&c.type==='apprentissage'?', en trois (3) exemplaires originaux.':', en deux (2) exemplaires originaux.'));
-    const S=[emp,[(T.partie||'le Salarié').replace(/^l[ea’'] ?/i,'').toUpperCase(),rhNom(id),'']];if(T.etab)S.push(['L’ÉTABLISSEMENT',d.etablissement_representant||'',d.etablissement||'']);
+    const S=[emp,[(T.partie||'le Salarié').replace(/^l[ea’'] ?/i,'').toUpperCase(),T.indep&&d.statut_juridique==='societe'?(d.representant||''):rhNom(id),T.indep&&d.statut_juridique==='societe'?(d.raison_sociale||''):'']];if(T.etab)S.push(['L’ÉTABLISSEMENT',d.etablissement_representant||'',d.etablissement||'']);
     if(c.type==='apprentissage'&&v.mineur)S.push(['LE REPRÉSENTANT LÉGAL',d.representant_legal||'',d.representant_qualite||'']);sig(S);
   }else if(T.forme==='lettre'){
     const id=c._parent?c._parent.donnees||{}:d;doc.setFontSize(9);col([40,50,70],'normal');
@@ -18788,7 +18939,7 @@ async function rhPDF(c,opts){opts=opts||{};await ensurePdf();
     doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);doc.line(M,281,W-M,281);doc.setFontSize(7);col(GREY,'normal');doc.text(legal,W/2,285,{align:'center'});
     doc.text(P('Modèle '+c.type+' v'+(mod.version||1)),M,289.5);doc.text(P('Page '+i+' / '+nb),W-M,289.5,{align:'right'});}
   if(opts.retour)return doc;
-  doc.save(rhFichier(T.court+' '+ref+' '+(rhNom(c._parent&&['avenant','renouvellement_essai'].includes(c.type)?c._parent.donnees:d,true)||''))+'.pdf');toast('✅ Document PDF téléchargé');
+  doc.save(rhFichier(T.court+' '+ref+' '+((T.indep&&d.statut_juridique==='societe'?d.raison_sociale:rhNom(c._parent&&['avenant','renouvellement_essai'].includes(c.type)?c._parent.donnees:d,true))||''))+'.pdf');toast('✅ Document PDF téléchargé');
 }
 
 // ── Word ──
@@ -18796,9 +18947,9 @@ async function rhWord(c){try{await loadScript(DP_LIBS.docx);const D=window.docx,
   const p=(t,o)=>new D.Paragraph({spacing:{after:120},alignment:o?.c?D.AlignmentType.CENTER:D.AlignmentType.JUSTIFIED,children:[new D.TextRun({text:t,bold:!!o?.b,size:o?.s||20,color:o?.col})]});
   const kids=[p(E.nom||'H TECH INNOV',{b:1,s:28,col:'0A2A66'}),p([E.forme,E.rccm?'RCCM '+E.rccm:'',E.dgi?'NCC '+E.dgi:'',[E.adresse,E.ville].filter(Boolean).join(', ')].filter(Boolean).join(' | '),{s:16}),
     p(T.titre+(c.type==='avenant'?' N° '+(d.numero_avenant||1):''),{b:1,c:1,s:26,col:'0A2A66'}),p('Référence : '+(c.reference||'PROJET'),{c:1,s:18})];
-  if(T.forme==='contrat'){kids.push(p('ENTRE LES SOUSSIGNÉS',{b:1}),p(`${E.nom}, représentée par ${E.responsable||'[à compléter]'}${E.fonction?', '+E.fonction:''}, ci-après « l’Employeur »,`));
+  if(T.forme==='contrat'){kids.push(p('ENTRE LES SOUSSIGNÉS',{b:1}),p(`${E.nom}, représentée par ${E.responsable||'[à compléter]'}${E.fonction?', '+E.fonction:''}, ci-après ${T.indep?'« la Société »':'« l’Employeur »'},`));
     if(T.etab)kids.push(p(`${d.etablissement||'[à compléter]'}, représenté par ${d.etablissement_representant||'[à compléter]'}, ci-après « l’Établissement »,`));
-    kids.push(p('ET',{b:1}),p(`${rhNom(id)}${id.date_naissance?', '+(id.civilite==='Mme'?'née':'né')+' le '+fmtD(id.date_naissance):''}, demeurant ${id.adresse||'[à compléter]'}, ci-après « ${T.partie} »,`),p('IL A ÉTÉ CONVENU CE QUI SUIT :',{b:1}));}
+    kids.push(p('ET',{b:1}),p(T.indep?(d.statut_juridique==='societe'?`${d.raison_sociale||'[à compléter]'}${d.rccm?', RCCM '+d.rccm:''}${d.ncc?', NCC '+d.ncc:''}, représentée par ${d.representant||'[à compléter]'}, ci-après « ${T.partie} »,`:`${rhNom(d)}, exerçant à titre indépendant${d.ncc?', NCC '+d.ncc:''}, demeurant ${d.adresse||'[à compléter]'}, ci-après « ${T.partie} »,`):`${rhNom(id)}${id.date_naissance?', '+(id.civilite==='Mme'?'née':'né')+' le '+fmtD(id.date_naissance):''}, demeurant ${id.adresse||'[à compléter]'}, ci-après « ${T.partie} »,`),p('IL A ÉTÉ CONVENU CE QUI SUIT :',{b:1}));}
   else if(T.forme==='lettre')kids.push(p(rhNom(id)+(id.adresse?' — '+id.adresse:'')),p('Objet : '+T.objet,{b:1}),p((id.civilite==='Mme'?'Madame':'Monsieur')+','));
   let n=0;annexeBlocs(rhRemplir(mod.contenu,c)).forEach(b=>{if(b.table){kids.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:b.table.map((r,i)=>new D.TableRow({children:r.map(x=>new D.TableCell({children:[new D.Paragraph({children:[new D.TextRun({text:x,bold:i===0,size:18})]})]}))}))}));return;}
     let t=b.titre||'';if(/^Article\s*#/i.test(t)){n++;t=t.replace(/^Article\s*#/i,'Article '+n);}
@@ -18896,7 +19047,7 @@ async function rhLierCompte(){const{data}=await sb.from('profiles').select('id,p
 function rhLierOk(){const p=window._rhCpt.find(x=>x.id===gv('rhCpt'));if(!p)return;const d=RHC.ed.donnees;RHC.ed.employe_id=p.id;if(p.nom)d.nom=p.nom;if(p.prenom)d.prenoms=p.prenom;if(p.email)d.email=p.email;if(p.telephone)d.telephone=p.telephone;closeModal();v4Render('contrats-rh');}
 async function rhRefSuivante(){const an=new Date().getFullYear(),pre='RH-'+an+'-';const n=RH_ROWS.map(r=>r.reference||'').filter(x=>x.startsWith(pre)).map(x=>+x.slice(pre.length)||0);return pre+String((n.length?Math.max(...n):0)+1).padStart(4,'0');}
 function rhLigne(c){const d=c.donnees||{},id=c._parent&&['avenant','renouvellement_essai'].includes(c.type)?c._parent.donnees||{}:d;
-  return{type:c.type,statut:c.statut||'brouillon',parent_id:c.parent_id||null,employe_id:c.employe_id||c._parent?.employe_id||null,nom_complet:rhNom(id)||null,poste:d.poste||id.poste||null,
+  return{type:c.type,statut:c.statut||'brouillon',parent_id:c.parent_id||null,employe_id:c.employe_id||c._parent?.employe_id||null,nom_complet:(RH_TYPES[c.type]?.indep&&d.statut_juridique==='societe'?d.raison_sociale:rhNom(id))||null,poste:d.poste||id.poste||null,
     date_debut:d.date_debut||d.date_effet||d.date_entree||null,date_fin:rhDateFin(c)||d.date_sortie||null,essai_fin:rhEssaiFin(c),donnees:d,clauses:c.clauses||{},date_signature:d.date_signature||null};}
 async function rhSauver(silence){const c=RHC.ed;rhLire(false);const o=rhLigne(c);let r;
   if(c.id)r=await sb.from('rh_contrats').update(o).eq('id',c.id).select().single();else{o.reference=await rhRefSuivante();r=await sb.from('rh_contrats').insert(o).select().single();}
@@ -19970,6 +20121,216 @@ async function attPdf(ids){
   PAGE_LABELS['academy-attestations']='Attestations de suivi';}catch(e){logErr(e);}
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-academy-attestations')){const d=document.createElement('div');d.className='page';d.id='page-academy-attestations';ref.parentNode.appendChild(d);}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// EXPORT UNIVERSEL — chaque tableau de l’ERP : toute la liste (Excel / PDF) ou un élément seul (fiche PDF / ligne Excel)
+// ══════════════════════════════════════════════════════════════════════
+var EXP_TIMER=null;
+function expTexteCellule(td){
+  const c=td.cloneNode(true);
+  c.querySelectorAll('select').forEach(s=>{const o=s.options[s.selectedIndex];s.replaceWith(document.createTextNode(o?o.textContent:''));});
+  c.querySelectorAll('input,textarea').forEach(i=>{i.replaceWith(document.createTextNode(i.type==='checkbox'?(i.checked?'Oui':'Non'):(i.value||'')));});
+  c.querySelectorAll('button,.exp-ligne,script,style').forEach(b=>b.remove());
+  c.querySelectorAll('br,div,p').forEach(e=>e.insertAdjacentText('beforebegin',' '));
+  return (c.textContent||'').replace(/\s+/g,' ').trim();
+}
+function expColonnes(table){
+  const ths=[...table.querySelectorAll('thead tr:last-child th')].filter(th=>!th.classList.contains('exp-col'));
+  const lignes=[...table.querySelectorAll('tbody tr')].filter(tr=>tr.querySelectorAll('td:not(.exp-cell)').length>1);
+  const garder=ths.map((th,i)=>{const h=th.textContent.replace(/\s+/g,' ').trim();if(/^actions?$/i.test(h))return false;
+    if(h)return true;return lignes.some(tr=>{const td=tr.querySelectorAll('td:not(.exp-cell)')[i];return td&&expTexteCellule(td);});});
+  return{entetes:ths.map(th=>th.textContent.replace(/\s+/g,' ').trim()||'—').filter((_,i)=>garder[i]),garder,lignes};
+}
+function expLigne(tr,garder){return [...tr.querySelectorAll('td:not(.exp-cell)')].filter((_,i)=>garder[i]).map(expTexteCellule);}
+function expTitre(table){
+  const pg=table.closest('.page');const t=(pg?.querySelector('.page-title')?.textContent||document.getElementById('breadcrumbPage')?.textContent||'Export').replace(/^[^\p{L}\p{N}]+/u,'').trim();
+  let section='';const onglet=pg?.querySelector('.tab.active,.tabs .active,[role="tab"][aria-selected="true"]');if(onglet)section=onglet.textContent.replace(/^[^\p{L}\p{N}]+/u,'').trim();
+  if(!section){let e=table.closest('.card');const ct=e?.querySelector('.card-title,.v4-h3,h3');if(ct)section=ct.textContent.replace(/^[^\p{L}\p{N}]+/u,'').replace(/[+＋].*$/,'').trim();}
+  return section&&section.toLowerCase()!==t.toLowerCase()?t+' — '+section:t;
+}
+const expNomFichier=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'export';
+// Montants et quantités convertis en nombres dans Excel (« 1 799 000 FCFA » → 1799000)
+function expValeurExcel(v){const t=String(v).replace(/[\u202f\u00a0\s]/g,'');
+  if(/^-?\d+([.,]\d+)?(FCFA|F|XOF|CFA)?$/i.test(t))return Number(t.replace(/(FCFA|F|XOF|CFA)$/i,'').replace(',','.'));
+  if(/^-?\d+([.,]\d+)?%$/.test(t))return Number(t.replace('%','').replace(',','.'))/100;return v;}
+async function expExcel(titre,entetes,lignes){
+  await ensureXlsx();const E=getEntreprise();
+  const ws=XLSX.utils.aoa_to_sheet([[titre],[(E.nom||'H TECH INNOV')+' — exporté le '+new Date().toLocaleString('fr-FR')+' — '+lignes.length+' ligne(s)'],[],entetes,...lignes.map(r=>r.map(expValeurExcel))]);
+  ws['!cols']=entetes.map((h,i)=>({wch:Math.min(60,Math.max(10,h.length+2,...lignes.slice(0,200).map(r=>String(r[i]||'').length+1)))}));
+  ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:3,c:0},e:{r:3+lignes.length,c:entetes.length-1}})};
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,titre.replace(/[\\/?*\[\]:]/g,' ').slice(0,30)||'Export');
+  XLSX.writeFile(wb,expNomFichier(titre)+'-'+isoJour()+'.xlsx');toast('✅ Excel téléchargé ('+lignes.length+' ligne(s))');
+}
+function expEntetePdf(doc,titre,sousTitre){
+  const W=doc.internal.pageSize.getWidth(),E=getEntreprise();
+  try{if(typeof HTI_LOGO==='string'&&HTI_LOGO.startsWith('data:'))doc.addImage(HTI_LOGO,HTI_LOGO.startsWith('data:image/png')?'PNG':'JPEG',14,10,18,18);}catch(e){}
+  doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(10,42,102);doc.text(E.nom||'H TECH INNOV',36,16);
+  doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(100,110,130);doc.text([E.ville,E.tel,E.email].filter(Boolean).join(' · '),36,21);
+  doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(10,42,102);doc.text(doc.splitTextToSize(titre,W-110)[0],W-14,15,{align:'right'});
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(100,110,130);doc.text(sousTitre,W-14,21,{align:'right'});
+  doc.setDrawColor(21,101,192);doc.setLineWidth(0.6);doc.line(14,30,W-14,30);doc.setDrawColor(63,138,30);doc.line(14,31.2,W-14,31.2);
+}
+function expPiedPdf(doc){const n=doc.getNumberOfPages(),W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),E=getEntreprise();
+  for(let i=1;i<=n;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(130,140,155);
+    doc.text((E.nom||'H TECH INNOV')+(E.rccm?' · RCCM '+E.rccm:'')+' · document généré le '+new Date().toLocaleString('fr-FR'),14,H-8);doc.text('Page '+i+' / '+n,W-14,H-8,{align:'right'});}}
+async function expPdf(titre,entetes,lignes){
+  await ensurePdf();const{jsPDF}=window.jspdf,doc=new jsPDF({orientation:entetes.length>6?'landscape':'portrait',unit:'mm',format:'a4'});
+  expEntetePdf(doc,titre,lignes.length+' élément(s) · '+new Date().toLocaleDateString('fr-FR'));
+  doc.autoTable({head:[entetes],body:lignes,startY:36,margin:{left:14,right:14,bottom:14},styles:{fontSize:entetes.length>8?7:8,cellPadding:1.8,overflow:'linebreak'},
+    headStyles:{fillColor:[10,42,102],textColor:255,fontStyle:'bold'},alternateRowStyles:{fillColor:[244,247,252]}});
+  expPiedPdf(doc);doc.save(expNomFichier(titre)+'-'+isoJour()+'.pdf');toast('✅ PDF téléchargé ('+lignes.length+' élément(s))');
+}
+async function expFichePdf(titre,entetes,ligne,nomPrincipal){
+  await ensurePdf();const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'});const nom=nomPrincipal||ligne.find(Boolean)||'Élément';
+  expEntetePdf(doc,titre,'Fiche : '+String(nom).slice(0,60));
+  doc.autoTable({body:entetes.map((h,i)=>[h,ligne[i]||'—']),startY:36,margin:{left:14,right:14},theme:'grid',styles:{fontSize:9.5,cellPadding:3},
+    columnStyles:{0:{fontStyle:'bold',textColor:[10,42,102],fillColor:[238,243,251],cellWidth:55}}});
+  expPiedPdf(doc);doc.save(expNomFichier(titre+'-'+nom)+'.pdf');toast('✅ Fiche PDF téléchargée');
+}
+function expTableDe(el){return el.closest('.exp-barre')?.nextElementSibling?.querySelector?.('table')||el.closest('.exp-barre')?._table;}
+async function expTout(btn,format){const table=btn.closest('.exp-barre')._table;if(!table)return;const{entetes,garder,lignes}=expColonnes(table);
+  const L=lignes.map(tr=>expLigne(tr,garder));if(!L.length){toast('⚠️ Aucune donnée à exporter');return;}
+  try{format==='xlsx'?await expExcel(expTitre(table),entetes,L):await expPdf(expTitre(table),entetes,L);}catch(e){toast('❌ Export : '+(e.message||e),7000);}}
+/* menu de ligne : voir ACTIONS SUR CHAQUE ÉLÉMENT */
+// Ajoute la barre d’export et les boutons de ligne à chaque tableau de la page affichée
+function expEquiper(){
+  document.querySelectorAll('.page.active table').forEach(table=>{
+    if(table.closest('#modalBody,.modal,.exp-ignore')||!table.querySelector('thead th'))return;
+    const support=table.closest('.table-wrap')||table;
+    if(!support.previousElementSibling?.classList?.contains('exp-barre')){
+      const b=document.createElement('div');b.className='exp-barre';b._table=table;
+      b.style.cssText='display:flex;justify-content:flex-end;gap:6px;margin:0 0 6px';
+      b.innerHTML=`<span class="cell-sub" style="margin-right:auto;align-self:center"></span><button class="btn btn-outline btn-sm" onclick="expTout(this,'xlsx')" title="Exporter toute la liste affichée en Excel">📊 Excel</button><button class="btn btn-outline btn-sm" onclick="expTout(this,'pdf')" title="Exporter toute la liste affichée en PDF">📄 PDF</button>`;
+      support.parentNode.insertBefore(b,support);
+    }else support.previousElementSibling._table=table;
+    const hr=table.querySelector('thead tr:last-child');if(hr&&!hr.querySelector('.exp-col')){const th=document.createElement('th');th.className='exp-col';th.style.width='34px';th.title='Actions';hr.appendChild(th);}
+    table.querySelectorAll('tbody tr').forEach(tr=>{if(tr.querySelector('.exp-cell'))return;const tds=tr.querySelectorAll('td');
+      const td=document.createElement('td');td.className='exp-cell';td.style.cssText='width:34px;text-align:center';
+      if(tds.length>1)td.innerHTML='<button class="btn btn-outline btn-sm exp-ligne" onclick="event.stopPropagation();expMenuLigne(this)" title="Actions : modifier, pièces jointes, exporter, supprimer" aria-label="Actions sur cet élément">⋯</button>';
+      else if(tds.length===1&&tds[0].colSpan>1){tds[0].colSpan=tds[0].colSpan+1;return;}
+      tr.appendChild(td);});
+    const n=[...table.querySelectorAll('tbody tr')].filter(tr=>tr.querySelector('.exp-ligne')).length,lab=support.previousElementSibling?.querySelector('.cell-sub');if(lab)lab.textContent=n?n+' élément(s)':'';
+  });
+}
+(function(){const lancer=()=>{if(EXP_TIMER)clearTimeout(EXP_TIMER);EXP_TIMER=setTimeout(()=>{try{expEquiper();}catch(e){logErr(e);}},250);};
+  const go=()=>{new MutationObserver(m=>{if(m.some(x=>[...x.addedNodes].some(n=>n.nodeType===1&&!n.classList?.contains('exp-barre')&&!n.classList?.contains('exp-cell')&&!n.classList?.contains('exp-col')&&!n.classList?.contains('exp-menu'))))lanzar();}).observe(document.body,{childList:true,subtree:true});lancer();};
+  const lanzar=lancer;
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();})();
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// ACTIONS SUR CHAQUE ÉLÉMENT — modifier, supprimer, pièces jointes, exporter (menu « ⋯ » de chaque ligne)
+// ══════════════════════════════════════════════════════════════════════
+const ACT_MAP={"abeEnvoyer": "attestations_be", "abePdfLigne": "attestations_be", "abeSupprimer": "attestations_be", "academyDevis": "academy_demandes", "academyInscrire": "academy_sessions", "academySuivi": "academy_inscriptions", "annulerFacture": "factures", "annulerPieceCaisse": "pieces_caisse", "appliquerAvoir": "avoirs", "approuver": "conges", "attAnnuler": "hta_attestations", "attForm": "hta_attestations", "bonInterventionPDF": "interventions", "changerStatutDevis": "caisses", "clicNotif": "notifications", "commandePDF": "fournisseurs", "confirmerTransfert": "conversations", "convertirDevisEnFacture": "devis", "creerAvoir": "factures", "csActivite": "crm_interlocuteurs", "csAttribuer": "clients", "csConfirmer": "crm_activites", "csLire": "crm_notifications", "csReporter": "crm_activites", "csStatut": "crm_activites", "delCert": "certificats", "delClient": "clients", "delCollab": "collaborateurs", "delCommande": "bons_commande", "delConge": "conges", "delCyber": "cyber_operations", "delDevis": "devis", "delDoc": "documents", "delFormation": "formations", "delFournisseur": "fournisseurs", "delImmo": "immobilisations", "delOpportunite": "opportunites", "delProjet": "projets", "delRecrut": "recrutements", "delStockProduit": "stock_produits", "delTicket": "tickets", "devisPDF": "devis", "dpDupliquer": "demandes_prix", "dpEnvoyer": "demandes_prix", "dpForm": "demandes_prix", "dpPdf": "demandes_prix", "dpRetenir": "demandes_prix", "dpSupprimer": "demandes_prix", "dpWord": "reservations", "ecrireAuMembre": "conversations", "editCommande": "bons_commande", "erpSimRapport": "sim_reponses", "facDemanderSuppr": "factures", "facRefuserSuppr": "factures", "facSupprimer": "factures", "facValiderSuppr": "factures", "facturePDF": "factures", "fournisseurPDF": "fournisseurs", "glEditer": "compta_ecritures", "glSupprimer": "compta_ecritures", "htaModifier": "hta_certificats", "htaPdf": "hta_certificats", "htaSignRetirer": "hta_signataires", "htaSupprimer": "hta_certificats", "imprimerCertificat": "certificats", "inscrire": "inscriptions_formation", "lireArticle": "tickets", "markPaid": "factures", "meHeures": "esp_apprentissages", "meRegler": "esp_transactions", "meReporter": "esp_taches", "modifierPieceCaisse": "pieces_caisse", "omDupliquer": "ordres_mission", "omEnvoyer": "ordres_mission", "omFrais": "ordres_mission", "omPdf": "ordres_mission", "omSupprimer": "ordres_mission", "openConv": "profiles", "ouvrirEmail": "emails", "ouvrirMouvementSp": "stock_produits", "ouvrirSignatureDevis": "devis", "partFacturer": "modeles_contrat", "partFiche": "partenaires", "partGenerer": "partenaires", "partSupprimer": "partenaires", "ptgEditer": "pointages", "rattacherClient": "profiles", "refuser": "conges", "refuserRdv": "rdv_demandes", "relancer": "factures", "renotifierParticipants": "evenements", "repondreEmail": "emails", "resAnnuler": "reservations", "resDetail": "reservations", "resEspForm": "espaces", "resPhotoSuppr": "espaces", "resolveTicket": "tickets", "rhOuvrir": "rh_contrats", "simContacter": "sim_codes", "simProlonger": "sim_codes", "simRefuser": "sim_codes", "simRenvoyer": "sim_codes", "simRevoquer": "sim_codes", "simValider": "sim_codes", "statutFrais": "tickets", "supprimerBulletin": "bulletins_paie", "supprimerDepenseProjet": "depenses_projet", "supprimerEmail": "emails", "supprimerEvenement": "evenements", "supprimerPieceCaisse": "pieces_caisse", "telechargerPjEmail": "emails", "ticketFil": "ticket_messages", "toggleFavoriEmail": "emails", "toggleTache": "taches", "uploadFichierCaisse": "documents", "validerBC": "audit_logs", "validerPointage": "pointages", "voirEvaluation": "evaluations", "voirEvenement": "profiles", "voirOpportunite": "opportunites"};
+const ACT_IGNORER=new Set(['id','created_at','updated_at','created_by','updated_by','modifie_le']);
+// Circuits de suppression déjà sécurisés par leur module
+const ACT_SUPPR_SPECIAL={factures:id=>facSupprimer(id),emails:id=>supprimerEmail(id),compta_ecritures:id=>glSupprimer(id)};
+// Documents numérotés ou signés : on annule plutôt que de supprimer
+const ACT_PROTEGE={
+  rh_contrats:r=>['brouillon','annule'].includes(r.statut)||'Ce document n’est plus un brouillon : annulez-le depuis sa fiche plutôt que de le supprimer (traçabilité légale).',
+  hta_attestations:r=>r.statut==='annule'||'Annulez d’abord l’attestation (⊘) : un document numéroté et vérifiable en ligne ne doit pas disparaître sans trace.',
+  hta_certificats:r=>r.statut!=='valide'||'Ce certificat est valide et vérifiable en ligne : révoquez-le d’abord depuis l’écran des certificats.',
+  attestations_be:r=>r.statut!=='signee'||'Cette attestation est signée : annulez-la plutôt que de la supprimer.'};
+function actObjet(tr){
+  if(tr.dataset.objet){const[t,i]=tr.dataset.objet.split(':');return{table:t,id:i};}
+  for(const el of [tr,...tr.querySelectorAll('[onclick]')]){const oc=el.getAttribute('onclick')||'';let m;
+    if((m=/delGeneric\(\s*'([a-z_0-9]+)'\s*,\s*'([^']+)'/.exec(oc)))return{table:m[1],id:m[2]};
+    if((m=/\b(v4Form|v4Suppr)\(\s*'([\w-]+)'\s*,\s*'([^']+)'/.exec(oc))&&V4[m[2]]?.table)return{table:V4[m[2]].table,id:m[3],v4:m[2]};
+    const re=/\b([A-Za-z_$][\w$]*)\(\s*'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'/g;
+    while((m=re.exec(oc)))if(ACT_MAP[m[1]])return{table:ACT_MAP[m[1]],id:m[2]};}
+  return null;}
+function actBouton(tr,re){return [...tr.querySelectorAll('button,a')].find(b=>!b.closest('.exp-cell')&&re.test(((b.title||'')+' '+(b.getAttribute('aria-label')||'')+' '+b.textContent).trim()));}
+function erpRafraichir(){const pg=document.querySelector('.page.active');const id=pg?.id?.replace(/^page-/,'');if(!id)return;if(V4[id])v4Render(id);else showPage(id);}
+async function actModifier(tr){
+  const o=actObjet(tr),b=actBouton(tr,/modifier|✏️|✏|éditer|\bedit/i);
+  if(b){b.click();return;}if(o?.v4){v4Form(o.v4,o.id);return;}
+  if(tr.getAttribute('onclick')){tr.click();return;}
+  if(o)return actEditeur(o.table,o.id);
+  toast('Ouvrez l’élément pour le modifier',4000);}
+async function actSupprimer(tr){
+  const o=actObjet(tr);
+  if(o&&ACT_SUPPR_SPECIAL[o.table])return ACT_SUPPR_SPECIAL[o.table](o.id);
+  if(o?.v4)return v4Suppr(o.v4,o.id);
+  const b=actBouton(tr,/supprimer|🗑|\bdelete/i);if(b){b.click();return;}
+  if(!o){toast('Suppression non disponible pour cette ligne : ouvrez l’élément',5000);return;}
+  const{data:r,error:e1}=await sb.from(o.table).select('*').eq('id',o.id).maybeSingle();
+  if(e1||!r){toast('❌ Élément introuvable ou accès refusé',6000);return;}
+  const p=ACT_PROTEGE[o.table]?.(r);if(typeof p==='string'){toast('🔒 '+p,9000);return;}
+  const lib=r.reference||r.numero||r.nom_complet||r.titre||r.nom||r.libelle||r.sujet||r.objet||'cet élément';
+  if(!confirm(`Supprimer définitivement « ${lib} » ?\nCette action est irréversible et sera tracée dans le journal d’audit.`))return;
+  const{error}=await sb.from(o.table).delete().eq('id',o.id);
+  if(error){toast('❌ '+(/foreign key|violates/i.test(error.message)?'Cet élément est utilisé ailleurs dans l’ERP (factures, paiements, contrats…) : supprimez ou modifiez d’abord les éléments liés.':/permission|policy|row-level/i.test(error.message)?'Vous n’avez pas les droits pour supprimer cet élément.':error.message),9000);return;}
+  try{const{data:pj}=await sb.from('erp_pieces_jointes').select('id,chemin').eq('objet_table',o.table).eq('objet_id',o.id);
+    if(pj&&pj.length){await sb.storage.from('erp-pj').remove(pj.map(x=>x.chemin));await sb.from('erp_pieces_jointes').delete().eq('objet_table',o.table).eq('objet_id',o.id);}}catch(_){}
+  try{logAudit('suppression',o.table,o.id,{instantane:r});}catch(_){}
+  toast('🗑 « '+lib+' » supprimé');erpRafraichir();}
+// Éditeur générique : tous les champs simples de l’élément
+async function actEditeur(table,id){
+  const{data:r,error}=await sb.from(table).select('*').eq('id',id).maybeSingle();if(error||!r){toast('❌ Élément introuvable ou accès refusé');return;}
+  const champs=Object.entries(r).filter(([k,v])=>!ACT_IGNORER.has(k)&&!/_id$/.test(k)&&!(v&&typeof v==='object')&&!(typeof v==='string'&&(v.length>4000||v.startsWith('data:'))));
+  const lib=k=>k.replace(/_/g,' ').replace(/^./,c=>c.toUpperCase());
+  const champ=([k,v])=>{const id='ae_'+k;
+    if(typeof v==='boolean')return `<div class="form-field"><label style="display:flex;gap:6px;align-items:center;margin-top:22px"><input type="checkbox" id="${id}" ${v?'checked':''}> ${esc(lib(k))}</label></div>`;
+    if(typeof v==='number')return `<div class="form-field"><label for="${id}">${esc(lib(k))}</label><input type="number" step="any" id="${id}" value="${v}"></div>`;
+    if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v))return `<div class="form-field"><label for="${id}">${esc(lib(k))}</label><input type="date" id="${id}" value="${v}"></div>`;
+    if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(v))return `<div class="form-field"><label for="${id}">${esc(lib(k))}</label><input id="${id}" value="${esc(v)}" readonly title="Date technique, non modifiable"></div>`;
+    const long=typeof v==='string'&&v.length>90;
+    return `<div class="form-field ${long?'full':''}"><label for="${id}">${esc(lib(k))}</label>${long?`<textarea id="${id}" rows="3">${esc(v||'')}</textarea>`:`<input id="${id}" value="${esc(v??'')}">`}</div>`;};
+  document.getElementById('modalBox').style.width='min(760px,96vw)';document.getElementById('modalTitle').textContent='✏️ Modifier — '+(r.reference||r.numero||r.nom_complet||r.titre||r.nom||table);
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">${champs.map(champ).join('')||'<p class="cell-sub">Aucun champ modifiable.</p>'}</div><p class="cell-sub">Éditeur général : seuls les champs simples sont proposés ; les liens vers d’autres éléments se modifient dans leur module.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="actEditeurSauver('${table}','${id}')">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');window._ACT_AV=r;}
+async function actEditeurSauver(table,id){const r=window._ACT_AV||{},p={};
+  Object.keys(r).forEach(k=>{const e=document.getElementById('ae_'+k);if(!e||e.readOnly)return;let v=e.type==='checkbox'?e.checked:e.value;
+    if(typeof r[k]==='number')v=e.value===''?null:Number(e.value);else if(r[k]===null&&v==='')v=null;if(v!==r[k])p[k]=v;});
+  if(!Object.keys(p).length){closeModal();return;}
+  const{error}=await sb.from(table).update(p).eq('id',id);if(error){toast('❌ '+error.message,8000);return;}
+  try{logAudit('modification',table,id,{avant:Object.fromEntries(Object.keys(p).map(k=>[k,r[k]])),apres:p});}catch(_){}
+  toast('✅ Modifications enregistrées');closeModal();erpRafraichir();}
+// Pièces jointes de l’élément (espace privé, liens temporaires)
+async function actPieces(table,id,titre){
+  const{data:L,error}=await sb.from('erp_pieces_jointes').select('*').eq('objet_table',table).eq('objet_id',id).order('created_at',{ascending:false});
+  if(error){toast('❌ '+(/does not exist|schema cache/i.test(error.message)?'Exécutez migration-actions-pieces-jointes.sql dans Supabase':error.message),8000);return;}
+  document.getElementById('modalBox').style.width='min(620px,96vw)';document.getElementById('modalTitle').textContent='📎 Pièces jointes — '+(titre||'élément');
+  document.getElementById('modalBody').innerHTML=`${(L||[]).map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--g100)">
+     <div style="min-width:0"><div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${esc(x.nom)}</div><div class="cell-sub">${x.taille?Math.max(1,Math.round(x.taille/1024))+' Ko · ':''}${new Date(x.created_at).toLocaleString('fr-FR')}</div></div>
+     <div style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="actPjOuvrir('${x.id}')">⬇ Ouvrir</button> <button class="btn btn-outline btn-sm" onclick="actPjSuppr('${x.id}','${table}','${id}')" aria-label="Supprimer la pièce">🗑</button></div></div>`).join('')||'<p class="cell-sub">Aucune pièce jointe pour le moment.</p>'}
+    <div style="margin-top:12px"><label for="actPjFichiers" class="cell-sub">Ajouter des fichiers (20 Mo maximum chacun)</label><input type="file" id="actPjFichiers" multiple style="width:100%"></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Fermer</button><button class="btn btn-primary" id="actPjBtn" onclick="actPjAjouter('${table}','${id}')">📎 Joindre</button>`;
+  document.getElementById('modalOverlay').classList.add('open');window._ACT_PJ={L:L||[],titre};}
+async function actPjAjouter(table,id){const f=document.getElementById('actPjFichiers');if(!f||!f.files.length){toast('Choisissez au moins un fichier');return;}
+  const b=document.getElementById('actPjBtn');if(b){b.disabled=true;b.textContent='Envoi…';}let n=0;
+  for(const file of f.files){if(file.size>20*1024*1024){toast('❌ '+file.name+' dépasse 20 Mo',6000);continue;}
+    const chemin=`${table}/${id}/${Date.now()}-${file.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9._-]+/g,'_')}`;
+    const{error:eu}=await sb.storage.from('erp-pj').upload(chemin,file,{contentType:file.type||undefined});if(eu){toast('❌ '+file.name+' : '+eu.message,7000);continue;}
+    const{error:ei}=await sb.from('erp_pieces_jointes').insert({objet_table:table,objet_id:id,nom:file.name,chemin,taille:file.size,type_mime:file.type||null});if(ei){toast('❌ '+ei.message,7000);continue;}n++;}
+  try{if(n)logAudit('piece_jointe',table,id,{ajoutees:n});}catch(_){}
+  if(n)toast('✅ '+n+' pièce(s) jointe(s) ajoutée(s)');actPieces(table,id,window._ACT_PJ?.titre);}
+async function actPjOuvrir(pid){const x=(window._ACT_PJ?.L||[]).find(y=>y.id===pid);if(!x)return;
+  const{data,error}=await sb.storage.from('erp-pj').createSignedUrl(x.chemin,120);if(error){toast('❌ '+error.message);return;}window.open(data.signedUrl,'_blank','noopener');}
+async function actPjSuppr(pid,table,id){const x=(window._ACT_PJ?.L||[]).find(y=>y.id===pid);if(!x||!confirm('Supprimer la pièce jointe « '+x.nom+' » ?'))return;
+  await sb.storage.from('erp-pj').remove([x.chemin]);const{error}=await sb.from('erp_pieces_jointes').delete().eq('id',pid);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('suppression_piece_jointe',table,id,{nom:x.nom});}catch(_){}toast('Pièce jointe supprimée');actPieces(table,id,window._ACT_PJ?.titre);}
+// Menu « ⋯ » de chaque ligne
+function expMenuLigne(btn){
+  document.querySelectorAll('.exp-menu').forEach(m=>m.remove());
+  const tr=btn.closest('tr'),table=tr.closest('table'),o=actObjet(tr),r=btn.getBoundingClientRect(),m=document.createElement('div');m.className='exp-menu';
+  const peutModif=!!(actBouton(tr,/modifier|✏️|✏|éditer|\bedit/i)||o||tr.getAttribute('onclick')),peutSuppr=!!(o||actBouton(tr,/supprimer|🗑|\bdelete/i));
+  m.style.cssText=`position:fixed;z-index:9999;top:${Math.min(r.bottom+4,innerHeight-230)}px;left:${Math.max(8,r.right-210)}px;background:#fff;border:1px solid #dbe3ef;border-radius:10px;box-shadow:0 8px 24px rgba(10,42,102,.15);padding:5px;min-width:210px;display:flex;flex-direction:column;gap:3px`;
+  const it=(ic,l,ok,k)=>`<button class="btn btn-outline btn-sm" data-k="${k}" style="justify-content:flex-start;${ok?'':'opacity:.45'}" ${ok?'':'disabled title="Non disponible pour cet élément"'}>${ic} ${l}</button>`;
+  m.innerHTML=it('✏️','Modifier',peutModif,'mod')+it('📎','Pièces jointes',!!o,'pj')+it('📄','Fiche PDF',true,'pdf')+it('📊','Ligne Excel',true,'xlsx')+it('🗑','Supprimer',peutSuppr,'sup');
+  const prem=tr.querySelector('td:not(.exp-cell)'),cle=((prem?.querySelector('code,strong,b,.cell-main')||prem)?.textContent||'').replace(/\s+/g,' ').trim().slice(0,50);
+  m.addEventListener('click',async e=>{const k=e.target.closest('button')?.dataset.k;if(!k)return;m.remove();
+    try{if(k==='mod')await actModifier(tr);else if(k==='sup')await actSupprimer(tr);else if(k==='pj')await actPieces(o.table,o.id,cle);
+      else{const{entetes,garder}=expColonnes(table),l=expLigne(tr,garder),t=expTitre(table);k==='pdf'?await expFichePdf(t,entetes,l,cle):await expExcel(t+' — '+cle,entetes,[l]);}}
+    catch(err){toast('❌ '+(err.message||err),7000);}});
+  document.body.appendChild(m);
+  if(o)sb.from('erp_pieces_jointes').select('id',{count:'exact',head:true}).eq('objet_table',o.table).eq('objet_id',o.id).then(x=>{const b=m.querySelector('[data-k="pj"]');if(b&&x&&x.count)b.textContent='📎 Pièces jointes ('+x.count+')';},()=>{});
+  setTimeout(()=>document.addEventListener('click',function f(e){if(!m.contains(e.target)){m.remove();document.removeEventListener('click',f);}}),0);
+}
 
 </script>
 </body>
