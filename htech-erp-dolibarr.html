@@ -2417,6 +2417,9 @@ function htiAssetsReady(){
   return _htiAssetsP;
 }
 // Garde-fou PDF : une image invalide (URL, page 404, format inconnu) est ignorée au lieu de corrompre le fichier
+(function(){var OK=/^[\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]$/;
+ var EQ={'Ɛ':'E','ɛ':'e','Ɔ':'O','ɔ':'o','Ŋ':'N','ŋ':'n','Ʋ':'V','ʋ':'v','Ɩ':'I','ɩ':'i','Ɲ':'N','ɲ':'n','Ɓ':'B','ɓ':'b','Ɗ':'D','ɗ':'d','Ƴ':'Y','ƴ':'y','Ə':'E','ə':'e','Đ':'D','đ':'d','Ł':'L','ł':'l','Ø':'Ø','ß':'ß','ı':'i','Ŧ':'T','ŧ':'t','Ħ':'H','ħ':'h'};
+ window.htiLettrePdf=function(ch){if(OK.test(ch))return ch;if(EQ[ch])return EQ[ch];var b=ch.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return b&&b!==ch&&[...b].every(function(x){return OK.test(x);})?b:'';};})();
 function htiGardePdf(){
   var api=window.jspdf&&window.jspdf.jsPDF&&window.jspdf.jsPDF.API;
   if(!api||api._htiGarde)return;
@@ -2433,6 +2436,17 @@ function htiGardePdf(){
     }
     try{return orig.apply(this,arguments);}catch(e){logErr(e);return this;}
   };
+  // Texte : les polices standard des PDF (Helvetica, Times, Courier) ne connaissent que l’alphabet Windows-1252.
+  // Émojis, flèches et symboles produisaient des caractères parasites (« Ø<ß », « !' ») et un espacement anormal.
+  var std=function(doc){try{var f=String(doc.getFont().fontName||'').toLowerCase();return /^(helvetica|times|courier)/.test(f);}catch(e){return true;}};
+  var garder=function(t){return t.replace(/[\u2192\u21D2\u279C\u27A1\u2794\u27F6\u2190\u21D0\u2194]/g,'-').replace(/[\u2713\u2714\u2611\u2705]/g,'v').replace(/[\u2717\u2718\u2715\u274C]/g,'x')
+    .replace(/\u2265/g,'>=').replace(/\u2264/g,'<=').replace(/\u2260/g,'<>').replace(/[\u202F\u00A0\u2007\u2009\u200A]/g,' ').replace(/[\u2032\u2033]/g,"'")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/gu,c=>htiLettrePdf(c))
+    .replace(/ {2,}/g,' ').replace(/^ +(?=\S)/,'');};
+  var net=function(t){return typeof t==='string'?garder(t):Array.isArray(t)?t.map(net):t;};
+  ['text','splitTextToSize','getTextWidth','getStringUnitWidth'].forEach(function(nom){var o=api[nom];if(typeof o!=='function')return;
+    api[nom]=function(t){if(std(this)){var a=Array.prototype.slice.call(arguments);a[0]=net(t);return o.apply(this,a);}return o.apply(this,arguments);};});
+  window.htiPdfTexte=garder;
   api._htiGarde=true;
 }
 window.addEventListener('load',function(){setTimeout(htiAssetsReady,4000);});
@@ -16332,7 +16346,7 @@ async function acadGroupeValider(sid){
 <script>
 // Fiche de bienvenue formateur — H TECH INNOV / H TECH ACADEMY (A4 portrait, 2 pages)
 async function bienvenuePDF(f,res){
-  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+  htiGardePdf();const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
   const W=210,M=16,P=pdfT,NAVY=[10,42,102],BLUE=[21,101,192],GREEN=[63,138,30],GREY=[96,108,130],LIGHT=[244,247,252],LINE=[213,224,240],TXT=[30,40,60],VERT_CLAIR=[237,246,232];
   const col=(c,s,sz)=>{doc.setTextColor(...c);if(s)doc.setFont('helvetica',s);if(sz)doc.setFontSize(sz);};
   const espace=(t,cs,x,y)=>{doc.setCharSpace(cs);doc.text(t,x,y);doc.setCharSpace(0);};
@@ -16561,7 +16575,7 @@ async function bvPartager(){
 <script>
 // Ordres de mission H TECH INNOV — formateurs et équipes (A4 portrait)
 async function omPDF(o,res){
-  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+  htiGardePdf();const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
   const W=210,M=14,BAS=272,P=pdfT,NAVY=[10,42,102],BLUE=[21,101,192],GREEN=[63,138,30],GREY=[96,108,130],LIGHT=[244,247,252],LINE=[213,224,240],TXT=[30,40,60];
   const col=(c,s,sz)=>{doc.setTextColor(...c);if(s)doc.setFont('helvetica',s);if(sz)doc.setFontSize(sz);};
   const entete=(p1)=>{
