@@ -17895,7 +17895,7 @@ v4Def('crm-suivi',{titre:'Suivi commercial',icone:'🧭',custom:async pg=>{
   const retard=(CSD.taches||[]).filter(t=>t.statut==='À faire'&&t.assigne_a===uid()&&t.echeance<isoJour()).length;
   const aRenseigner=(CSD.acts||[]).filter(a=>a.statut==='Prévu'&&a.commercial_id===uid()&&new Date(a.date_debut)<new Date()).length;
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🧭 Suivi commercial</h1><div class="page-sub">Portefeuille, rendez-vous, relances et pilotage des ventes</div></div>
-    <div class="v4-tools">${csLarge()?'<button class="btn btn-outline btn-sm" onclick="csProspect()">+ Nouveau prospect</button>':''}<button class="btn btn-outline btn-sm" onclick="csTache()">+ Tâche</button><button class="btn btn-primary btn-sm" onclick="csActivite()">+ Rendez-vous / activité</button></div></div>
+    <div class="v4-tools">${csLarge()?'<button class="btn btn-outline btn-sm" onclick="csProspect()">+ Nouveau prospect</button>':''}<button class="btn btn-outline btn-sm" onclick="csReleve()">📋 Relevé d’activité</button><button class="btn btn-outline btn-sm" onclick="csTache()">+ Tâche</button><button class="btn btn-primary btn-sm" onclick="csActivite()">+ Rendez-vous / activité</button></div></div>
    ${CSD.notifs.length?`<div class="card" style="border-left:4px solid #1565C0;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="v4-h3">🔔 Notifications (${CSD.notifs.length})</h3><button class="btn btn-outline btn-sm" onclick="csToutLire()">Tout marquer comme lu</button></div>
      ${CSD.notifs.slice(0,8).map(n=>`<div style="padding:6px 0;border-bottom:1px solid var(--g100);font-size:13px"><a href="#" onclick="csLire('${n.id}','${n.client_id||''}');return false"><b>${esc(n.titre)}</b></a><div class="cell-sub">${esc(n.message||'')} · ${csDT(n.created_at)}</div></div>`).join('')}</div>`:''}
    ${retard||aRenseigner?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:12px;font-size:13.5px">${retard?`⏰ <b>${retard}</b> tâche(s) en retard. `:''}${aRenseigner?`📝 <b>${aRenseigner}</b> rendez-vous passé(s) à renseigner (tenu, reporté ou annulé).`:''}</div>`:''}
@@ -20344,6 +20344,97 @@ function expMenuLigne(btn){
   document.body.appendChild(m);
   if(o)sb.from('erp_pieces_jointes').select('id',{count:'exact',head:true}).eq('objet_table',o.table).eq('objet_id',o.id).then(x=>{const b=m.querySelector('[data-k="pj"]');if(b&&x&&x.count)b.textContent='📎 Pièces jointes ('+x.count+')';},()=>{});
   setTimeout(()=>document.addEventListener('click',function f(e){if(!m.contains(e.target)){m.remove();document.removeEventListener('click',f);}}),0);
+}
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// SUIVI COMMERCIAL — RELEVÉ D’ACTIVITÉ MENSUEL D’UN COMMERCIAL (PDF ou Excel)
+// Sert notamment de justificatif au forfait mensuel de déplacement des consultants commerciaux indépendants.
+// ══════════════════════════════════════════════════════════════════════
+const CS_LIBELLES={brouillon:'Brouillon',envoye:'Envoyé',envoyee:'Envoyée',accepte:'Accepté',refuse:'Refusé',expire:'Expiré',emise:'Émise',payee:'Payée',partielle:'Partiellement payée',retard:'En retard',annulee:'Annulée',
+  prospection:'Prospection',qualification:'Qualification',proposition:'Proposition',negociation:'Négociation',gagnee:'Gagnée',perdue:'Perdue'};
+const csLib=x=>CS_LIBELLES[x]||(x?String(x).replace(/^./,c=>c.toUpperCase()):'');
+const CS_TYPES_DEPLACEMENT=['Rendez-vous','Visite','Démonstration','Salon / Événement'];
+function csReleve(){
+  const moi=uid(),equipe=(csLarge()?CSD.equipe:CSD.equipe.filter(p=>p.id===moi));
+  const d=new Date(),defaut=(d.getDate()<=7?new Date(d.getFullYear(),d.getMonth()-1,1):d).toISOString().slice(0,7);
+  document.getElementById('modalBox').style.width='min(520px,96vw)';document.getElementById('modalTitle').textContent='📋 Relevé d’activité commerciale';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field full"><label for="crCom">Commercial</label><select id="crCom">${equipe.map(p=>`<option value="${p.id}" ${p.id===(CS.focus||moi)?'selected':''}>${esc(csNom(p.id))}</option>`).join('')||`<option value="${moi}">${esc(csNom(moi))}</option>`}</select></div>
+    <div class="form-field full"><label for="crMois">Mois concerné</label><input type="month" id="crMois" value="${defaut}" max="${new Date().toISOString().slice(0,7)}"></div></div>
+    <p class="cell-sub">Le relevé reprend les activités, les déplacements, les prospects, les opportunités, les devis et les factures du mois. Il comporte deux cadres de signature manuscrite (commercial et visa de H TECH INNOV).</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="csReleveExporter('xlsx')">📊 Excel</button><button class="btn btn-primary" onclick="csReleveExporter('pdf')">📄 PDF</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function csReleveDonnees(cid,ym){
+  const d0=new Date(ym+'-01T00:00:00'),d1=new Date(moisSuivant(ym)+'T00:00:00'),dans=x=>!!x&&new Date(x)>=d0&&new Date(x)<d1;
+  const C=CSD.clients||[],ids=C.filter(c=>c.commercial_id===cid).map(c=>c.id),client=id=>{const c=C.find(x=>x.id===id);return c?[c.nom,c.societe&&c.societe!==c.nom?c.societe:''].filter(Boolean).join(' — '):'—';};
+  const acts=(CSD.acts||[]).filter(a=>(a.commercial_id===cid||(a.participants_internes||[]).includes(cid))&&dans(a.date_debut)).sort((a,b)=>String(a.date_debut).localeCompare(String(b.date_debut)));
+  const sienne=o=>o.commercial_id===cid||(!o.commercial_id&&ids.includes(o.client_id));
+  const prospects=C.filter(c=>c.commercial_id===cid&&dans(c.created_at)),opps=(CSD.opps||[]).filter(o=>sienne(o)&&dans(o.created_at));
+  const gagnees=(CSD.opps||[]).filter(o=>sienne(o)&&o.etape==='gagnee'&&dans(o.date_cloture||o.updated_at||o.created_at));
+  const devis=(CSD.devis||[]).filter(x=>ids.includes(x.client_id)&&dans(x.created_at));
+  const fact=(CSD.factures||[]).filter(f=>ids.includes(f.client_id)&&!['annulee','brouillon'].includes(f.statut)&&dans(f.created_at));
+  const enc=(CSD.factures||[]).filter(f=>ids.includes(f.client_id)&&f.statut==='payee'&&dans(f.date_paiement));
+  const tFaites=(CSD.taches||[]).filter(t=>t.assigne_a===cid&&t.statut==='Fait'&&dans(t.fait_le)),tRetard=(CSD.taches||[]).filter(t=>t.assigne_a===cid&&t.statut!=='Fait'&&t.echeance&&new Date(t.echeance+'T00:00:00')<d1);
+  const depl=acts.filter(a=>CS_TYPES_DEPLACEMENT.includes(a.type)&&a.statut==='Tenu');
+  const obj=(CSD.objectifs||[]).find(o=>o.commercial_id===cid&&String(o.mois).slice(0,7)===ym);
+  const parType={};acts.forEach(a=>{parType[a.type]=(parType[a.type]||0)+1;});
+  const st=s=>acts.filter(a=>a.statut===s).length,somme=L=>L.reduce((x,y)=>x+numIn(y.total_ttc??y.montant_estime),0);
+  const rdvTenus=acts.filter(a=>['Rendez-vous','Visite','Démonstration','Réunion en ligne'].includes(a.type)&&a.statut==='Tenu').length;
+  const mois=d0.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const synthese=[['Activités enregistrées',String(acts.length)+(acts.length?' ('+Object.entries(parType).map(([k,v])=>v+' '+k.toLowerCase()).join(', ')+')':'')],
+    ['Statut des activités',`${st('Tenu')} tenue(s) · ${st('Prévu')} prévue(s) · ${st('Reporté')} reportée(s) · ${st('Annulé')} annulée(s)`],
+    ['Rendez-vous tenus',String(rdvTenus)+(obj&&obj.rdv_objectif?' sur un objectif de '+obj.rdv_objectif:'')],
+    ['Déplacements sur site effectués',String(depl.length)+(depl.length?' ('+depl.map(a=>new Date(a.date_debut).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+(a.lieu?' '+a.lieu:'')).join(' ; ')+')':'')],
+    ['Nouveaux prospects',String(prospects.length)],
+    ['Opportunités créées',opps.length+(opps.length?' · '+fmtF(somme(opps))+' FCFA estimés':'')+(obj&&obj.opportunites_objectif?' (objectif : '+obj.opportunites_objectif+')':'')],
+    ['Opportunités gagnées',gagnees.length+(gagnees.length?' · '+fmtF(somme(gagnees))+' FCFA':'')],
+    ['Devis émis (portefeuille)',devis.length+(devis.length?' · '+fmtF(somme(devis))+' FCFA TTC':'')],
+    ['CA facturé (portefeuille)',fmtF(somme(fact))+' FCFA TTC'+(obj&&obj.ca_objectif?' (objectif : '+fmtF(numIn(obj.ca_objectif))+' FCFA)':'')],
+    ['Encaissements du mois (portefeuille)',fmtF(somme(enc))+' FCFA TTC'],
+    ['Relances',`${tFaites.length} faite(s) · ${tRetard.length} en retard à la fin du mois`]];
+  const dt=x=>x?new Date(x).toLocaleDateString('fr-FR')+' '+new Date(x).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'';
+  const activites=acts.map(a=>[dt(a.date_debut),a.type,client(a.client_id),a.objet||'',[a.lieu,a.duree_min?a.duree_min+' min':''].filter(Boolean).join(' · '),a.statut+(a.resultat?' · '+a.resultat:''),
+    [a.compte_rendu,a.prochaine_etape?'Suite : '+a.prochaine_etape:''].filter(Boolean).join(' — ').slice(0,400)]);
+  return{mois,nom:csNom(cid),synthese,activites,depl,
+    prospects:prospects.map(c=>[new Date(c.created_at).toLocaleDateString('fr-FR'),c.nom||'',c.societe||'',c.secteur||'',c.telephone||c.email||'']),
+    opps:opps.map(o=>[new Date(o.created_at).toLocaleDateString('fr-FR'),client(o.client_id),o.titre||o.nom||o.objet||'',csLib(o.etape),fmtF(numIn(o.montant_estime))+' FCFA']),
+    docs:[...devis.map(x=>['Devis',x.reference||'',client(x.client_id),new Date(x.created_at).toLocaleDateString('fr-FR'),csLib(x.statut),fmtF(numIn(x.total_ttc))+' FCFA']),
+          ...fact.map(x=>['Facture',x.reference||'',client(x.client_id),new Date(x.created_at).toLocaleDateString('fr-FR'),csLib(x.statut),fmtF(numIn(x.total_ttc))+' FCFA'])]};
+}
+async function csReleveExporter(format){
+  const cid=gv('crCom')||uid(),ym=gv('crMois');if(!ym){toast('Choisissez le mois');return;}
+  if(!csLarge()&&cid!==uid()){toast('🔒 Vous ne pouvez produire que votre propre relevé');return;}
+  const R=csReleveDonnees(cid,ym),titre='Relevé d’activité commerciale — '+R.mois,fichier=expNomFichier('Releve-activite-'+R.nom+'-'+ym);
+  try{
+    if(format==='xlsx'){await ensureXlsx();const wb=XLSX.utils.book_new(),aj=(nom,ent,L)=>{const ws=XLSX.utils.aoa_to_sheet([[titre+' — '+R.nom],[],ent,...L]);ws['!cols']=ent.map(()=>({wch:24}));XLSX.utils.book_append_sheet(wb,ws,nom);};
+      aj('Synthèse',['Indicateur','Valeur'],R.synthese);aj('Activités',['Date','Type','Client','Objet','Lieu / durée','Statut / résultat','Compte rendu'],R.activites);
+      aj('Prospects',['Créé le','Nom','Société','Secteur','Contact'],R.prospects);aj('Opportunités',['Créée le','Client','Intitulé','Étape','Montant estimé'],R.opps);
+      aj('Devis et factures',['Document','Référence','Client','Date','Statut','Montant'],R.docs);XLSX.writeFile(wb,fichier+'.xlsx');}
+    else{await ensurePdf();const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210;
+      expEntetePdf(doc,'Relevé d’activité commerciale',R.mois.replace(/^./,x=>x.toUpperCase())+' · '+R.nom);
+      let y=38;const titreSec=t=>{if(y>255){doc.addPage();y=20;}doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(10,42,102);doc.text(t,14,y);y+=2;};
+      const tab=(head,body,opts={})=>{doc.autoTable({head:head?[head]:undefined,body:body.length?body:[[{content:'Aucun élément sur la période.',colSpan:(head||[1]).length,styles:{textColor:[120,130,145],fontStyle:'italic'}}]],startY:y,margin:{left:14,right:14,bottom:16},
+        styles:{fontSize:8,cellPadding:1.8,overflow:'linebreak'},headStyles:{fillColor:[10,42,102],textColor:255,fontStyle:'bold'},alternateRowStyles:{fillColor:[244,247,252]},...opts});y=doc.lastAutoTable.finalY+7;};
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(60,70,90);
+      doc.text(`Commercial : ${R.nom}    Période : ${R.mois}    Établi le ${new Date().toLocaleDateString('fr-FR')}`,14,y);y+=6;
+      titreSec('Synthèse du mois');tab(null,R.synthese,{theme:'grid',styles:{fontSize:8.8,cellPadding:2.2},columnStyles:{0:{fontStyle:'bold',textColor:[10,42,102],fillColor:[238,243,251],cellWidth:62}}});
+      titreSec('Activités du mois ('+R.activites.length+')');tab(['Date','Type','Client','Objet','Lieu / durée','Statut','Compte rendu'],R.activites,{styles:{fontSize:7.3,cellPadding:1.5,overflow:'linebreak'},columnStyles:{0:{cellWidth:19},1:{cellWidth:24},6:{cellWidth:46}}});
+      titreSec('Nouveaux prospects ('+R.prospects.length+')');tab(['Créé le','Nom','Société','Secteur','Contact'],R.prospects);
+      titreSec('Opportunités créées ('+R.opps.length+')');tab(['Créée le','Client','Intitulé','Étape','Montant estimé'],R.opps);
+      titreSec('Devis et factures du portefeuille ('+R.docs.length+')');tab(['Document','Référence','Client','Date','Statut','Montant'],R.docs);
+      if(y>232){doc.addPage();y=20;}
+      doc.setFont('helvetica','italic');doc.setFontSize(7.8);doc.setTextColor(100,110,130);
+      doc.text(doc.splitTextToSize('Le présent relevé, établi à partir des données enregistrées dans l’ERP, récapitule l’activité du mois. Le cas échéant, il sert de justificatif au forfait mensuel de déplacement prévu au contrat du commercial ou du consultant ('+R.depl.length+' déplacement(s) sur site).',W-28),14,y);y+=12;
+      [['Le commercial / consultant',R.nom],['Visa de H TECH INNOV','']].forEach(([t,n],i)=>{const x=14+i*93;doc.setDrawColor(213,224,240);doc.roundedRect(x,y,89,34,2,2,'S');
+        doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(21,101,192);doc.text(t.toUpperCase(),x+4,y+6);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(10,42,102);if(n)doc.text(n,x+4,y+12);
+        doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(150,158,170);doc.text('Date, signature'+(i?' et cachet':''),x+4,y+31);});
+      expPiedPdf(doc);doc.save(fichier+'.pdf');}
+    try{logAudit('export','crm_activites',cid,{releve:ym,format});}catch(_){}
+    toast('✅ Relevé de '+R.mois+' téléchargé');closeModal();
+  }catch(e){toast('❌ Relevé : '+(e.message||e),8000);}
 }
 
 </script>
