@@ -20272,7 +20272,7 @@ async function actSupprimer(tr){
   if(!o){toast('Suppression non disponible pour cette ligne : ouvrez l’élément',5000);return;}
   const{data:r,error:e1}=await sb.from(o.table).select('*').eq('id',o.id).maybeSingle();
   if(e1||!r){toast('❌ Élément introuvable ou accès refusé',6000);return;}
-  const p=ACT_PROTEGE[o.table]?.(r);if(typeof p==='string'){toast('🔒 '+p,9000);return;}
+  const p=ACT_PROTEGE[o.table]?.(r);if(typeof p==='string'){if(CP?.role==='superadmin')return actSuppressionForcee(o,r,p);toast('🔒 '+p+' Seul le super administrateur peut le supprimer définitivement.',9000);return;}
   const lib=r.reference||r.numero||r.nom_complet||r.titre||r.nom||r.libelle||r.sujet||r.objet||'cet élément';
   if(!confirm(`Supprimer définitivement « ${lib} » ?\nCette action est irréversible et sera tracée dans le journal d’audit.`))return;
   const{error}=await sb.from(o.table).delete().eq('id',o.id);
@@ -20435,6 +20435,41 @@ async function csReleveExporter(format){
     try{logAudit('export','crm_activites',cid,{releve:ym,format});}catch(_){}
     toast('✅ Relevé de '+R.mois+' téléchargé');closeModal();
   }catch(e){toast('❌ Relevé : '+(e.message||e),8000);}
+}
+
+</script>
+<script>
+// Suppression définitive d’un document protégé (contrat signé, attestation, certificat) : super administrateur uniquement
+async function actSuppressionForcee(o,r,raison){
+  const ref=r.reference||r.numero||'',lib=[ref,r.nom_complet||r.titulaire||r.client_nom||r.nom||r.titre].filter(Boolean).join(' — ');
+  let lies=[];if(o.table==='rh_contrats'){const{data}=await sb.from('rh_contrats').select('id,reference,type,statut').eq('parent_id',o.id);lies=data||[];}
+  window._ACT_FORCE={o,r,lies};
+  document.getElementById('modalBox').style.width='min(580px,96vw)';document.getElementById('modalTitle').textContent='🗑 Suppression définitive — '+(ref||'élément');
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="border-left:4px solid #B42318;font-size:13px;line-height:1.6"><b>${esc(lib)}</b>${r.statut?'<br>Statut : <b>'+esc(r.statut)+'</b>':''}<br><span class="cell-sub">${esc(raison)}</span></div>
+    <p class="cell-sub">En tant que super administrateur, vous pouvez le supprimer définitivement, par exemple s’il a été créé par erreur. Une copie complète est conservée dans le journal d’audit.</p>
+    <div class="form-grid">
+      <div class="form-field full"><label for="afMotif">Motif de la suppression *</label><input id="afMotif" placeholder="Ex. : contrat créé par erreur, doublon"></div>
+      ${lies.length?`<div class="form-field full"><label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="afLies" checked style="margin-top:3px"> Supprimer aussi les ${lies.length} document(s) lié(s) : ${esc(lies.map(x=>x.reference||x.type).join(', '))}</label></div>`:''}
+      ${ref?`<div class="form-field full"><label for="afRef">Pour confirmer, retapez la référence <b>${esc(ref)}</b> *</label><input id="afRef" autocomplete="off"></div>`:''}
+    </div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn" style="background:#B42318;color:#fff" onclick="actSuppressionForceeValider()">Supprimer définitivement</button>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+async function actSuppressionForceeValider(){
+  const F=window._ACT_FORCE;if(!F||CP?.role!=='superadmin')return;const{o,r,lies}=F,ref=r.reference||r.numero||'',motif=g('afMotif');
+  if(!motif){toast('❌ Indiquez le motif');return;}
+  if(ref&&g('afRef').trim().toUpperCase()!==String(ref).toUpperCase()){toast('❌ La référence saisie ne correspond pas');return;}
+  const avecLies=lies.length&&document.getElementById('afLies')?.checked;
+  const ids=[...(avecLies?lies.map(x=>x.id):[]),o.id];
+  for(const id of ids){
+    const{error}=await sb.from(o.table).delete().eq('id',id);
+    if(error){toast('❌ '+(/permission|policy|row-level/i.test(error.message)?'La base refuse la suppression : vérifiez vos droits de gestion.':/foreign key|violates/i.test(error.message)?'Cet élément est utilisé ailleurs dans l’ERP : supprimez d’abord les éléments liés.':error.message),9000);return;}
+    try{const{data:pj}=await sb.from('erp_pieces_jointes').select('id,chemin').eq('objet_table',o.table).eq('objet_id',id);
+      if(pj&&pj.length){await sb.storage.from('erp-pj').remove(pj.map(x=>x.chemin));await sb.from('erp_pieces_jointes').delete().eq('objet_table',o.table).eq('objet_id',id);}}catch(_){}
+  }
+  try{logAudit('suppression_definitive',o.table,o.id,{motif,reference:ref,documents_lies:avecLies?lies.map(x=>x.reference):[],instantane:r});}catch(_){}
+  closeModal();toast('🗑 '+(ref||'Élément')+' supprimé définitivement'+(avecLies?' avec '+lies.length+' document(s) lié(s)':''),6000);
+  if(o.table==='rh_contrats'&&typeof RHC!=='undefined'){RHC.vue='liste';RHC.ed=null;}erpRafraichir();
 }
 
 </script>
