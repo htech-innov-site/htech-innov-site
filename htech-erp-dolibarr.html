@@ -3214,7 +3214,7 @@ async function loadCRM(){
     setText('crmProspects',data.filter(c=>c.type==='prospect').length);setText('crmPartners',data.filter(c=>c.type==='partenaire').length);
     tb.innerHTML=data.map(c=>`<tr>
       <td><strong>${editCell('clients',c.id,'nom',c.nom)}</strong></td><td>${editCell('clients',c.id,'societe',c.societe)}</td>
-      <td>${editSelect('clients',c.id,'type',c.type,['prospect','client','partenaire'])}</td>
+      <td>${editSelect('clients',c.id,'type',c.type,['prospect','client','partenaire','fournisseur'])}</td>
       <td style="font-size:11px">${editCell('clients',c.id,'email',c.email)}</td><td style="font-size:11px">${editCell('clients',c.id,'telephone',c.telephone)}</td>
       <td>${editSelect('clients',c.id,'statut',c.statut||'prospect',['actif','prospect','inactif','bloque'])}</td>
       <td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="openDocs('clients','${c.id}','${jsq(c.nom||"")}')" title="Pièces jointes">📎</button><button class="btn btn-outline btn-sm" onclick="delClient('${c.id}')">🗑</button></div></td>
@@ -4335,7 +4335,7 @@ const MODALS={
   <div class="form-field full"><label>Description</label><textarea id="spDesc" rows="2" placeholder="D&eacute;tails, utilisation..."></textarea></div>
 </div>`,s:'sauverStockProduit'},
   projet:{t:'📁 Nouveau projet',b:`<div class="form-grid"><div class="form-field full"><label>Nom du projet *</label><input type="text" id="mNom" placeholder="Ex: Sécurisation réseau NSIA"/></div><div class="form-field"><label>Type de service</label><select id="mType"><option value="cybersecurite">Cybersécurité</option><option value="videosurveillance">Vidéosurveillance</option><option value="gtb_iot">GTB/IoT</option><option value="solaire">Énergie solaire</option><option value="incendie">Sécurité incendie</option><option value="pmo">Conseil & PMO</option><option value="formation">Formation</option><option value="maintenance">Maintenance</option></select></div><div class="form-field"><label>Priorité</label><select id="mPrio"><option value="normale">Normale</option><option value="haute">Haute</option><option value="critique">Critique</option><option value="basse">Basse</option></select></div><div class="form-field"><label>Date début</label><input type="date" id="mDebut"/></div><div class="form-field"><label>Date fin prévue</label><input type="date" id="mFin"/></div><div class="form-field"><label>Budget (FCFA)</label><input type="number" id="mBudget"/></div><div class="form-field full"><label>Description</label><textarea id="mDesc"></textarea></div></div>`,s:'sauverProjet'},
-  client:{t:'🤝 Nouveau contact',b:`<div class="form-grid"><div class="form-field"><label>Nom *</label><input type="text" id="cNom"/></div><div class="form-field"><label>Société</label><input type="text" id="cSoc"/></div><div class="form-field"><label>Type</label><select id="cType"><option value="prospect">Prospect</option><option value="client">Client</option><option value="partenaire">Partenaire</option></select></div><div class="form-field"><label>Secteur</label><input type="text" id="cSect"/></div><div class="form-field"><label>Email</label><input type="email" id="cEmail"/></div><div class="form-field"><label>Téléphone</label><input type="tel" id="cTel"/></div><div class="form-field full"><label>Notes</label><textarea id="cNotes"></textarea></div></div>`,s:'sauverClient'},
+  client:{t:'🤝 Nouveau contact',b:`<div class="form-grid"><div class="form-field"><label>Nom *</label><input type="text" id="cNom"/></div><div class="form-field"><label>Société</label><input type="text" id="cSoc"/></div><div class="form-field"><label>Type</label><select id="cType"><option value="prospect">Prospect</option><option value="client">Client</option><option value="partenaire">Partenaire</option><option value="fournisseur">Fournisseur</option></select></div><div class="form-field"><label>Secteur</label><input type="text" id="cSect"/></div><div class="form-field"><label>Email</label><input type="email" id="cEmail"/></div><div class="form-field"><label>Téléphone</label><input type="tel" id="cTel"/></div><div class="form-field full"><label>Notes</label><textarea id="cNotes"></textarea></div></div>`,s:'sauverClient'},
   opportunite:{t:'🎯 Nouvelle opportunité',b:`<div class="form-grid"><div class="form-field full"><label>Titre *</label><input type="text" id="oTitre"/></div><div class="form-field"><label>Montant estimé (FCFA)</label><input type="number" id="oMontant"/></div><div class="form-field"><label>Probabilité (%)</label><input type="number" id="oProba" value="50" min="0" max="100"/></div><div class="form-field"><label>Étape</label><select id="oEtape"><option value="prospection">Prospection</option><option value="qualification">Qualification</option><option value="proposition">Proposition</option><option value="negociation">Négociation</option><option value="gagnee">Gagnée</option><option value="perdue">Perdue</option></select></div><div class="form-field"><label>Clôture prévue</label><input type="date" id="oCloture"/></div><div class="form-field full"><label>Notes</label><textarea id="oNotes"></textarea></div></div>`,s:'sauverOpportunite'},
   formation:{t:'🎓 Nouvelle formation',b:`<div class="form-grid"><div class="form-field full"><label>Titre *</label><input type="text" id="fTitre"/></div><div class="form-field"><label>Modalité</label><select id="fModal"><option value="presentiel">Présentiel</option><option value="distanciel">Distanciel</option><option value="blended">Blended</option><option value="elearning">E-learning</option></select></div><div class="form-field"><label>Durée (jours)</label><input type="number" id="fDuree"/></div><div class="form-field"><label>Capacité max</label><input type="number" id="fCap"/></div><div class="form-field"><label>Prix (FCFA)</label><input type="number" id="fPrix" value="0"/></div><div class="form-field"><label>Certifiante</label><select id="fCert"><option value="false">Non</option><option value="true">Oui</option></select></div><div class="form-field full"><label>Description</label><textarea id="fDesc"></textarea></div></div>`,s:'sauverFormation'},
   devis:{t:'📄 Nouveau devis',b:'LIGNES_DOC',s:'sauverDevis',_doc:'devis'},
@@ -4542,7 +4542,7 @@ async function sauverClient(){
     notes:g('cNotes')||'',
     statut:'prospect',
     created_by:uid()
-  },()=>{toast('✅ Contact enregistré !');closeModal();loadCRM();});
+  },()=>{toast(gv('cType')==='fournisseur'?'✅ Contact enregistré — ajouté aussi aux fournisseurs':'✅ Contact enregistré !');closeModal();loadCRM();});
 }
 
 async function sauverOpportunite(){
@@ -4801,7 +4801,7 @@ async function sauverFournisseur(){
     notes:g('foNotes')||'',
     statut:'actif',
     created_by:uid()
-  },()=>{toast('✅ Fournisseur enregistré !');closeModal();loadAchats();});
+  },()=>{toast('✅ Fournisseur enregistré — ajouté aussi aux contacts');closeModal();loadAchats();});
 }
 
 async function sauverProduit(){
@@ -17877,7 +17877,7 @@ async function csCharger(){
   const notifs=await sb.from('crm_notifications').select('*').eq('destinataire',uid()).eq('lu',false).order('created_at',{ascending:false}).then(r=>r.data||[]).catch(()=>[]);
   const[clients,acts,taches,opps,devis,factures,objectifs]=await Promise.all([q('clients'),q('crm_activites'),q('crm_taches'),q('opportunites'),
     q('devis','id,reference,client_id,total_ttc,statut,created_at,created_by'),q('factures','id,reference,client_id,total_ttc,statut,created_at,date_paiement'),q('crm_objectifs')]);
-  CSD={equipe:equipe.filter(p=>!['client','apprenant','formateur'].includes(p.role)&&p.actif!==false),clients,acts,taches,opps,devis,factures,objectifs,notifs};
+  CSD={equipe:equipe.filter(p=>!['client','apprenant','formateur'].includes(p.role)&&p.actif!==false),clients:clients.filter(c=>c.type!=='fournisseur'),acts,taches,opps,devis,factures,objectifs,notifs};
   if(CS.scope===null)CS.scope=csLarge()?'tous':'moi';
 }
 const csMesClients=()=>{const C=CSD.clients||[];if(CS.scope==='tous'&&csLarge())return C;if(CS.scope==='libres')return C.filter(c=>!c.commercial_id);
