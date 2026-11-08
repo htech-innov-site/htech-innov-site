@@ -1134,6 +1134,7 @@ label.grille-sel select{font:inherit;font-size:12px;border:1px solid var(--g200)
         <option value="paye">Payé</option>
       </select>
       <button class="btn btn-primary btn-sm" onclick="openModalBulletin()">+ Bulletin de paie</button>
+      <button class="btn btn-outline btn-sm" onclick="pfForm()">+ Bulletin libre</button>
       <button class="btn btn-outline btn-sm" onclick="exportPaieCsv()">📥 Export CSV</button>
     </div>
     <div class="grid-4" style="margin-bottom:14px">
@@ -20471,6 +20472,169 @@ async function actSuppressionForceeValider(){
   closeModal();toast('🗑 '+(ref||'Élément')+' supprimé définitivement'+(avecLies?' avec '+lies.length+' document(s) lié(s)':''),6000);
   if(o.table==='rh_contrats'&&typeof RHC!=='undefined'){RHC.vue='liste';RHC.ed=null;}erpRafraichir();
 }
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// PAIE — PAIEMENTS FIXES (consultants, prestataires, journaliers…) : montant fixe + lignes libres en plus ou en moins
+// ══════════════════════════════════════════════════════════════════════
+var PF_ROWS=[],PF_SRC={collabs:[],parts:[]},PF_ED=null;
+const PF_CAT={consultant:'Consultant indépendant',prestataire:'Prestataire',journalier:'Journalier',stagiaire:'Stagiaire',autre:'Autre'};
+const PF_ST={brouillon:['Brouillon','badge-amber'],valide:['Validé','badge-blue'],paye:['Payé','badge-green'],annule:['Annulé','badge-gray']};
+const PF_MODELES=[['+','Prime','montant'],['+','Indemnité de transport','montant'],['+','Remboursement de frais','montant'],['-','Retenue à la source','pct'],['-','Avance déjà versée','montant'],['-','Autre retenue','montant']];
+function pfCalcul(base,lignes){let plus=0,moins=0;const L=(lignes||[]).map(l=>{const v=numIn(l.valeur),m=Math.round(l.mode==='pct'?numIn(base)*v/100:v);if(l.sens==='-')moins+=m;else plus+=m;return{...l,montant:m};});
+  return{lignes:L,plus,moins,net:Math.round(numIn(base)+plus-moins)};}
+async function pfCharger(){
+  const zone=document.getElementById('pfZone');if(!zone)return;
+  const fm=document.getElementById('paie-filtre-mois')?.value||'';
+  let q=sb.from('paie_fixes').select('*').order('periode',{ascending:false}).order('created_at',{ascending:false});if(fm)q=q.eq('periode',fm);
+  const{data,error}=await q;
+  if(error){zone.innerHTML=`<div class="card" style="border-left:4px solid #D97706;font-size:13px">⚠️ Paiements fixes : exécutez <b>migration-paiements-fixes.sql</b> dans le SQL Editor de Supabase.</div>`;return;}
+  PF_ROWS=data||[];const v=PF_ROWS.filter(r=>r.statut!=='annule');
+  zone.innerHTML=`<div class="card" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+     <div><h3 class="v4-h3" style="margin:0">✍️ Bulletins libres (saisie autonome)</h3><div class="cell-sub">Montant fixe saisi librement, sans calcul automatique de CNPS ni d’IGR, avec des lignes en plus ou en moins. Le bulletin normal ci-dessus reste inchangé.</div></div>
+     <button class="btn btn-primary btn-sm" onclick="pfForm()">+ Bulletin libre</button></div>
+    <div class="cell-sub" style="margin-bottom:8px">${v.length} paiement(s)${fm?' en '+fm:''} · net total ${fmtF(v.reduce((s,r)=>s+numIn(r.net),0))} F · retenues ${fmtF(v.reduce((s,r)=>s+numIn(r.total_moins),0))} F</div>
+    <div class="table-wrap"><table><thead><tr><th>Référence</th><th>Période</th><th>Bénéficiaire</th><th>Catégorie / document</th><th>Montant fixe</th><th>En plus</th><th>En moins</th><th>Net à payer</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
+    ${PF_ROWS.map(r=>`<tr style="${r.statut==='annule'?'opacity:.55':''}"><td><code style="font-size:11px">${esc(r.reference||'')}</code></td><td style="font-size:12px">${esc(r.periode)}</td><td><strong>${esc(r.beneficiaire)}</strong></td>
+      <td style="font-size:12px">${esc(PF_CAT[r.categorie]||r.categorie)}<div class="cell-sub">${r.document==='etat'?'État de paiement':'Bulletin de paie'}</div></td><td>${fmtF(r.montant_base)} F</td><td style="color:var(--accent)">${numIn(r.total_plus)?'+ '+fmtF(r.total_plus)+' F':'—'}</td>
+      <td style="color:var(--red)">${numIn(r.total_moins)?'− '+fmtF(r.total_moins)+' F':'—'}</td><td style="font-weight:700">${fmtF(r.net)} F</td><td><span class="badge ${PF_ST[r.statut]?.[1]||''}">${PF_ST[r.statut]?.[0]||r.statut}</span></td>
+      <td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="pfPdf('${r.id}')" title="Éditer le document (PDF)">📄</button><button class="btn btn-outline btn-sm" onclick="pfForm('${r.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="pfSupprimer('${r.id}')" title="Supprimer">🗑</button></div></td></tr>`).join('')
+      ||'<tr><td colspan="10" style="text-align:center;color:var(--g400);padding:18px">Aucun bulletin libre. Cliquez sur « + Bulletin libre ».</td></tr>'}</tbody></table></div></div>`;
+}
+async function pfForm(id){
+  const r=id?PF_ROWS.find(x=>x.id===id):null;
+  if(!PF_SRC.collabs.length){const[c,p]=await Promise.all([sb.from('collaborateurs').select('id,nom,prenom,poste,matricule').order('nom').then(x=>x.data||[],()=>[]),sb.from('partenaires').select('id,reference,nom,type,statut').order('nom').then(x=>x.data||[],()=>[])]);PF_SRC={collabs:c,parts:p};}
+  PF_ED={id:r?.id||null,lignes:(r?.lignes||[]).map(l=>({...l}))};
+  const src=r?.partenaire_id?'p:'+r.partenaire_id:r?.collaborateur_id?'c:'+r.collaborateur_id:'';
+  document.getElementById('modalBox').style.width='min(760px,96vw)';document.getElementById('modalTitle').textContent=r?'✏️ '+(r.reference||'Bulletin libre'):'✍️ Nouveau bulletin libre (saisie autonome)';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field full"><label for="pfSrc">Bénéficiaire *</label><select id="pfSrc" onchange="pfChoixSrc()"><option value="">— Saisie libre —</option>
+      <optgroup label="Collaborateurs">${PF_SRC.collabs.map(c=>`<option value="c:${c.id}" ${src==='c:'+c.id?'selected':''}>${esc([c.nom,c.prenom].filter(Boolean).join(' '))}${c.poste?' — '+esc(c.poste):''}</option>`).join('')}</optgroup>
+      <optgroup label="Partenaires (onglet Partenariat)">${PF_SRC.parts.filter(p=>p.statut!=='brouillon'||src==='p:'+p.id).map(p=>`<option value="p:${p.id}" ${src==='p:'+p.id?'selected':''}>${esc(p.nom)}${p.reference?' — '+esc(p.reference):''}</option>`).join('')}</optgroup></select></div>
+    <div class="form-field"><label for="pfNom">Nom affiché sur l’état *</label><input id="pfNom" value="${esc(r?.beneficiaire||'')}"></div>
+    <div class="form-field"><label for="pfCat">Catégorie</label><select id="pfCat" onchange="pfDocAuto();pfMaj()">${Object.entries(PF_CAT).map(([k,l])=>`<option value="${k}" ${(r?.categorie||'consultant')===k?'selected':''}>${l}</option>`).join('')}</select></div>
+    <div class="form-field"><label for="pfDoc">Document à éditer</label><select id="pfDoc" onchange="pfMaj()"><option value="bulletin" ${(r?.document||'bulletin')==='bulletin'?'selected':''}>Bulletin de paie</option><option value="etat" ${r?.document==='etat'?'selected':''}>État de paiement (indépendants)</option></select></div>
+    <div class="form-field"><label for="pfPer">Période *</label><input type="month" id="pfPer" value="${esc(r?.periode||document.getElementById('paie-filtre-mois')?.value||new Date().toISOString().slice(0,7))}"></div>
+    <div class="form-field"><label for="pfBase">Montant fixe (FCFA) *</label><input type="number" min="0" step="1" id="pfBase" value="${r?numIn(r.montant_base):''}" oninput="pfMaj()"></div>
+    <div class="form-field full"><label>Lignes en plus ou en moins</label><div id="pfLignes"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${PF_MODELES.map(([s,l,m],i)=>`<button type="button" class="btn btn-outline btn-sm" onclick="pfAjout(${i})">${s==='+'?'＋':'－'} ${esc(l)}</button>`).join('')}</div></div>
+    <div class="form-field"><label for="pfMode">Mode de paiement</label><select id="pfMode">${['Virement bancaire','Mobile money','Espèces','Chèque'].map(x=>`<option ${r?.mode_paiement===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="form-field"><label for="pfStat">Statut</label><select id="pfStat">${Object.entries(PF_ST).map(([k,v])=>`<option value="${k}" ${(r?.statut||'brouillon')===k?'selected':''}>${v[0]}</option>`).join('')}</select></div>
+    <div class="form-field"><label for="pfDate">Date de paiement</label><input type="date" id="pfDate" value="${esc(r?.date_paiement||'')}"></div>
+    <div class="form-field full"><label for="pfNote">Note (facultatif)</label><input id="pfNote" value="${esc(r?.note||'')}" placeholder="Ex. : forfait de novembre selon relevé d’activité"></div></div>
+    <div id="pfResume" class="card" style="margin-top:10px;background:var(--navy-ultra,#EEF3FB)"></div><div id="pfAvert"></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="pfSauver()">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');pfRendreLignes();pfMaj();
+}
+function pfDocAuto(){const c=gv('pfCat'),d=document.getElementById('pfDoc');if(d)d.value=['consultant','prestataire'].includes(c)?'etat':'bulletin';}
+function pfChoixSrc(){const v=gv('pfSrc');if(!v)return;const[t,id]=v.split(':');
+  if(t==='c'){const c=PF_SRC.collabs.find(x=>x.id===id);if(c)document.getElementById('pfNom').value=[c.nom,c.prenom].filter(Boolean).join(' ');}
+  else{const p=PF_SRC.parts.find(x=>x.id===id);if(p){document.getElementById('pfNom').value=p.nom;if(['consultant','consultant_commercial','freelance','apporteur'].includes(p.type))document.getElementById('pfCat').value='consultant';else if(['soustraitant','fournisseur'].includes(p.type))document.getElementById('pfCat').value='prestataire';pfDocAuto();}}pfMaj();}
+function pfLireLignes(){document.querySelectorAll('#pfLignes [data-i]').forEach(d=>{const i=+d.dataset.i;PF_ED.lignes[i]={libelle:d.querySelector('.pfL').value,sens:d.querySelector('.pfS').value,mode:d.querySelector('.pfM').value,valeur:d.querySelector('.pfV').value};});}
+function pfRendreLignes(){const z=document.getElementById('pfLignes');if(!z)return;
+  z.innerHTML=PF_ED.lignes.map((l,i)=>`<div data-i="${i}" style="display:grid;grid-template-columns:70px 1fr 120px 110px auto;gap:6px;margin-bottom:6px;align-items:center">
+    <select class="pfS" onchange="pfLireLignes();pfMaj()" aria-label="Sens"><option value="+" ${l.sens!=='-'?'selected':''}>＋ En plus</option><option value="-" ${l.sens==='-'?'selected':''}>－ En moins</option></select>
+    <input class="pfL" value="${esc(l.libelle||'')}" placeholder="Libellé" oninput="pfLireLignes();pfMaj()" aria-label="Libellé">
+    <select class="pfM" onchange="pfLireLignes();pfMaj()" aria-label="Mode"><option value="montant" ${l.mode!=='pct'?'selected':''}>Montant (F)</option><option value="pct" ${l.mode==='pct'?'selected':''}>% du montant fixe</option></select>
+    <input class="pfV" type="number" step="any" min="0" value="${esc(l.valeur??'')}" oninput="pfLireLignes();pfMaj()" aria-label="Valeur">
+    <button type="button" class="btn btn-outline btn-sm" onclick="pfLireLignes();PF_ED.lignes.splice(${i},1);pfRendreLignes();pfMaj()" aria-label="Retirer">✕</button></div>`).join('')||'<div class="cell-sub">Aucune ligne : le net est égal au montant fixe.</div>';}
+function pfAjout(i){pfLireLignes();const[s,l,m]=PF_MODELES[i];PF_ED.lignes.push({sens:s,libelle:l,mode:m,valeur:''});pfRendreLignes();pfMaj();
+  setTimeout(()=>{const v=document.querySelectorAll('#pfLignes .pfV');v[v.length-1]?.focus();},30);}
+function pfMaj(){const z=document.getElementById('pfResume');if(!z||!PF_ED)return;pfLireLignes();const c=pfCalcul(gv('pfBase'),PF_ED.lignes);
+  z.innerHTML=`<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px"><span>Montant fixe : <b>${fmtF(numIn(gv('pfBase')))} F</b></span><span style="color:var(--accent)">En plus : <b>+ ${fmtF(c.plus)} F</b></span><span style="color:var(--red)">En moins : <b>− ${fmtF(c.moins)} F</b></span><span style="font-size:15px">Net à payer : <b>${fmtF(c.net)} F</b></span></div>`;
+  const cat=gv('pfCat'),rs=PF_ED.lignes.some(l=>/retenue à la source/i.test(l.libelle||'')),a=[];
+  if(cat==='journalier')a.push('Un journalier est un salarié au sens du Code du travail : les cotisations CNPS sont en principe dues. Un paiement fixe sans CNPS l’expose à un redressement en cas de contrôle.');
+  if(rs&&!PF_ED.lignes.some(l=>/retenue à la source/i.test(l.libelle||'')&&numIn(l.valeur)>0))a.push('Indiquez le taux de la retenue à la source (à confirmer avec votre comptable selon le statut fiscal du bénéficiaire et la nature de la prestation).');
+  if(rs)a.push('La retenue à la source doit être déclarée et reversée à l’administration fiscale par H TECH INNOV.');
+  if(['consultant','prestataire'].includes(cat)&&gv('pfDoc')==='bulletin')a.push('Un bulletin de paie remis à un indépendant peut servir de preuve d’un contrat de travail (risque de requalification). L’état de paiement est plus adapté.');
+  document.getElementById('pfAvert').innerHTML=a.map(x=>`<div class="cell-sub" style="color:#B45309;margin-top:6px">⚠️ ${esc(x)}</div>`).join('');}
+async function pfSauver(){pfLireLignes();const base=numIn(gv('pfBase')),nom=g('pfNom'),per=gv('pfPer');
+  if(!nom){toast('❌ Indiquez le bénéficiaire');return;}if(!per){toast('❌ Indiquez la période');return;}if(!base){toast('❌ Indiquez le montant fixe');return;}
+  if(PF_ED.lignes.some(l=>!String(l.libelle||'').trim()||!numIn(l.valeur))){toast('❌ Chaque ligne doit avoir un libellé et une valeur');return;}
+  const c=pfCalcul(base,PF_ED.lignes);if(c.net<0){toast('❌ Le net à payer ne peut pas être négatif');return;}
+  const src=gv('pfSrc'),row={periode:per,categorie:gv('pfCat'),collaborateur_id:src.startsWith('c:')?src.slice(2):null,partenaire_id:src.startsWith('p:')?src.slice(2):null,beneficiaire:nom,
+    document:gv('pfDoc')||'bulletin',montant_base:base,lignes:c.lignes,total_plus:c.plus,total_moins:c.moins,net:c.net,mode_paiement:gv('pfMode'),statut:gv('pfStat'),date_paiement:gv('pfDate')||null,note:g('pfNote')||null,updated_at:new Date().toISOString()};
+  let res;if(PF_ED.id)res=await sb.from('paie_fixes').update(row).eq('id',PF_ED.id);
+  else{const{data:num,error:en}=await sb.rpc('paie_fixe_numero');if(en){toast('❌ '+en.message,7000);return;}res=await sb.from('paie_fixes').insert({...row,reference:num});}
+  if(res.error){toast('❌ '+res.error.message,8000);return;}
+  try{logAudit(PF_ED.id?'modification':'creation','paie_fixes',PF_ED.id||row.beneficiaire,{net:c.net,periode:per});}catch(_){}
+  toast('✅ Paiement enregistré · net '+fmtF(c.net)+' F');closeModal();pfCharger();}
+async function pfSupprimer(id){const r=PF_ROWS.find(x=>x.id===id);if(!r)return;
+  if(r.statut==='paye'&&CP?.role!=='superadmin'){toast('🔒 Paiement déjà réglé : seul le super administrateur peut le supprimer ; sinon, passez-le en « Annulé ».',8000);return;}
+  if(!confirm(`Supprimer le paiement ${r.reference} de ${r.beneficiaire} (${fmtF(r.net)} F) ?`))return;
+  const{error}=await sb.from('paie_fixes').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('suppression','paie_fixes',id,{instantane:r});}catch(_){}toast('Paiement supprimé');pfCharger();}
+// État de paiement PDF (à faire signer par le bénéficiaire)
+async function pfPdf(id){const r=PF_ROWS.find(x=>x.id===id);if(!r)return;if(r.document!=='etat')return pfBulletinPdf(r);
+  try{await ensurePdf();const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,E=getEntreprise();
+    const mois=new Date(r.periode+'-01T12:00:00').toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+    expEntetePdf(doc,'État de paiement',(r.reference||'')+' · '+mois);
+    let y=40;doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(10,42,102);doc.text('Bénéficiaire',14,y);
+    doc.autoTable({body:[['Nom',r.beneficiaire],['Catégorie',PF_CAT[r.categorie]||r.categorie],['Période',mois.replace(/^./,x=>x.toUpperCase())],['Mode de paiement',r.mode_paiement||'—'],['Date de paiement',r.date_paiement?fmtD(r.date_paiement):'—']],
+      startY:y+2,margin:{left:14,right:14},theme:'grid',styles:{fontSize:9,cellPadding:2.2},columnStyles:{0:{fontStyle:'bold',textColor:[10,42,102],fillColor:[238,243,251],cellWidth:50}}});
+    y=doc.lastAutoTable.finalY+8;doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(10,42,102);doc.text('Détail du paiement',14,y);
+    const corps=[['Montant fixe','',fmtF(r.montant_base)+' F'],...(r.lignes||[]).map(l=>[l.libelle+(l.mode==='pct'?' ('+String(l.valeur).replace('.',',')+' %)':''),l.sens==='-'?'En moins':'En plus',(l.sens==='-'?'− ':'+ ')+fmtF(l.montant)+' F'])];
+    doc.autoTable({head:[['Libellé','Sens','Montant']],body:corps,foot:[['NET À PAYER','',fmtF(r.net)+' F']],startY:y+2,margin:{left:14,right:14},styles:{fontSize:9.2,cellPadding:2.4},
+      headStyles:{fillColor:[10,42,102],textColor:255},footStyles:{fillColor:[63,138,30],textColor:255,fontStyle:'bold',fontSize:10.5},columnStyles:{2:{halign:'right',cellWidth:45},1:{cellWidth:28}}});
+    y=doc.lastAutoTable.finalY+6;doc.setFont('helvetica','italic');doc.setFontSize(9);doc.setTextColor(60,70,90);
+    doc.text(doc.splitTextToSize('Arrêté le présent état à la somme nette de '+String(montantEnLettres(numIn(r.net))||'').replace(/^./,x=>x.toLowerCase())+' ('+fmtF(r.net)+' FCFA).',W-28),14,y);y+=10;
+    const mentions=[];if(['consultant','prestataire'].includes(r.categorie))mentions.push('Montant réglé au titre d’une prestation de services réalisée à titre indépendant ; le bénéficiaire fait son affaire de ses obligations fiscales et sociales.');
+    if((r.lignes||[]).some(l=>/retenue à la source/i.test(l.libelle||'')))mentions.push('La retenue à la source mentionnée ci-dessus est déclarée et reversée à l’administration fiscale par '+(E.nom||'H TECH INNOV')+'.');
+    if(r.note)mentions.push('Note : '+r.note);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(100,110,130);mentions.forEach(m=>{const L=doc.splitTextToSize(m,W-28);doc.text(L,14,y);y+=L.length*3.6+1.5;});
+    y+=6;[['Le bénéficiaire','« Reçu la somme ci-dessus »'],['Pour '+(E.nom||'H TECH INNOV'),'Signature et cachet']].forEach(([t,m],i)=>{const x=14+i*93;doc.setDrawColor(213,224,240);doc.roundedRect(x,y,89,34,2,2,'S');
+      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(21,101,192);doc.text(t.toUpperCase(),x+4,y+6);if(!i){doc.setFontSize(9);doc.setTextColor(10,42,102);doc.text(r.beneficiaire,x+4,y+12);}
+      doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(150,158,170);doc.text(m+' — date et signature',x+4,y+31);});
+    expPiedPdf(doc);doc.save(expNomFichier('Etat-de-paiement-'+(r.reference||'')+'-'+r.beneficiaire)+'.pdf');
+  }catch(e){toast('❌ PDF : '+(e.message||e),8000);}}
+// Intégration dans l’onglet Paie : zone sous les bulletins, rechargée avec eux
+(function(){const ins=()=>{const tb=document.getElementById('paieTable');if(!tb||document.getElementById('pfZone'))return;const card=tb.closest('.card');if(!card)return;
+    const z=document.createElement('div');z.id='pfZone';card.parentNode.insertBefore(z,card.nextSibling);};
+  if(typeof loadPaie==='function'){const _lp=loadPaie;loadPaie=async function(){const r=await _lp.apply(this,arguments);try{ins();await pfCharger();}catch(e){logErr(e);}return r;};}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ins);else ins();})();
+
+</script>
+<script>
+// Bulletin de paie en saisie libre : même présentation que le bulletin normal (grille encadrée)
+async function pfBulletinPdf(r){
+  try{await ensurePdf();const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,M=12,E=getEntreprise(),NAVY=[10,42,102],B=[90,90,90];
+    const col=(PF_SRC.collabs||[]).find(c=>c.id===r.collaborateur_id)||{};
+    const d0=new Date(r.periode+'-01T12:00:00'),mois=d0.toLocaleDateString('fr-FR',{month:'long',year:'numeric'}).replace(/^./,x=>x.toUpperCase()),fin=new Date(d0.getFullYear(),d0.getMonth()+1,0);
+    doc.setDrawColor(...B);doc.setLineWidth(0.3);doc.rect(M,M,W-2*M,26);
+    try{if(typeof HTI_LOGO==='string'&&HTI_LOGO.startsWith('data:'))doc.addImage(HTI_LOGO,HTI_LOGO.startsWith('data:image/png')?'PNG':'JPEG',M+3,M+3,20,20);}catch(e){}
+    doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(...NAVY);doc.text(E.nom||'H TECH INNOV',M+27,M+8);
+    doc.setFont('helvetica','normal');doc.setFontSize(7.8);doc.setTextColor(60,60,60);
+    [[E.forme,E.rccm?'RCCM '+E.rccm:'',E.ncc?'NCC '+E.ncc:''].filter(Boolean).join(' · '),[E.adresse,E.ville].filter(Boolean).join(', '),[E.tel,E.email].filter(Boolean).join(' · ')].filter(Boolean).forEach((t,i)=>doc.text(t,M+27,M+13+i*3.8));
+    doc.setDrawColor(...NAVY);doc.setLineWidth(0.6);doc.roundedRect(W-M-58,M+4,54,9,1,1,'S');doc.setFont('helvetica','bold');doc.setFontSize(12.5);doc.setTextColor(...NAVY);doc.text('BULLETIN DE PAIE',W-M-31,M+10.3,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(60,60,60);doc.text('Période : '+mois,W-M-31,M+18,{align:'center'});doc.text('N° '+(r.reference||''),W-M-31,M+22.5,{align:'center'});
+    doc.autoTable({body:[['Nom et prénoms',r.beneficiaire,'Matricule',col.matricule||'—'],['Emploi',col.poste||PF_CAT[r.categorie]||'—','Catégorie',PF_CAT[r.categorie]||'—'],
+      ['Période de paie','Du 01/'+r.periode.slice(5,7)+'/'+r.periode.slice(0,4)+' au '+fin.toLocaleDateString('fr-FR'),'Mode de paiement',r.mode_paiement||'—'],['Date de paiement',r.date_paiement?fmtD(r.date_paiement):'—','Référence',r.reference||'—']],
+      startY:M+26,margin:{left:M,right:M},theme:'grid',styles:{fontSize:8.6,cellPadding:1.8,lineColor:B,lineWidth:0.2,textColor:[17,17,17]},columnStyles:{0:{textColor:[85,85,85],cellWidth:32},1:{fontStyle:'bold'},2:{textColor:[85,85,85],cellWidth:32},3:{fontStyle:'bold'}}});
+    const L=r.lignes||[],gains=[['Rémunération fixe du mois','','',fmtF(r.montant_base),'']],ret=[];
+    L.forEach(l=>{const row=[l.libelle,l.mode==='pct'?fmtF(r.montant_base):'',l.mode==='pct'?String(l.valeur).replace('.',',')+' %':'',l.sens==='-'?'':fmtF(l.montant),l.sens==='-'?fmtF(l.montant):''];(l.sens==='-'?ret:gains).push(row);});
+    const sec=t=>[{content:t,colSpan:5,styles:{fillColor:[232,240,247],fontStyle:'bold',fontSize:8.2,textColor:NAVY}}];
+    const totalGains=numIn(r.montant_base)+numIn(r.total_plus);
+    doc.autoTable({head:[['Désignation','Base','Taux','Gains','Retenues']],body:[sec('ÉLÉMENTS DE RÉMUNÉRATION'),...gains,...(ret.length?[sec('RETENUES'),...ret]:[]),
+        [{content:'TOTAUX',styles:{fontStyle:'bold'}},'','',{content:fmtF(totalGains),styles:{fontStyle:'bold'}},{content:fmtF(r.total_moins),styles:{fontStyle:'bold'}}]],
+      startY:doc.lastAutoTable.finalY+4,margin:{left:M,right:M},theme:'grid',styles:{fontSize:8.8,cellPadding:2,lineColor:[153,153,153],lineWidth:0.2,textColor:[17,17,17]},
+      headStyles:{fillColor:NAVY,textColor:255,halign:'center',fontStyle:'bold'},columnStyles:{1:{halign:'right',cellWidth:26},2:{halign:'center',cellWidth:18},3:{halign:'right',cellWidth:30},4:{halign:'right',cellWidth:30}}});
+    doc.autoTable({head:[['Total des gains','Total des retenues','NET À PAYER']],body:[[fmtF(totalGains)+' F',fmtF(r.total_moins)+' F',fmtF(r.net)+' F']],startY:doc.lastAutoTable.finalY+4,margin:{left:M,right:M},theme:'grid',
+      styles:{fontSize:10,halign:'center',cellPadding:2.6,lineColor:B,lineWidth:0.2,fontStyle:'bold',textColor:[17,17,17]},headStyles:{fillColor:[244,247,252],textColor:[85,85,85],fontSize:8},
+      didParseCell:d=>{if(d.section==='body'&&d.column.index===2){d.cell.styles.fillColor=NAVY;d.cell.styles.textColor=255;}}});
+    let y=doc.lastAutoTable.finalY+6;doc.setFont('helvetica','italic');doc.setFontSize(8.8);doc.setTextColor(60,60,60);
+    doc.text(doc.splitTextToSize('Net à payer arrêté à la somme de '+String(montantEnLettres(numIn(r.net))||'').replace(/^./,x=>x.toLowerCase())+'.',W-2*M),M,y);y+=8;
+    doc.setFont('helvetica','normal');doc.setFontSize(7.4);doc.setTextColor(110,110,110);
+    const mentions=['Bulletin établi en saisie libre : aucune cotisation sociale ni aucun impôt sur salaire n’ont été calculés automatiquement ; les montants sont ceux saisis par l’employeur.'];
+    if((r.lignes||[]).some(l=>/retenue à la source/i.test(l.libelle||'')))mentions.push('La retenue à la source est déclarée et reversée à l’administration fiscale par '+(E.nom||'H TECH INNOV')+'.');
+    if(r.note)mentions.push('Observation : '+r.note);
+    mentions.forEach(m=>{const T=doc.splitTextToSize(m,W-2*M);doc.text(T,M,y);y+=T.length*3.3+1.2;});
+    y+=6;doc.setDrawColor(...B);doc.setLineWidth(0.3);doc.line(M,y,W-M,y);y+=6;
+    [['L’employeur','Signature et cachet'],['Le salarié','Lu et approuvé']].forEach(([t,m],i)=>{const x=i?W-M-70:M;doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(60,60,60);doc.text(t,x+35,y,{align:'center'});
+      doc.setDrawColor(51,51,51);doc.line(x,y+22,x+70,y+22);doc.setFont('helvetica','italic');doc.setFontSize(7.2);doc.setTextColor(140,140,140);doc.text(m,x+35,y+26,{align:'center'});});
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(150,150,150);doc.text('Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée.',W/2,287,{align:'center'});
+    doc.save(expNomFichier('Bulletin-'+(r.reference||'')+'-'+r.beneficiaire+'-'+r.periode)+'.pdf');
+  }catch(e){toast('❌ PDF : '+(e.message||e),8000);}}
 
 </script>
 </body>
