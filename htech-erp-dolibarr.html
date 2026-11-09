@@ -3189,8 +3189,8 @@ async function loadDashboard(){
       sb.from('formations').select('*',{count:'exact',head:true}),
       sb.from('tickets').select('*',{count:'exact',head:true}).eq('statut','ouvert'),
     ]);
-    const{data:facs}=await sb.from('factures').select('total_ttc,statut');
-    const ca=(facs||[]).filter(f=>f.statut==='payee').reduce((s,f)=>s+(f.total_ttc||0),0);
+    const{data:facs}=await sb.from('factures').select('total_ttc,statut,montant_paye,type_document');
+    const ca=(facs||[]).reduce((s,f)=>s+facEncaisse(f),0);
     setText('kpi-projets',cp||0);setText('kpi-clients',cc||0);setText('kpi-formations',cf||0);
     setText('kpi-ca',ca>0?(ca/1000000).toFixed(1)+'M':'0');setText('kpi-tickets',ct||0);
     const{data:prj}=await sb.from('projets').select('nom,statut,avancement,date_fin_prevue').order('created_at',{ascending:false}).limit(5);
@@ -6950,10 +6950,10 @@ async function renderDashTresoMini(){
   const wrap=document.getElementById('dash-treso-mini');
   if(!wrap)return;
   const{data:caisses}=await sb.from('caisses').select('nom,solde_actuel').eq('actif',true).then(r=>({data:r.data||[]}));
-  const{data:facs}=await sb.from('factures').select('total_ttc,statut').then(r=>({data:r.data||[]}));
+  const{data:facs}=await sb.from('factures').select('total_ttc,statut,montant_paye,type_document,date_echeance').then(r=>({data:r.data||[]}));
   const cashTotal=(caisses||[]).reduce((s,c)=>s+(c.solde_actuel||0),0);
-  const caPayee=(facs||[]).filter(f=>f.statut==='payee').reduce((s,f)=>s+(f.total_ttc||0),0);
-  const caAttente=(facs||[]).filter(f=>['emise','en_retard'].includes(f.statut)).reduce((s,f)=>s+(f.total_ttc||0),0);
+  const caPayee=(facs||[]).reduce((s,f)=>s+facEncaisse(f),0);
+  const caAttente=(facs||[]).reduce((s,f)=>s+facReste(f),0);
   wrap.innerHTML=`<div style="display:grid;gap:8px">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--accent-pale);border-radius:8px"><span style="font-size:12px;color:var(--accent-dark);font-weight:600">💵 Cash en caisse</span><span style="font-size:15px;font-weight:700;color:var(--accent)">${fmtF(cashTotal)} FCFA</span></div>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--navy-ultra);border-radius:8px"><span style="font-size:12px;color:var(--navy);font-weight:600">✅ CA encaissé</span><span style="font-size:15px;font-weight:700;color:var(--navy)">${fmtF(caPayee)} FCFA</span></div>
@@ -7111,7 +7111,7 @@ async function loadReportingFinance(){
 
   // ── 1. Charger les données (robuste : erreur Supabase → tableau vide)
   const[{data:facsRaw},{data:dvsRaw}]=await Promise.all([
-    sb.from('factures').select('id,total_ttc,statut,created_at,date_echeance,updated_at,client_nom').order('created_at',{ascending:false}),
+    sb.from('factures').select('id,total_ttc,statut,created_at,date_echeance,updated_at,client_nom,montant_paye,type_document').order('created_at',{ascending:false}),
     sb.from('devis').select('statut'),
   ]);
   const allFacs=facsRaw||[];
@@ -7122,7 +7122,7 @@ async function loadReportingFinance(){
     const payees=allFacs.filter(f=>f.statut==='payee');
     const dvAcc=allDvs.filter(d=>d.statut==='accepte').length;
     const tauxT=allDvs.length>0?Math.round((dvAcc/allDvs.length)*100):0;
-    const creances=allFacs.filter(f=>f.statut==='en_retard').reduce((s,f)=>s+(f.total_ttc||0),0);
+    const creances=allFacs.filter(f=>['en_retard','partielle_retard'].includes(finStatutFacture(f))).reduce((s,f)=>s+facReste(f),0);
     const panier=payees.length>0?Math.round(payees.reduce((s,f)=>s+(f.total_ttc||0),0)/payees.length):0;
     const delais=payees.filter(f=>f.date_echeance&&f.updated_at).map(f=>Math.floor((new Date(f.updated_at)-new Date(f.date_echeance))/86400000)).filter(d=>Math.abs(d)<365);
     const delai=delais.length?Math.round(delais.reduce((s,d)=>s+d,0)/delais.length):0;
@@ -7143,7 +7143,7 @@ async function loadReportingFinance(){
         const db=d.toISOString().slice(0,7)+'-01';
         const fe=new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10)+'T23:59:59';
         ml.push(d.toLocaleDateString('fr-FR',{month:'short',year:'2-digit'}));
-        mv.push(Math.round(allFacs.filter(f=>f.statut==='payee'&&f.created_at>=db&&f.created_at<=fe).reduce((s,f)=>s+(f.total_ttc||0),0)/1000));
+        mv.push(Math.round(allFacs.filter(f=>f.created_at>=db&&f.created_at<=fe).reduce((s,f)=>s+facEncaisse(f),0)/1000));
       }
       _repChartCA12=new Chart(ctx12,{type:'bar',data:{labels:ml,datasets:[{label:'CA KFCFA',data:mv,backgroundColor:'rgba(10,42,102,.75)',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>`${i.raw.toLocaleString('fr')} KFCFA`}}},scales:{x:{ticks:{font:{size:10}},grid:{display:false}},y:{ticks:{font:{size:10},callback:v=>v+'K'},grid:{color:'rgba(0,0,0,.04)'}}}}});
     }
@@ -7171,11 +7171,10 @@ async function loadReportingFinance(){
       const c=(f.client_nom&&f.client_nom.trim())?f.client_nom.trim():'(Client inconnu)';
       if(!clientCA[c])clientCA[c]={paye:0,attente:0,nb:0};
       clientCA[c].nb++;
-      if(f.statut==='payee')clientCA[c].paye+=(f.total_ttc||0);
-      else if(['emise','en_retard'].includes(f.statut))clientCA[c].attente+=(f.total_ttc||0);
+      clientCA[c].paye+=facEncaisse(f);clientCA[c].attente+=facReste(f);
     });
     const top=Object.entries(clientCA).sort((a,b)=>(b[1].paye+b[1].attente)-(a[1].paye+a[1].attente)).slice(0,10);
-    const caT=allFacs.filter(f=>f.statut==='payee').reduce((s,f)=>s+(f.total_ttc||0),0);
+    const caT=allFacs.reduce((s,f)=>s+facEncaisse(f),0);
     const tb=document.getElementById('rep-top-clients');
     if(!tb)return;
     if(!top.length){
@@ -11907,9 +11906,56 @@ async function dupliquerDoc(docType,id){
   toast('✅ Copie créée : '+p.reference);loadFinance();
 }
 async function markPaid(id){
-  const{error}=await dbSave('factures',{statut:'payee',date_paiement:isoJour()},id);
-  if(error){toast('❌ '+error.message);return;}
-  toast('✅ Facture marquée payée');loadFinance();
+  const{data:f,error}=await sb.from('factures').select('*').eq('id',id).maybeSingle();if(error||!f){toast('❌ Facture introuvable');return;}
+  const{data:pa}=await sb.from('paiements').select('*').eq('facture_id',id).order('date_paiement');const deja=(pa||[]).reduce((s,x)=>s+numIn(x.montant),0)||numIn(f.montant_paye);
+  const reste=Math.max(0,numIn(f.total_ttc)-deja);
+  if(reste<=0){toast('Cette facture est déjà entièrement payée');return;}
+  document.getElementById('modalBox').style.width='min(560px,96vw)';document.getElementById('modalTitle').textContent='💰 Encaisser — '+(f.reference||'');
+  document.getElementById('modalBody').innerHTML=`<div class="card" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;font-size:12px;margin-bottom:10px">
+      <div><div class="cell-sub">Total TTC</div><b style="font-size:15px">${fmtF(f.total_ttc)} F</b></div><div><div class="cell-sub">Déjà payé</div><b style="font-size:15px;color:var(--accent)">${fmtF(deja)} F</b></div><div><div class="cell-sub">Reste à payer</div><b style="font-size:15px;color:var(--red)">${fmtF(reste)} F</b></div></div>
+    ${(pa||[]).length?`<div class="cell-sub" style="margin-bottom:8px">Paiements déjà reçus : ${pa.map(x=>fmtD(x.date_paiement)+' — '+fmtF(x.montant)+' F'+(x.mode_paiement?' ('+esc(x.mode_paiement)+')':'')).join(' · ')}</div>`:''}
+    <div class="form-grid">
+      <div class="form-field"><label for="encMontant">Montant reçu (FCFA) *</label><input type="number" id="encMontant" min="1" max="${reste}" step="1" value="${reste}" oninput="encMaj(${reste})"></div>
+      <div class="form-field"><label for="encDate">Date du paiement *</label><input type="date" id="encDate" value="${isoJour()}" max="${isoJour()}"></div>
+      <div class="form-field"><label for="encMode">Mode de paiement</label><select id="encMode">${['Virement bancaire','Chèque','Espèces','Wave','Orange Money','MTN Money','Moov Money'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+      <div class="form-field"><label for="encRef">Référence (n° de transaction, chèque…)</label><input id="encRef"></div>
+    </div><div id="encApres" class="cell-sub" style="margin-top:6px"></div>
+    <div style="display:flex;gap:6px;margin-top:6px"><button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('encMontant').value=${reste};encMaj(${reste})">Solder (${fmtF(reste)} F)</button><button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('encMontant').value=${Math.round(reste/2)};encMaj(${reste})">50 %</button></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="encGo" onclick="encValider('${id}',${reste})">✅ Enregistrer le paiement</button>`;
+  document.getElementById('modalOverlay').classList.add('open');encMaj(reste);
+}
+function encMaj(reste){const m=numIn(gv('encMontant')),z=document.getElementById('encApres');if(!z)return;
+  z.innerHTML=!m?'':m>reste?`<span style="color:var(--red)">⚠️ Le montant dépasse le reste à payer (${fmtF(reste)} F).</span>`:m===reste?'✅ La facture sera <b>entièrement payée</b>.':`La facture passera en <b>Partiellement payée</b> · reste après ce paiement : <b>${fmtF(reste-m)} F</b>.`;}
+async function encValider(id,reste){
+  const m=Math.round(numIn(gv('encMontant'))),d=gv('encDate');
+  if(!m||m<=0){toast('❌ Indiquez le montant reçu');return;}if(m>reste){toast('❌ Le montant dépasse le reste à payer ('+fmtF(reste)+' F)');return;}if(!d){toast('❌ Indiquez la date');return;}
+  const b=document.getElementById('encGo');if(b)b.disabled=true;
+  const{error}=await sb.from('paiements').insert({facture_id:id,montant:m,mode_paiement:gv('encMode'),date_paiement:d,reference:g('encRef')||null,created_by:CU?.id||null});
+  if(b)b.disabled=false;
+  if(error){toast('❌ '+(/does not exist|schema cache|relation/i.test(error.message)?'Exécutez migration-paiements-partiels.sql dans Supabase':error.message),8000);return;}
+  try{logAudit('paiement','factures',id,{montant:m,mode:gv('encMode'),date:d});}catch(_){}
+  closeModal();toast(m>=reste?'✅ Facture soldée — '+fmtF(m)+' F encaissés':'✅ Paiement partiel de '+fmtF(m)+' F enregistré · reste '+fmtF(reste-m)+' F',6000);loadFinance();
+}
+// Onglet Paiements : tous les encaissements, avec suppression d’un paiement saisi par erreur
+async function loadPaiementsFin(){
+  const tb=document.getElementById('paiementsTable');if(!tb)return;
+  const{data:pa,error}=await sb.from('paiements').select('*').order('date_paiement',{ascending:false}).order('created_at',{ascending:false}).limit(500);
+  if(error){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:18px">Exécutez migration-paiements-partiels.sql pour activer le suivi des paiements.</td></tr>';return;}
+  const ids=[...new Set((pa||[]).map(x=>x.facture_id))];let F=[];
+  if(ids.length){const r=await sb.from('factures').select('id,reference,client_nom,total_ttc,montant_paye,statut').in('id',ids);F=r.data||[];}
+  const th=tb.closest('table')?.querySelector('thead tr');if(th&&!th.querySelector('.pa-act'))th.insertAdjacentHTML('beforeend','<th class="pa-act"></th>');
+  tb.innerHTML=(pa||[]).map(x=>{const f=F.find(y=>y.id===x.facture_id)||{};return `<tr><td>${fmtD(x.date_paiement)}</td><td><code class="ref">${esc(f.reference||'—')}</code><div class="cell-sub">${esc(f.client_nom||'')}${f.statut==='partielle'?' · reste '+fmtF(facReste(f))+' F':f.statut==='payee'?' · soldée':''}</div></td>
+    <td class="num"><b>${fmtF(x.montant)} F</b></td><td>${esc(x.mode_paiement||'—')}</td><td style="font-size:12px">${esc(x.reference||'')}</td>
+    <td><button class="btn btn-outline btn-sm" onclick="paiementSupprimer('${x.id}')" title="Supprimer ce paiement (saisi par erreur)" aria-label="Supprimer le paiement">🗑</button></td></tr>`;}).join('')
+    ||'<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:18px">Aucun paiement enregistré.</td></tr>';
+}
+async function paiementSupprimer(id){
+  if(!['superadmin','admin'].includes(CP?.role)){toast('🔒 Seul un administrateur peut supprimer un paiement');return;}
+  const{data:x}=await sb.from('paiements').select('*').eq('id',id).maybeSingle();if(!x)return;
+  if(!confirm(`Supprimer le paiement de ${fmtF(x.montant)} F du ${fmtD(x.date_paiement)} ?\nLa facture sera recalculée (montant payé, reste à payer et statut).`))return;
+  const{error}=await sb.from('paiements').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
+  try{logAudit('suppression_paiement','factures',x.facture_id,{instantane:x});}catch(_){}
+  toast('Paiement supprimé : la facture a été recalculée');loadFinance();
 }
 async function annulerFacture(id,ref){
   if(!confirm('Annuler la facture '+(ref||'')+' ? Elle restera dans l\u2019historique avec le statut « Annulée ».'))return;
@@ -11936,8 +11982,13 @@ async function appliquerStatutDevis(id,nouveauStatut){
 }
 
 // ── Liste Finance ──
+// Encaissé et reste à payer d’une facture (les paiements partiels sont cumulés dans montant_paye)
+function facEncaisse(f){if(!f||f.type_document==='avoir'||f.statut==='annulee'||f.statut==='brouillon')return 0;const p=numIn(f.montant_paye);return f.statut==='payee'?(p||numIn(f.total_ttc)):p;}
+function facReste(f){if(!f||f.type_document==='avoir'||['annulee','brouillon','payee'].includes(f.statut))return 0;return Math.max(0,numIn(f.total_ttc)-numIn(f.montant_paye));}
 function finStatutFacture(f){
-  if(f.statut==='emise'&&f.date_echeance&&new Date(f.date_echeance)<new Date(isoJour()))return'en_retard';
+  const retard=f.date_echeance&&new Date(f.date_echeance)<new Date(isoJour());
+  if(f.statut==='emise'&&retard)return'en_retard';
+  if(f.statut==='partielle'&&retard)return'partielle_retard';
   return f.statut||'emise';
 }
 function devisFin(d){return ajoutJours(d.date_document||d.created_at,d.validite_jours||30);}
@@ -11947,17 +11998,20 @@ async function selListe(table,cols){
 }
 async function loadFinance(){
   const[{data:facs},{data:dvs}]=await Promise.all([
-    selListe('factures','id,reference,titre,client_nom,client_id,sous_total,total_ttc,acompte_verse,date_echeance,date_paiement,date_document,statut,type_document,created_at'),
+    selListe('factures','id,reference,titre,client_nom,client_id,sous_total,total_ttc,acompte_verse,montant_paye,date_echeance,date_paiement,date_document,statut,type_document,created_at'),
     selListe('devis','id,reference,titre,client_nom,client_id,sous_total,total_ttc,validite_jours,date_document,statut,created_at')
   ]);
   const F=facs||[],D=dvs||[];
-  const ca=F.filter(f=>f.statut==='payee'&&f.type_document!=='avoir').reduce((s,f)=>s+(f.total_ttc||0),0);
+  try{loadPaiementsFin();}catch(e){logErr(e);}
+  const ca=F.reduce((s,f)=>s+facEncaisse(f),0),resteTotal=F.reduce((s,f)=>s+facReste(f),0);
+  window._FIN_RESTE=resteTotal;
   setText('finCA',ca>=1e6?(ca/1e6).toFixed(1).replace('.',',')+' M':fmtF(ca));
   setText('finTotal',F.filter(f=>f.statut!=='annulee').length);
-  setText('finAttente',F.filter(f=>f.type_document!=='avoir'&&finStatutFacture(f)==='emise').length);
-  setText('finRetard',F.filter(f=>f.type_document!=='avoir'&&finStatutFacture(f)==='en_retard').length);
+  setText('finAttente',F.filter(f=>f.type_document!=='avoir'&&['emise','partielle'].includes(finStatutFacture(f))).length);
+  {const el=document.getElementById('finCA');if(el)el.title='Total réellement encaissé (paiements partiels compris) · reste à encaisser : '+fmtF(resteTotal)+' FCFA';}
+  setText('finRetard',F.filter(f=>f.type_document!=='avoir'&&['en_retard','partielle_retard'].includes(finStatutFacture(f))).length);
   setText('finDevis',D.length);
-  const lbl={brouillon:['Brouillon','badge-gray'],emise:['Émise','badge-blue'],payee:['Payée','badge-green'],en_retard:['En retard','badge-red'],annulee:['Annulée','badge-gray']};
+  const lbl={brouillon:['Brouillon','badge-gray'],emise:['Émise','badge-blue'],partielle:['Partiellement payée','badge-amber'],partielle_retard:['Partielle · en retard','badge-red'],payee:['Payée','badge-green'],en_retard:['En retard','badge-red'],annulee:['Annulée','badge-gray']};
   const tb=document.getElementById('facturesTable');
   if(tb){
     tb.innerHTML=F.length?F.map(f=>{
@@ -11968,11 +12022,11 @@ async function loadFinance(){
       <td><code class="ref">${esc(f.reference||'—')}</code></td>
       <td><div class="cell-main">${esc(f.titre||'—')}</div><div class="cell-sub">${esc(f.client_nom||'')}</div></td>
       <td class="num">${esc(money(f.sous_total||0))}</td>
-      <td class="num"><strong>${av?'− ':''}${esc(money(f.total_ttc||0))}</strong></td>
-      <td class="${st==='en_retard'&&!av?'txt-red':''}">${esc(fmtD(f.date_echeance))}${f.date_paiement?`<div class="cell-sub">Payée le ${esc(fmtD(f.date_paiement))}</div>`:''}</td>
+      <td class="num"><strong>${av?'− ':''}${esc(money(f.total_ttc||0))}</strong>${!av&&numIn(f.montant_paye)>0&&f.statut==='partielle'?`<div class="cell-sub" style="color:var(--accent)">Payé ${esc(money(f.montant_paye))}</div><div class="cell-sub" style="color:var(--red);font-weight:600">Reste ${esc(money(facReste(f)))}</div>`:''}</td>
+      <td class="${['en_retard','partielle_retard'].includes(st)&&!av?'txt-red':''}">${esc(fmtD(f.date_echeance))}${f.date_paiement?`<div class="cell-sub">${f.statut==='partielle'?'Dernier paiement le':'Payée le'} ${esc(fmtD(f.date_paiement))}</div>`:''}</td>
       <td><span class="badge ${sc}">${esc(sl)}</span></td>
       <td><div class="row-actions">
-        ${verrou?'':`<button class="btn btn-accent btn-sm" onclick="markPaid('${f.id}')" title="Marquer payée">Payée</button>`}
+        ${verrou||f.statut==='brouillon'?'':`<button class="btn btn-accent btn-sm" onclick="markPaid('${f.id}')" title="Enregistrer un paiement (total ou partiel)">Encaisser</button>`}
         <button class="btn btn-outline btn-sm" onclick="facturePDF('${f.id}')" title="Télécharger le PDF" aria-label="PDF">PDF</button>
         ${verrou?'':`<button class="btn btn-outline btn-sm" onclick="editDocLignes('facture','${f.id}')" title="Modifier" aria-label="Modifier">✏️</button>`}
         <button class="btn btn-outline btn-sm" onclick="dupliquerDoc('facture','${f.id}')" title="Dupliquer" aria-label="Dupliquer">⧉</button>
