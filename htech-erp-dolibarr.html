@@ -15131,7 +15131,7 @@ v4Def('partenariats',{titre:'Partenariats',icone:'🤝',custom:async pg=>{
   const alertes=rows.map(r=>({r,a:partAlertes(r)})).filter(x=>x.a.length);
   const optsType=PART_GROUPES.map(g=>`<optgroup label="${esc(g)}">${Object.entries(PART_TYPES).filter(([,t])=>t.groupe===g).map(([k,t])=>`<option value="${k}" ${k===fType?'selected':''}>${esc(t.l)}</option>`).join('')}</optgroup>`).join('');
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🤝 Partenariats</h1><div class="page-sub">Fiches partenaires et contrats générés automatiquement selon le type de partenariat</div></div>
-    <div class="v4-tools">${estAdmin()?'<button class="btn btn-outline btn-sm" onclick="showPage(\'modeles-documents\')">📚 Modèles & annexes</button>':''}
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="bvcOuvrir()">👋 Message de bienvenue</button>${estAdmin()?'<button class="btn btn-outline btn-sm" onclick="showPage(\'modeles-documents\')">📚 Modèles & annexes</button>':''}
     <button class="btn btn-primary btn-sm" onclick="partFiche()">+ Nouveau partenariat</button></div></div>
   ${err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ La table <code>partenaires</code> n’existe pas encore : exécutez la migration <b>migration-partenariats.sql</b> dans Supabase.</div>':''}
   <div class="grid-4" style="margin-bottom:.9rem">
@@ -19051,7 +19051,7 @@ function rhListe(){const f=RHC.f,q=f.q.toLowerCase(),E=rhEcheances();
   const L=RH_ROWS.filter(r=>(!f.g||RH_TYPES[r.type]?.g===f.g)&&(!f.statut||r.statut===f.statut)&&(!q||[r.reference,r.nom_complet,r.poste,RH_TYPES[r.type]?.court].join(' ').toLowerCase().includes(q)));
   const enCours=RH_ROWS.filter(r=>['signe','en_cours'].includes(r.statut)&&['cdi','cdd','cddti','journalier','stage_ecole','stage_qualif','apprentissage'].includes(r.type));
   return `<div class="v4-head"><div><h1 class="page-title">📝 Contrats et documents RH</h1><div class="page-sub">Contrats de travail, stages, apprentissage et documents RH conformes au Code du travail ivoirien</div></div>
-    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="RHC.vue='modeles';v4Render('contrats-rh')">📄 Modèles</button><button class="btn btn-primary btn-sm" onclick="rhChoisirType()">+ Nouveau document</button></div></div>
+    <div class="v4-tools"><button class="btn btn-outline btn-sm" onclick="bvcOuvrir()">👋 Message de bienvenue</button><button class="btn btn-outline btn-sm" onclick="RHC.vue='modeles';v4Render('contrats-rh')">📄 Modèles</button><button class="btn btn-primary btn-sm" onclick="rhChoisirType()">+ Nouveau document</button></div></div>
    <div class="grid-4" style="margin-bottom:.9rem">
     <div class="kpi"><div class="kpi-icon blue">👥</div><div class="kpi-label">Contrats en cours</div><div class="kpi-value">${enCours.length}</div><div class="cell-sub">${enCours.filter(r=>r.type==='cdi').length} CDI · ${enCours.filter(r=>r.type==='cdd').length} CDD · ${enCours.filter(r=>/stage|apprent/.test(r.type)).length} stages et apprentis</div></div>
     <div class="kpi"><div class="kpi-icon amber">⏳</div><div class="kpi-label">Échéances à traiter</div><div class="kpi-value">${E.length}</div></div>
@@ -19061,9 +19061,9 @@ function rhListe(){const f=RHC.f,q=f.q.toLowerCase(),E=rhEcheances();
    <div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><input placeholder="Rechercher…" value="${esc(f.q)}" oninput="RHC.f.q=this.value;clearTimeout(window._rhq);window._rhq=setTimeout(()=>v4Render('contrats-rh'),300)" style="flex:1;min-width:160px">
      <select onchange="RHC.f.g=this.value;v4Render('contrats-rh')"><option value="">Toutes catégories</option>${Object.entries(RH_GROUPES).map(([k,l])=>`<option value="${k}" ${f.g===k?'selected':''}>${l}</option>`).join('')}</select>
      <select onchange="RHC.f.statut=this.value;v4Render('contrats-rh')"><option value="">Tous statuts</option>${Object.entries(RH_STATUTS).map(([k,v])=>`<option value="${k}" ${f.statut===k?'selected':''}>${v[2]}</option>`).join('')}</select></div>
-    <div class="table-wrap"><table><thead><tr><th>Référence</th><th>Document</th><th>Personne</th><th>Poste</th><th>Début</th><th>Fin</th><th>Statut</th></tr></thead><tbody>
-    ${L.map(r=>`<tr style="cursor:pointer" onclick="rhOuvrir('${r.id}')"><td><code style="font-size:11px">${esc(r.reference||'')}</code></td><td>${esc(RH_TYPES[r.type]?.court||r.type)}${r._parent?`<div class="cell-sub">lié à ${esc(r._parent.reference||'')}</div>`:''}</td><td><b>${esc(r.nom_complet||'')}</b></td><td style="font-size:12.5px">${esc(r.poste||'')}</td>
-      <td style="font-size:12.5px">${fmtD(r.date_debut)||'—'}</td><td style="font-size:12.5px">${fmtD(r.date_fin)||(r.type==='cdi'?'indéterminée':'—')}</td><td>${rhPill(r.statut)}</td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--g400)">Aucun document.</td></tr>'}</tbody></table></div></div>`;}
+    <div class="table-wrap"><table><thead><tr><th>Référence</th><th>Document</th><th>Personne</th><th>Poste</th><th>Rémunération / mois</th><th>Début</th><th>Fin</th><th>Statut</th></tr></thead><tbody>
+    ${L.map(r=>`<tr style="cursor:pointer" onclick="rhOuvrir('${r.id}')"><td><code style="font-size:11px">${esc(r.reference||'')}</code></td><td>${esc(RH_TYPES[r.type]?.court||r.type)}${r._parent?`<div class="cell-sub">lié à ${esc(r._parent.reference||'')}</div>`:''}</td><td><b>${esc(r.nom_complet||'')}</b></td><td style="font-size:12.5px">${esc(r.poste||'')}</td><td style="font-size:12.5px">${(()=>{const x=typeof rhRemuMensuelle==='function'?rhRemuMensuelle(r):null;return !x?'—':x.variable?'<span class="cell-sub">variable</span>':'<b>'+fmtF(x.montant)+' F</b>'+(x.estime?'<div class="cell-sub">estimation</div>':'');})()}</td>
+      <td style="font-size:12.5px">${fmtD(r.date_debut)||'—'}</td><td style="font-size:12.5px">${fmtD(r.date_fin)||(r.type==='cdi'?'indéterminée':'—')}</td><td>${rhPill(r.statut)}</td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucun document.</td></tr>'}</tbody></table></div></div>`;}
 function rhChoisirType(){document.getElementById('modalBox').style.width='min(760px,96vw)';document.getElementById('modalTitle').textContent='Nouveau document RH';
   document.getElementById('modalBody').innerHTML=Object.entries(RH_GROUPES).map(([g,l])=>`<h3 class="v4-h3" style="margin:6px 0">${l}</h3><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin-bottom:12px">
     ${Object.entries(RH_TYPES).filter(([k,t])=>t.g===g&&!t.parent).map(([k,t])=>`<button class="btn btn-outline" style="text-align:left;justify-content:flex-start;white-space:normal;height:auto;padding:10px" onclick="closeModal();rhNouveau('${k}')"><b>${esc(t.court)}</b><br><span class="cell-sub">${esc(t.titre.charAt(0)+t.titre.slice(1).toLowerCase())}</span></button>`).join('')}</div>`).join('')+
@@ -20689,6 +20689,249 @@ async function pfBulletinPdf(r){
     doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(150,150,150);doc.text('Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée.',W/2,287,{align:'center'});
     doc.save(expNomFichier('Bulletin-'+(r.reference||'')+'-'+r.beneficiaire+'-'+r.periode)+'.pdf');
   }catch(e){toast('❌ PDF : '+(e.message||e),8000);}}
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// FICHE DE BIENVENUE DES COLLABORATEURS (salariés, consultants externes, journaliers, stagiaires, prestataires)
+// Sans aucun accès : accueil, fonction, missions, prérogatives, cadre de travail, règles essentielles.
+// ══════════════════════════════════════════════════════════════════════
+const BVC_STATUTS={salarie:'Collaborateur salarié',consultant:'Consultant(e) externe',journalier:'Travailleur journalier',stagiaire:'Stagiaire',prestataire:'Prestataire'};
+const BVC_DEF={
+  salarie:{pre:['Organiser votre travail dans le cadre des objectifs fixés avec votre responsable','Représenter H TECH INNOV auprès des clients et des partenaires dans le cadre de vos missions','Proposer des améliorations de nos méthodes, de nos offres et de nos outils','Utiliser les outils, équipements et logiciels mis à votre disposition pour votre fonction'],
+    lim:['Tout engagement financier, contrat, devis ou remise commerciale est validé par la direction','Les informations sur nos clients, nos prix et nos projets restent confidentielles'],cadre:'Du lundi au vendredi, de 8 h à 17 h (à adapter selon votre contrat)',rgl:true},
+  consultant:{pre:['Organiser librement votre temps, votre agenda et vos méthodes de travail','Vous présenter auprès des prospects et des clients comme consultant(e) pour H TECH INNOV','Utiliser notre documentation commerciale et, sur réservation, nos espaces de travail','Être associé(e) à la préparation des offres et des rendez-vous qui vous concernent'],
+    lim:['Vous ne pouvez pas signer un contrat, engager H TECH INNOV ni encaisser des fonds en son nom','Les prix, remises et conditions des offres sont fixés par la direction'],cadre:'Organisation libre, en toute indépendance, selon les objectifs convenus',rgl:false},
+  journalier:{pre:['Exécuter les travaux confiés pour la journée, sous la supervision de votre responsable','Utiliser le matériel et les équipements de protection mis à votre disposition','Signaler sans délai tout incident, danger ou difficulté sur le chantier ou le site'],
+    lim:['Le respect des consignes de sécurité est impératif, en particulier sur les chantiers et les sites clients','Toute modification des travaux demandés est validée par votre responsable'],cadre:'Selon la journée de travail fixée par votre responsable (8 heures par jour au plus)',rgl:true},
+  stagiaire:{pre:['Participer aux travaux de l’équipe et aux projets qui vous sont confiés','Être accompagné(e) par votre tuteur, qui vous guide et évalue vos progrès','Poser toutes les questions utiles à votre apprentissage','Utiliser les outils nécessaires à votre stage'],
+    lim:['Vos travaux sont validés par votre tuteur avant toute transmission à un client','Les informations sur nos clients et nos projets restent confidentielles'],cadre:'Du lundi au vendredi, de 8 h à 17 h (selon votre convention de stage)',rgl:true},
+  prestataire:{pre:['Organiser librement l’exécution de vos prestations, avec vos propres moyens','Intervenir chez nos clients dans le cadre des missions qui vous sont confiées','Proposer les solutions techniques adaptées aux besoins exprimés'],
+    lim:['Les modifications de prix, de délais ou de périmètre sont validées par écrit par H TECH INNOV','Les consignes de sécurité et de confidentialité de nos clients s’appliquent à chaque intervention'],cadre:'Selon le calendrier convenu pour chaque mission',rgl:false}};
+var BVC_SRC=null;
+async function bvcOuvrir(){
+  if(!BVC_SRC){const[rh,pa,co]=await Promise.all([sb.from('rh_contrats').select('id,reference,type,statut,nom_complet,donnees').order('created_at',{ascending:false}).then(r=>r.data||[],()=>[]),
+    sb.from('partenaires').select('id,reference,nom,type,statut,donnees').order('created_at',{ascending:false}).then(r=>r.data||[],()=>[]),
+    sb.from('collaborateurs').select('id,nom,prenom,poste').order('nom').then(r=>r.data||[],()=>[])]);BVC_SRC={rh:rh.filter(x=>x.statut!=='annule'),pa:pa.filter(x=>x.statut!=='brouillon'),co};}
+  await htaSignataires?.();const S=BVC_SRC;
+  document.getElementById('modalBox').style.width='min(780px,96vw)';document.getElementById('modalTitle').textContent='👋 Message de bienvenue d’un collaborateur';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field full"><label for="bvcSrc">Reprendre les informations de…</label><select id="bvcSrc" onchange="bvcPreremplir()"><option value="">— Saisie libre —</option>
+      <optgroup label="Contrats RH">${S.rh.map(x=>`<option value="r:${x.id}">${esc((x.nom_complet||'')+' — '+(RH_TYPES?.[x.type]?.court||x.type)+' ('+(x.reference||'')+')')}</option>`).join('')}</optgroup>
+      <optgroup label="Partenaires (consultants, prestataires)">${S.pa.map(x=>`<option value="p:${x.id}">${esc(x.nom+' — '+(PART_TYPES?.[x.type]?.l||x.type))}</option>`).join('')}</optgroup>
+      <optgroup label="Collaborateurs">${S.co.map(x=>`<option value="c:${x.id}">${esc([x.prenom,x.nom].filter(Boolean).join(' '))}${x.poste?' — '+esc(x.poste):''}</option>`).join('')}</optgroup></select></div>
+    <div class="form-field"><label for="bvcPrenom">Prénom</label><input id="bvcPrenom"></div><div class="form-field"><label for="bvcNom">Nom *</label><input id="bvcNom"></div>
+    <div class="form-field"><label for="bvcStatut">Statut</label><select id="bvcStatut" onchange="bvcDefauts(true)">${Object.entries(BVC_STATUTS).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div>
+    <div class="form-field"><label for="bvcFonction">Fonction *</label><input id="bvcFonction" placeholder="Ex. : Consultante senior en développement commercial"></div>
+    <div class="form-field"><label for="bvcDate">Date d’arrivée</label><input type="date" id="bvcDate" value="${isoJour()}"></div>
+    <div class="form-field"><label for="bvcRef">Interlocuteur / responsable</label><input id="bvcRef" value="${esc(HTA_SIGN?.[0]?.nom||'')}"></div>
+    <div class="form-field full"><label for="bvcMissions">Missions (une par ligne) *</label><textarea id="bvcMissions" rows="4"></textarea></div>
+    <div class="form-field full"><label for="bvcPre">Prérogatives : ce que vous pouvez faire (une par ligne)</label><textarea id="bvcPre" rows="4"></textarea></div>
+    <div class="form-field full"><label for="bvcLim">Ce qui reste soumis à validation (une par ligne)</label><textarea id="bvcLim" rows="2"></textarea></div>
+    <div class="form-field"><label for="bvcLieu">Lieu de travail</label><input id="bvcLieu" value="Locaux de H TECH INNOV, Cocody Riviera Jules Verne, Abidjan"></div>
+    <div class="form-field"><label for="bvcCadre">Horaires / organisation</label><input id="bvcCadre"></div>
+    <div class="form-field full"><label for="bvcMot">Mot personnel (facultatif)</label><input id="bvcMot" placeholder="Ex. : Votre expérience du secteur bancaire sera un atout précieux pour l’équipe."></div>
+    <div class="form-field"><label for="bvcSig">Signataire</label><select id="bvcSig">${(HTA_SIGN||[]).map((x,i)=>`<option value="${i}">${esc(x.nom)} — ${esc(x.fonction||'')}</option>`).join('')||'<option value="">Direction générale</option>'}</select></div>
+  </div><div class="card" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:13px">Message à envoyer (WhatsApp ou e-mail)</b><button class="btn btn-outline btn-sm" onclick="bvcMessage()">↻ Générer</button></div><textarea id="bvcTexte" rows="7" style="width:100%;margin-top:6px;font-size:12.5px"></textarea>
+    <div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-outline btn-sm" onclick="navigator.clipboard?.writeText(gv('bvcTexte')).then(()=>toast('✅ Message copié'))">📋 Copier</button><button class="btn btn-outline btn-sm" onclick="window.open('https://wa.me/?text='+encodeURIComponent(gv('bvcTexte')),'_blank','noopener')">💬 WhatsApp</button></div></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Fermer</button><button class="btn btn-primary" onclick="bvcPdf()">📄 Fiche de bienvenue (PDF)</button>`;
+  document.getElementById('modalOverlay').classList.add('open');bvcDefauts(true);
+}
+function bvcDefauts(force){const d=BVC_DEF[gv('bvcStatut')]||BVC_DEF.salarie;
+  [['bvcPre',d.pre],['bvcLim',d.lim]].forEach(([id,v])=>{const e=document.getElementById(id);if(e&&(force||!e.value))e.value=v.join('\n');});
+  const c=document.getElementById('bvcCadre');if(c&&(force||!c.value))c.value=d.cadre;bvcMessage();}
+function bvcPreremplir(){const v=gv('bvcSrc');if(!v)return;const[t,id]=v.split(':'),S=BVC_SRC,set=(k,x)=>{const e=document.getElementById(k);if(e&&x)e.value=x;};
+  if(t==='r'){const r=S.rh.find(x=>x.id===id),d=r?.donnees||{};set('bvcNom',d.statut_juridique==='societe'?d.raison_sociale:d.nom);set('bvcPrenom',d.prenoms);
+    document.getElementById('bvcStatut').value=r.type==='journalier'?'journalier':['stage_ecole','stage_qualif','apprentissage'].includes(r.type)?'stagiaire':r.type==='apporteur'?'consultant':r.type==='freelance'?'prestataire':'salarie';bvcDefauts(true);
+    set('bvcFonction',d.poste||(r.type==='apporteur'?'Apporteur d’affaires':r.type==='freelance'?'Prestataire freelance':''));set('bvcMissions',String(d.missions||d.offres||'').split(/\n|;\s*/).map(x=>x.trim()).filter(Boolean).join('\n'));
+    set('bvcDate',d.date_debut);if(d.lieu_travail)set('bvcLieu',d.lieu_travail);}
+  else if(t==='p'){const p=S.pa.find(x=>x.id===id),d=p?.donnees||{};set('bvcNom',p.nom);document.getElementById('bvcPrenom').value='';
+    document.getElementById('bvcStatut').value=['soustraitant','fournisseur','freelance'].includes(p.type)?'prestataire':'consultant';bvcDefauts(true);
+    set('bvcFonction',d.titre_mission||PART_TYPES?.[p.type]?.l);set('bvcMissions',String(d.missions||'').split(/\n|;\s*/).map(x=>x.trim()).filter(Boolean).join('\n'));}
+  else{const c=S.co.find(x=>x.id===id);set('bvcNom',c?.nom);set('bvcPrenom',c?.prenom);set('bvcFonction',c?.poste);document.getElementById('bvcStatut').value='salarie';bvcDefauts(true);}
+  bvcMessage();}
+function bvcDonnees(){const L=id=>String(gv(id)||'').split('\n').map(x=>x.replace(/^[-•\s]+/,'').trim()).filter(Boolean);const sig=(HTA_SIGN||[])[parseInt(gv('bvcSig'))||0]||{};
+  return{prenom:g('bvcPrenom'),nom:g('bvcNom'),statut:gv('bvcStatut'),fonction:g('bvcFonction'),date:gv('bvcDate'),ref:g('bvcRef'),missions:L('bvcMissions'),pre:L('bvcPre'),lim:L('bvcLim'),lieu:g('bvcLieu'),cadre:g('bvcCadre'),mot:g('bvcMot'),sig};}
+function bvcMessage(){const z=document.getElementById('bvcTexte');if(!z)return;const d=bvcDonnees(),qui=d.prenom||d.nom||'',stat=d.statut;
+  z.value=`Bonjour ${qui},\n\nToute l’équipe de H TECH INNOV vous souhaite la bienvenue${d.fonction?' en tant que '+d.fonction:''}${d.date?', à compter du '+fmtD(d.date):''} !${d.mot?'\n\n'+d.mot:''}\n\n${d.missions.length?'Vos principales missions :\n'+d.missions.map(x=>'• '+x).join('\n')+'\n\n':''}${d.ref?'Votre interlocuteur : '+d.ref+'.\n':''}${['consultant','prestataire'].includes(stat)?'Vous exercez en toute indépendance ; nous restons à vos côtés pour réussir ensemble chaque mission.':'Le règlement intérieur et votre fiche de bienvenue vous sont remis ; n’hésitez pas à nous poser toutes vos questions.'}\n\nAu cœur de vos projets,\n${d.sig.nom||'La direction'}${d.sig.fonction?'\n'+d.sig.fonction:''}\nH TECH INNOV`;}
+async function bvcPdf(){const d=bvcDonnees();if(!d.nom){toast('❌ Indiquez le nom');return;}if(!d.fonction){toast('❌ Indiquez la fonction');return;}if(!d.missions.length){toast('❌ Indiquez au moins une mission');return;}
+  try{await ensurePdf();const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,M=16,NAVY=[10,42,102],BLUE=[21,101,192],GREEN=[63,138,30],GREY=[96,108,130],LIGHT=[244,247,252],LINE=[213,224,240],TXT=[30,40,60];
+    const col=(c,st,sz)=>{doc.setTextColor(...c);if(st)doc.setFont('helvetica',st);if(sz)doc.setFontSize(sz);};const qui=[d.prenom,d.nom].filter(Boolean).join(' '),dateFr=d.date?new Date(d.date+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';
+    const entete=()=>{doc.setFillColor(...NAVY);doc.rect(0,0,W,4,'F');doc.setFillColor(...GREEN);doc.rect(0,4,W,1,'F');
+      try{if(typeof HTI_LOGO==='string'&&HTI_LOGO.startsWith('data:'))doc.addImage(HTI_LOGO,HTI_LOGO.startsWith('data:image/png')?'PNG':'JPEG',M,9,18,18);}catch(e){}
+      col(NAVY,'bold',13);doc.text('H TECH INNOV',M+22,16.5);col(GREEN,'bold',6.8);doc.setCharSpace(0.9);doc.text('AU CŒUR DE VOS PROJETS',M+22,21);doc.setCharSpace(0);
+      col(NAVY,'bold',15);doc.text('FICHE DE BIENVENUE',W-M,16.5,{align:'right'});col(GREY,'normal',8);doc.text((BVC_STATUTS[d.statut]||'')+(dateFr?' · '+dateFr:''),W-M,22,{align:'right'});
+      doc.setDrawColor(...LINE);doc.setLineWidth(0.3);doc.line(M,30,W-M,30);};
+    const pied=()=>{const E=getEntreprise();doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);doc.line(M,283,W-M,283);col(GREY,'normal',7);
+      doc.text([(E.nom||'H TECH INNOV'),E.forme,E.rccm?'RCCM '+E.rccm:'',[E.adresse,E.ville].filter(Boolean).join(', ')].filter(Boolean).join('  |  '),W/2,287,{align:'center'});
+      doc.text([E.tel,E.email,E.site||'www.htechinnov.com'].filter(Boolean).join('  |  '),W/2,290.5,{align:'center'});};
+    let y;const saut=h=>{if(y+h>272){doc.addPage();entete();y=40;}};
+    const titre=t=>{saut(16);doc.setFillColor(...GREEN);doc.rect(M,y-4,2.2,6,'F');col(NAVY,'bold',11.5);doc.text(t.toUpperCase(),M+5,y+0.6);y+=7.5;};
+    const para=(t,sz)=>{col(TXT,'normal',sz||9.4);const l=doc.splitTextToSize(t,W-2*M);saut(l.length*4.6);doc.text(l,M,y,{lineHeightFactor:1.45});y+=l.length*(sz||9.4)*0.3528*1.45+1.5;};
+    const puces=(items,c)=>{col(TXT,'normal',9.2);items.forEach(it=>{const l=doc.splitTextToSize(it,W-2*M-7);saut(l.length*4.4+1);doc.setFillColor(...(c||BLUE));doc.circle(M+1.5,y-1.2,0.9,'F');doc.text(l,M+5,y,{lineHeightFactor:1.4});y+=l.length*4.5+1.2;});y+=2;};
+    entete();y=36;doc.setFillColor(...LIGHT);doc.setDrawColor(...LINE);doc.roundedRect(M,y,W-2*M,34,3,3,'FD');
+    const cx=M+18,cy=y+17,ini=((d.prenom||'')[0]||'')+((d.nom||'')[0]||'');doc.setFillColor(...NAVY);doc.circle(cx,cy,12.5,'F');col([255,255,255],'bold',15);doc.text(ini.toUpperCase(),cx,cy+2,{align:'center'});
+    doc.setDrawColor(...GREEN);doc.setLineWidth(1.2);doc.circle(cx,cy,13.1,'S');
+    col(GREEN,'bold',8);doc.setCharSpace(1);doc.text("BIENVENUE DANS L'ÉQUIPE",M+36,y+10);doc.setCharSpace(0);
+    col(NAVY,'bold',18);doc.text(doc.splitTextToSize(qui,W-2*M-42)[0],M+36,y+18.5);col(TXT,'normal',10);doc.text(doc.splitTextToSize(d.fonction,W-2*M-42)[0],M+36,y+24.5);
+    col(GREY,'normal',8.2);doc.text((BVC_STATUTS[d.statut]||'')+(dateFr?' depuis le '+dateFr:''),M+36,y+29.5);y+=43;
+    titre("Le mot d'accueil");para('Cher'+(/^(Mme|Mlle)/i.test(d.prenom)?'e':'')+' '+(d.prenom||qui)+',');
+    const ind=['consultant','prestataire'].includes(d.statut);
+    para(ind?`Nous sommes heureux de vous compter parmi les experts qui accompagnent H TECH INNOV. Votre savoir-faire va contribuer directement à notre promesse : être au cœur des projets de nos clients, du conseil au digital, de la cybersécurité au smart building et à la formation.`
+            :`Nous sommes heureux de vous accueillir au sein de H TECH INNOV. Votre engagement va contribuer directement à notre promesse : être au cœur des projets de nos clients, du conseil au digital, de la cybersécurité au smart building et à la formation.`);
+    if(d.mot)para(d.mot);
+    para(`Cette fiche rappelle votre fonction, vos missions, vos prérogatives et les règles qui nous lient. ${d.ref?d.ref+' reste votre interlocuteur privilégié':'Notre équipe reste à votre écoute'} à chaque étape.`);
+    y+=1;col(GREY,'normal',8.2);doc.text('Pour H TECH INNOV,',M,y+1);col(NAVY,'bold',9.6);doc.text(d.sig.nom||'La direction générale',M,y+6.5);col(GREY,'normal',8.2);if(d.sig.fonction)doc.text(d.sig.fonction,M,y+10.5);y+=19;
+    titre('Votre fonction et vos missions');col(NAVY,'bold',9.6);doc.text(d.fonction,M,y);y+=5.5;puces(d.missions);
+    titre('Vos prérogatives');if(d.pre.length){col(GREY,'italic',8.4);doc.text('Dans le cadre de votre fonction, vous pouvez :',M,y);y+=5;puces(d.pre,GREEN);}
+    if(d.lim.length){col(GREY,'italic',8.4);saut(10);doc.text('Restent soumis à la validation de la direction :',M,y);y+=5;puces(d.lim,[180,83,9]);}
+    titre('Votre cadre de travail');const cad=[['Interlocuteur',d.ref],['Lieu',d.lieu],[ind?'Organisation':'Horaires',d.cadre],['Statut',BVC_STATUTS[d.statut]]].filter(x=>x[1]);
+    saut(cad.length*7+4);doc.autoTable({body:cad,startY:y-2,margin:{left:M,right:M},theme:'grid',styles:{fontSize:9,cellPadding:2.2,lineColor:LINE,textColor:TXT},columnStyles:{0:{fontStyle:'bold',textColor:NAVY,fillColor:LIGHT,cellWidth:38}}});y=doc.lastAutoTable.finalY+8;
+    titre('Nos règles essentielles');puces([
+      'Confidentialité : les informations sur nos clients, nos prix, nos projets et nos méthodes ne sont jamais divulguées, pendant et après votre collaboration.',
+      'Éthique et intégrité : aucun avantage, cadeau ou paiement indu ne peut être proposé ni accepté pour obtenir ou conserver une affaire.',
+      'Sécurité : les consignes d’hygiène et de sécurité s’appliquent dans nos locaux, sur les chantiers et chez nos clients ; tout danger est signalé immédiatement.',
+      'Image et qualité : vous représentez H TECH INNOV ; ponctualité, courtoisie et rigueur sont attendues dans chaque échange.',
+      ...(BVC_DEF[d.statut]?.rgl?['Règlement intérieur : il s’applique à vous dès votre arrivée ; un exemplaire vous est remis et il est affiché dans nos locaux.']:['Indépendance : vous exercez en toute autonomie, sans lien de subordination, conformément à votre contrat.'])]);
+    saut(48);y+=2;doc.setDrawColor(...LINE);doc.line(M,y,W-M,y);y+=6;
+    [['Pour H TECH INNOV',d.sig.nom||'','Signature et cachet'],[ind?'Le partenaire':'Le collaborateur',qui,'Lu et pris connaissance, le …']].forEach(([t,n,m],i)=>{const x=M+i*93;doc.setDrawColor(...LINE);doc.roundedRect(x,y,85,32,2,2,'S');
+      col(BLUE,'bold',7.8);doc.text(t.toUpperCase(),x+4,y+6);col(NAVY,'bold',9);if(n)doc.text(n,x+4,y+11.5);col(GREY,'italic',7);doc.text(m,x+4,y+29);});
+    const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);pied();}
+    doc.save(expNomFichier('Fiche-de-bienvenue-'+qui)+'.pdf');try{logAudit('bienvenue','collaborateurs',qui,{statut:d.statut,fonction:d.fonction});}catch(_){}
+  }catch(e){toast('❌ PDF : '+(e.message||e),8000);}}
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// DÉPENSES FIXES — salaires calculés depuis les contrats + charges fixes récurrentes + suivi des paiements
+// ══════════════════════════════════════════════════════════════════════
+var DF={mois:null,rh:[],pa:[],charges:[],suivi:[],param:{taux_charges:0},err:null};
+const DF_FREQ={mensuel:[1,'Mensuelle'],bimestriel:[2,'Bimestrielle'],trimestriel:[3,'Trimestrielle'],semestriel:[6,'Semestrielle'],annuel:[12,'Annuelle']};
+const DF_CAT={loyer:'Loyer',internet:'Internet',electricite:'Électricité',eau:'Eau',telephone:'Téléphone',logiciels:'Abonnements logiciels',assurance:'Assurance',banque:'Frais bancaires',entretien:'Entretien et nettoyage',securite:'Gardiennage et sécurité',transport:'Transport',impots:'Impôts et taxes',autre:'Autre'};
+const dfMoisSuivant=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()+1,1).toISOString().slice(0,7);};
+const dfIdx=ym=>{const[y,m]=ym.split('-').map(Number);return y*12+m-1;};
+const dfYm=i=>String(Math.floor(i/12))+'-'+String(i%12+1).padStart(2,'0');
+const dfLib=ym=>new Date(ym+'-01T12:00:00').toLocaleDateString('fr-FR',{month:'long',year:'numeric'}).replace(/^./,x=>x.toUpperCase());
+function dfJoursOuvres(ym,deb,fin){const[y,m]=ym.split('-').map(Number),n=new Date(y,m,0).getDate();let c=0;
+  for(let d=1;d<=n;d++){const x=new Date(y,m-1,d),iso=x.toISOString().slice(0,10),w=x.getDay();if(w===0||w===6)continue;if(deb&&iso<deb)continue;if(fin&&iso>fin)continue;c++;}return c;}
+function dfActif(deb,fin,ym){const a=ym+'-01',z=new Date(Number(ym.slice(0,4)),Number(ym.slice(5,7)),0).toISOString().slice(0,10);return(!deb||deb<=z)&&(!fin||fin>=a);}
+// Rémunération mensuelle prévue d’un contrat RH (montant, base de calcul, estimation ou variable)
+function rhRemuMensuelle(r,ym){const d=r.donnees||{},t=r.type;ym=ym||new Date().toISOString().slice(0,7);
+  if(['cdi','cdd','cddti'].includes(t)){const m=numIn(d.salaire_base)+numIn(d.sursalaire)+numIn(d.prime_transport);return m?{montant:m,base:'Salaire brut '+fmtF(numIn(d.salaire_base))+(numIn(d.sursalaire)?' + sursalaire '+fmtF(numIn(d.sursalaire)):'')+(numIn(d.prime_transport)?' + transport '+fmtF(numIn(d.prime_transport)):'')}:null;}
+  if(t==='journalier'){const taux=numIn(d.taux);if(!taux)return null;const deb=d.date_debut||r.date_debut,fin=d.date_fin||r.date_fin,j=dfJoursOuvres(ym,deb,fin),u=d.unite_paie==='heure'?8:1;
+    return{montant:Math.round(taux*u*j),base:fmtF(taux)+' F par '+(d.unite_paie==='heure'?'heure × 8 h':'jour')+' × '+j+' jours ouvrés',estime:true};}
+  if(['stage_ecole','stage_qualif'].includes(t))return numIn(d.indemnite)?{montant:numIn(d.indemnite),base:'Indemnité de stage'}:null;
+  if(t==='apprentissage')return numIn(d.allocation)?{montant:numIn(d.allocation),base:'Allocation mensuelle'}:null;
+  if(t==='freelance'){if(d.mode_honoraires==='mensuel'&&numIn(d.montant))return{montant:numIn(d.montant),base:'Forfait mensuel HT'};return{variable:true,base:fmtF(numIn(d.montant))+' F HT '+({tjm:'par jour',horaire:'par heure',mission:'par mission',forfait:'forfait global'}[d.mode_honoraires]||'')};}
+  if(t==='apporteur')return{variable:true,base:'Commission sur affaires encaissées'};return null;}
+function partRemuMensuelle(p){const d=p.donnees||{};
+  if(p.type==='consultant_commercial')return{montant:numIn(d.perdiem_mensuel),base:'Forfait mensuel de déplacement HT',variable_aussi:'Commission de '+(d.commission_pct||'?')+' % sur les marchés encaissés'};
+  if(p.type==='consultant'&&numIn(d.tjm))return{variable:true,base:fmtF(numIn(d.tjm))+' F HT par jour'};
+  if(p.type==='freelance'&&numIn(d.montant))return{variable:true,base:fmtF(numIn(d.montant))+' F HT (TJM ou forfait)'};
+  if(p.type==='formateur'&&numIn(d.tarif_jour))return{variable:true,base:fmtF(numIn(d.tarif_jour))+' F HT par jour de formation'};
+  if(p.type==='apporteur')return{variable:true,base:'Commission sur affaires apportées'};return null;}
+function partFin(p){if(p.date_fin)return p.date_fin;if(p.date_debut&&p.duree_mois){const d=new Date(p.date_debut+'T12:00:00');d.setMonth(d.getMonth()+Number(p.duree_mois));d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}return null;}
+function dfCalcul(ym){
+  const sal=[],vari=[],ch=[];
+  DF.rh.filter(r=>['signe','en_cours'].includes(r.statut)&&!['avenant','renouvellement_essai','promesse','certificat_travail','attestation_stage'].includes(r.type)).forEach(r=>{
+    const d=r.donnees||{},deb=d.date_debut||r.date_debut,fin=d.date_fin||r.date_fin;if(!dfActif(deb,fin,ym))return;const x=rhRemuMensuelle(r,ym);if(!x)return;
+    const L={source:'rh',source_id:r.id,personne:r.nom_complet||'—',contrat:(RH_TYPES[r.type]?.court||r.type)+' · '+(r.reference||''),poste:r.poste||d.poste||'',base:x.base,ouvrir:`rhOuvrir('${r.id}')`};
+    if(x.variable)vari.push(L);else sal.push({...L,montant:x.montant,estime:!!x.estime});});
+  DF.pa.filter(p=>['signe','actif'].includes(p.statut)).forEach(p=>{if(!dfActif(p.date_debut,partFin(p),ym))return;const x=partRemuMensuelle(p);if(!x)return;
+    const L={source:'partenaire',source_id:p.id,personne:p.nom,contrat:(PART_TYPES?.[p.type]?.l||p.type)+' · '+(p.reference||''),poste:(p.donnees||{}).titre_mission||'',base:x.base,ouvrir:`showPage('partenariats')`};
+    if(x.montant)sal.push({...L,montant:x.montant});if(x.variable)vari.push(L);if(x.variable_aussi)vari.push({...L,base:x.variable_aussi});});
+  const iM=dfIdx(ym);DF.charges.filter(c=>c.actif!==false).forEach(c=>{const i0=dfIdx(String(c.date_debut).slice(0,7)),pas=DF_FREQ[c.frequence]?.[0]||1;
+    if(iM<i0||(c.date_fin&&iM>dfIdx(String(c.date_fin).slice(0,7)))||(iM-i0)%pas)return;
+    const n=new Date(Number(ym.slice(0,4)),Number(ym.slice(5,7)),0).getDate();ch.push({source:'charge',source_id:c.id,libelle:c.libelle,categorie:c.categorie,beneficiaire:c.beneficiaire,montant:numIn(c.montant),frequence:c.frequence,echeance:ym+'-'+String(Math.min(n,c.jour_echeance||5)).padStart(2,'0'),c});});
+  const tSal=sal.reduce((s,x)=>s+x.montant,0),taux=numIn(DF.param.taux_charges),cotis=Math.round(tSal*taux/100),tCh=ch.reduce((s,x)=>s+x.montant,0);
+  return{sal,vari,ch,tSal,cotis,tCh,total:tSal+cotis+tCh};}
+async function dfCharger(){
+  const[rh,pa,cf,pr]=await Promise.all([sb.from('rh_contrats').select('id,reference,type,statut,nom_complet,poste,date_debut,date_fin,donnees').then(r=>r.data||[],()=>[]),
+    sb.from('partenaires').select('id,reference,nom,type,statut,date_debut,duree_mois,donnees').then(r=>r.data||[],()=>[]),
+    sb.from('charges_fixes').select('*').order('libelle'),sb.from('depenses_parametres').select('*')]);
+  DF.err=cf.error?cf.error.message:null;DF.rh=rh;DF.pa=pa;DF.charges=cf.data||[];
+  (pr.data||[]).forEach(x=>{if(x.cle==='taux_charges')DF.param.taux_charges=numIn(x.valeur);});}
+v4Def('depenses-fixes',{titre:'Dépenses fixes',icone:'🧾',custom:async pg=>{
+  DF.mois=DF.mois||dfMoisSuivant();await dfCharger();const{data:sv}=await sb.from('depenses_suivi').select('*').eq('mois',DF.mois);DF.suivi=sv||[];
+  const R=dfCalcul(DF.mois),suivi=(src,id)=>DF.suivi.find(x=>x.source===src&&x.source_id===id);
+  const paye=[...R.sal,...R.ch].reduce((s,x)=>s+numIn(suivi(x.source,x.source_id)?.montant_paye),0)+numIn(suivi('autre',null)?.montant_paye);
+  const etat=(src,id,prevu)=>{const s=suivi(src,id),p=numIn(s?.montant_paye);return !s||!p?'<span class="badge badge-amber">À payer</span>':p>=prevu?`<span class="badge badge-green">Payé</span><div class="cell-sub">${fmtD(s.date_paiement)}</div>`:`<span class="badge badge-blue">Payé ${fmtF(p)}</span><div class="cell-sub">reste ${fmtF(prevu-p)}</div>`;};
+  const proj=[...Array(6)].map((_,k)=>{const ym=dfYm(dfIdx(dfMoisSuivant())-1+k);const x=dfCalcul(ym);return[ym,x];});
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🧾 Dépenses fixes</h1><div class="page-sub">Salaires et rémunérations calculés depuis les contrats · charges fixes récurrentes · suivi des paiements</div></div>
+    <div class="v4-tools"><input type="month" value="${DF.mois}" onchange="DF.mois=this.value;v4Render('depenses-fixes')" aria-label="Mois" style="padding:6px 8px;border:1px solid var(--g200);border-radius:8px">
+      <button class="btn btn-outline btn-sm" onclick="dfParametres()">⚙️ Charges patronales</button><button class="btn btn-primary btn-sm" onclick="dfChargeForm()">+ Charge fixe</button></div></div>
+    ${DF.err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:12px">⚠️ Exécutez <b>migration-depenses-fixes.sql</b> dans le SQL Editor de Supabase, puis rechargez.</div>':''}
+    <div class="stats-grid" style="margin-bottom:14px">
+      <div class="stat-card"><div class="stat-label">À payer — ${esc(dfLib(DF.mois))}</div><div class="stat-value">${fmtF(R.total)}</div><div class="cell-sub">FCFA</div></div>
+      <div class="stat-card"><div class="stat-label">Salaires et rémunérations</div><div class="stat-value">${fmtF(R.tSal+R.cotis)}</div><div class="cell-sub">${R.sal.length} personne(s)${R.cotis?' · dont '+fmtF(R.cotis)+' de charges estimées':''}</div></div>
+      <div class="stat-card"><div class="stat-label">Charges fixes</div><div class="stat-value">${fmtF(R.tCh)}</div><div class="cell-sub">${R.ch.length} échéance(s)</div></div>
+      <div class="stat-card"><div class="stat-label">Déjà payé / reste</div><div class="stat-value">${fmtF(paye)}</div><div class="cell-sub">reste ${fmtF(Math.max(0,R.total-paye))} F</div></div></div>
+    <div class="card" style="margin-bottom:14px"><h3 class="v4-h3" style="margin-top:0">👥 Salaires et rémunérations prévus selon les contrats</h3><div class="table-wrap"><table><thead><tr><th>Personne</th><th>Contrat</th><th>Base de calcul</th><th>Montant du mois</th><th>Paiement</th><th>Actions</th></tr></thead><tbody>
+      ${R.sal.map(x=>`<tr><td><b>${esc(x.personne)}</b><div class="cell-sub">${esc(x.poste)}</div></td><td style="font-size:12px">${esc(x.contrat)}</td><td style="font-size:12px">${esc(x.base)}${x.estime?' <span class="badge" title="Estimation selon les jours ouvrés du mois">estimation</span>':''}</td>
+        <td style="font-weight:700">${fmtF(x.montant)} F</td><td>${etat(x.source,x.source_id,x.montant)}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="dfPayer('${x.source}','${x.source_id}')">💰 Payé</button> <button class="btn btn-outline btn-sm" onclick="${x.ouvrir}" title="Voir le contrat">📄</button></td></tr>`).join('')
+        ||'<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--g400)">Aucun contrat en cours avec une rémunération fixe pour ce mois.</td></tr>'}
+      ${R.cotis?`<tr style="background:var(--g50)"><td colspan="3"><b>Charges patronales estimées</b> <span class="cell-sub">(${DF.param.taux_charges} % des salaires — CNPS, impôts sur salaires)</span></td><td style="font-weight:700">${fmtF(R.cotis)} F</td><td colspan="2"></td></tr>`:''}</tbody></table></div>
+      ${R.vari.length?`<div style="margin-top:10px"><b style="font-size:12.5px">Rémunérations variables (non comptées dans le total)</b><div class="table-wrap"><table><thead><tr><th>Personne</th><th>Contrat</th><th>Base</th></tr></thead><tbody>${R.vari.map(x=>`<tr><td>${esc(x.personne)}</td><td style="font-size:12px">${esc(x.contrat)}</td><td style="font-size:12px">${esc(x.base)}</td></tr>`).join('')}</tbody></table></div></div>`:''}</div>
+    <div class="card" style="margin-bottom:14px"><h3 class="v4-h3" style="margin-top:0">🏢 Charges fixes du mois</h3><div class="table-wrap"><table><thead><tr><th>Échéance</th><th>Charge</th><th>Catégorie</th><th>Fréquence</th><th>Montant</th><th>Paiement</th><th>Actions</th></tr></thead><tbody>
+      ${R.ch.sort((a,b)=>a.echeance.localeCompare(b.echeance)).map(x=>`<tr><td>${fmtD(x.echeance)}</td><td><b>${esc(x.libelle)}</b>${x.beneficiaire?`<div class="cell-sub">${esc(x.beneficiaire)}</div>`:''}</td><td style="font-size:12px">${esc(DF_CAT[x.categorie]||x.categorie)}</td><td style="font-size:12px">${esc(DF_FREQ[x.frequence]?.[1]||x.frequence)}</td>
+        <td style="font-weight:700">${fmtF(x.montant)} F</td><td>${etat('charge',x.source_id,x.montant)}</td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="dfPayer('charge','${x.source_id}')">💰 Payé</button> <button class="btn btn-outline btn-sm" onclick="dfChargeForm('${x.source_id}')" title="Modifier">✏️</button></td></tr>`).join('')
+        ||'<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--g400)">Aucune charge fixe pour ce mois. Cliquez sur « + Charge fixe ».</td></tr>'}</tbody></table></div></div>
+    <div class="card" style="margin-bottom:14px"><h3 class="v4-h3" style="margin-top:0">📅 Projection des six prochains mois</h3><div class="table-wrap"><table><thead><tr><th>Mois</th><th>Salaires</th><th>Charges patronales</th><th>Charges fixes</th><th>Total</th></tr></thead><tbody>
+      ${proj.map(([ym,x])=>`<tr style="${ym===DF.mois?'background:var(--gold-pale)':''};cursor:pointer" onclick="DF.mois='${ym}';v4Render('depenses-fixes')"><td><b>${esc(dfLib(ym))}</b></td><td>${fmtF(x.tSal)}</td><td>${fmtF(x.cotis)}</td><td>${fmtF(x.tCh)}</td><td style="font-weight:700">${fmtF(x.total)} F</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card"><h3 class="v4-h3" style="margin-top:0">⚙️ Toutes les charges fixes</h3><div class="table-wrap"><table><thead><tr><th>Charge</th><th>Catégorie</th><th>Montant</th><th>Fréquence</th><th>Échéance</th><th>Période</th><th>État</th><th>Actions</th></tr></thead><tbody>
+      ${DF.charges.map(c=>`<tr style="${c.actif===false?'opacity:.55':''}"><td><b>${esc(c.libelle)}</b>${c.beneficiaire?`<div class="cell-sub">${esc(c.beneficiaire)}</div>`:''}</td><td style="font-size:12px">${esc(DF_CAT[c.categorie]||c.categorie)}</td><td>${fmtF(c.montant)} F</td><td style="font-size:12px">${esc(DF_FREQ[c.frequence]?.[1]||'')}</td><td style="font-size:12px">le ${c.jour_echeance}</td>
+        <td style="font-size:12px">dès ${fmtD(c.date_debut)}${c.date_fin?' jusqu’au '+fmtD(c.date_fin):''}</td><td>${c.actif===false?'<span class="badge badge-gray">Arrêtée</span>':'<span class="badge badge-green">Active</span>'}</td>
+        <td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="dfChargeForm('${c.id}')" title="Modifier">✏️</button> <button class="btn btn-outline btn-sm" onclick="dfChargeSuppr('${c.id}')" title="Supprimer">🗑</button></td></tr>`).join('')
+        ||'<tr><td colspan="8" style="text-align:center;padding:16px;color:var(--g400)">Aucune charge fixe enregistrée.</td></tr>'}</tbody></table></div></div>`;
+}});
+function dfChargeForm(id){const c=id?DF.charges.find(x=>x.id===id):null;
+  document.getElementById('modalBox').style.width='min(640px,96vw)';document.getElementById('modalTitle').textContent=c?'✏️ '+c.libelle:'🏢 Nouvelle charge fixe';
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field"><label for="dfL">Libellé *</label><input id="dfL" value="${esc(c?.libelle||'')}" placeholder="Ex. : Loyer des bureaux"></div>
+    <div class="form-field"><label for="dfC">Catégorie</label><select id="dfC">${Object.entries(DF_CAT).map(([k,l])=>`<option value="${k}" ${(c?.categorie||'autre')===k?'selected':''}>${l}</option>`).join('')}</select></div>
+    <div class="form-field"><label for="dfB">Bénéficiaire</label><input id="dfB" value="${esc(c?.beneficiaire||'')}" placeholder="Ex. : propriétaire, Orange CI, CIE"></div>
+    <div class="form-field"><label for="dfM">Montant (FCFA) *</label><input type="number" min="0" step="1" id="dfM" value="${c?numIn(c.montant):''}"></div>
+    <div class="form-field"><label for="dfF">Fréquence</label><select id="dfF">${Object.entries(DF_FREQ).map(([k,v])=>`<option value="${k}" ${(c?.frequence||'mensuel')===k?'selected':''}>${v[1]}</option>`).join('')}</select></div>
+    <div class="form-field"><label for="dfJ">Jour d’échéance</label><input type="number" min="1" max="31" id="dfJ" value="${c?.jour_echeance||5}"></div>
+    <div class="form-field"><label for="dfD">Première échéance (mois de départ) *</label><input type="date" id="dfD" value="${esc(c?.date_debut||new Date().toISOString().slice(0,8)+'01')}"></div>
+    <div class="form-field"><label for="dfE">Fin (facultatif)</label><input type="date" id="dfE" value="${esc(c?.date_fin||'')}"></div>
+    <div class="form-field"><label for="dfP">Mode de paiement</label><input id="dfP" value="${esc(c?.mode_paiement||'')}" placeholder="Virement, Wave, espèces…"></div>
+    <div class="form-field"><label style="display:flex;gap:6px;align-items:center;margin-top:22px"><input type="checkbox" id="dfA" ${c?.actif===false?'':'checked'}> Charge active</label></div>
+    <div class="form-field full"><label for="dfN">Notes</label><input id="dfN" value="${esc(c?.notes||'')}"></div></div>
+    <p class="cell-sub">Une charge trimestrielle démarrant en janvier apparaît en janvier, avril, juillet et octobre ; une charge annuelle, chaque année au même mois.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="dfChargeSauver(${c?`'${c.id}'`:'null'})">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function dfChargeSauver(id){const L=g('dfL'),M=numIn(gv('dfM')),D=gv('dfD');if(!L||!D||gv('dfM')===''){toast('❌ Libellé, montant et première échéance requis');return;}
+  if(gv('dfE')&&gv('dfE')<D){toast('❌ La fin précède le début');return;}
+  const row={libelle:L,categorie:gv('dfC'),beneficiaire:g('dfB')||null,montant:M,frequence:gv('dfF'),jour_echeance:Math.min(31,Math.max(1,parseInt(gv('dfJ'))||5)),date_debut:D,date_fin:gv('dfE')||null,mode_paiement:g('dfP')||null,notes:g('dfN')||null,actif:document.getElementById('dfA').checked};
+  const r=id?await sb.from('charges_fixes').update(row).eq('id',id):await sb.from('charges_fixes').insert(row);if(r.error){toast('❌ '+r.error.message,7000);return;}
+  try{logAudit(id?'modification':'creation','charges_fixes',id||L,row);}catch(_){}toast('✅ Charge fixe enregistrée');closeModal();v4Render('depenses-fixes');}
+async function dfChargeSuppr(id){const c=DF.charges.find(x=>x.id===id);if(!c||!confirm('Supprimer la charge « '+c.libelle+' » ?\nPour garder l’historique, vous pouvez plutôt la marquer comme arrêtée (✏️ › décocher « Charge active »).'))return;
+  const{error}=await sb.from('charges_fixes').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}try{logAudit('suppression','charges_fixes',id,{instantane:c});}catch(_){}toast('Charge supprimée');v4Render('depenses-fixes');}
+async function dfPayer(src,id){const R=dfCalcul(DF.mois),x=[...R.sal,...R.ch].find(y=>y.source===src&&y.source_id===id);if(!x)return;const s=DF.suivi.find(y=>y.source===src&&y.source_id===id);
+  document.getElementById('modalBox').style.width='min(520px,96vw)';document.getElementById('modalTitle').textContent='💰 Paiement — '+(x.personne||x.libelle);
+  document.getElementById('modalBody').innerHTML=`<p class="cell-sub" style="margin-top:0">${esc(dfLib(DF.mois))} · prévu : <b>${fmtF(x.montant)} F</b></p><div class="form-grid">
+    <div class="form-field"><label for="dpM">Montant payé (FCFA)</label><input type="number" min="0" step="1" id="dpM" value="${s?numIn(s.montant_paye):x.montant}"></div>
+    <div class="form-field"><label for="dpD">Date du paiement</label><input type="date" id="dpD" value="${esc(s?.date_paiement||isoJour())}"></div>
+    <div class="form-field"><label for="dpMode">Mode</label><input id="dpMode" value="${esc(s?.mode_paiement||x.c?.mode_paiement||'')}"></div>
+    <div class="form-field"><label for="dpN">Note</label><input id="dpN" value="${esc(s?.note||'')}"></div></div><p class="cell-sub">Mettez 0 pour annuler un paiement enregistré par erreur.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="dfPayerSauver('${src}','${id}')">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function dfPayerSauver(src,id){const R=dfCalcul(DF.mois),x=[...R.sal,...R.ch].find(y=>y.source===src&&y.source_id===id);if(!x)return;
+  const row={mois:DF.mois,source:src,source_id:id,libelle:x.personne||x.libelle,categorie:src==='charge'?x.categorie:'salaires',montant_prevu:x.montant,montant_paye:Math.max(0,Math.round(numIn(gv('dpM')))),date_paiement:gv('dpD')||null,mode_paiement:g('dpMode')||null,note:g('dpN')||null};
+  const{error}=await sb.from('depenses_suivi').upsert(row,{onConflict:'mois,source,source_id'});if(error){toast('❌ '+error.message,7000);return;}
+  try{logAudit('paiement','depenses_suivi',id,row);}catch(_){}toast('✅ Paiement enregistré');closeModal();v4Render('depenses-fixes');}
+function dfParametres(){document.getElementById('modalBox').style.width='min(480px,96vw)';document.getElementById('modalTitle').textContent='⚙️ Charges patronales estimées';
+  document.getElementById('modalBody').innerHTML=`<div class="form-field"><label for="dfT">Taux appliqué aux salaires fixes (%)</label><input type="number" min="0" max="60" step="0.1" id="dfT" value="${DF.param.taux_charges||0}"></div>
+    <p class="cell-sub">Sert à prévoir la part patronale (CNPS, impôts sur salaires…) en plus des salaires. Les montants exacts restent ceux de vos bulletins de paie : faites confirmer le taux par votre comptable. Mettez 0 pour ne rien ajouter.</p>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" onclick="dfParamSauver()">💾 Enregistrer</button>`;
+  document.getElementById('modalOverlay').classList.add('open');}
+async function dfParamSauver(){const v=Math.max(0,numIn(gv('dfT')));const{error}=await sb.from('depenses_parametres').upsert({cle:'taux_charges',valeur:v,modifie_le:new Date().toISOString()});
+  if(error){toast('❌ '+error.message);return;}DF.param.taux_charges=v;toast('✅ Taux enregistré');closeModal();v4Render('depenses-fixes');}
+(function(){try{['superadmin','admin'].forEach(r=>{const nav=NAV[r];if(!nav||nav.some(x=>x.id==='depenses-fixes'))return;const k=nav.findIndex(x=>x.id==='finance');nav.splice(k<0?nav.length:k+1,0,{id:'depenses-fixes',i:'🧾',l:'Dépenses fixes'});});
+  PAGE_LABELS['depenses-fixes']='Dépenses fixes';}catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-depenses-fixes')){const d=document.createElement('div');d.className='page';d.id='page-depenses-fixes';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
 
 </script>
 </body>
