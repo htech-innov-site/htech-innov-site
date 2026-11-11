@@ -462,7 +462,7 @@ async function pageVerifier(num){
   num=String(num||'').trim().toUpperCase();
   app(`<section class="sec"><div class="wrap" style="max-width:640px">
     <span class="kick">Vérification</span><h1 style="font-size:32px;margin:8px 0 6px">Vérifier un certificat ou une attestation H TECH ACADEMY</h1>
-    <p class="note" style="font-size:15.5px">Saisissez le numéro imprimé sur le document (HTA-… pour un certificat, ATT-… pour une attestation de suivi), ou scannez son QR code.</p>
+    <p class="note" style="font-size:15.5px">Saisissez le numéro imprimé sur le document (HTA-… pour un certificat, ATT-… pour une attestation de suivi, GPM-… pour un certificat de formation GPM), ou scannez son QR code.</p>
     <form class="panel" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap" onsubmit="event.preventDefault();location.hash='#/verifier/'+encodeURIComponent(document.getElementById('vNum').value.trim())">
       <label for="vNum" class="f" style="width:100%;margin:0">Numéro du document</label>
       <input class="in" id="vNum" value="${esc(num)}" placeholder="HTA-2026-000123" style="flex:1;min-width:200px;font-family:monospace;text-transform:uppercase" autocomplete="off">
@@ -471,6 +471,7 @@ async function pageVerifier(num){
   if(!num)return;
   const z=document.getElementById('vRes');z.innerHTML='<p class="vide">Vérification…</p>';
   if(num.startsWith('ATT-'))return verifierAttestation(num,z);
+  if(num.startsWith('GPM-'))return verifierGpm(num,z);
   const{data,error}=await sb.rpc('verifier_certificat',{p_numero:num});
   const c=(data||[])[0];
   if(error){z.innerHTML='<div class="panel vide">Vérification momentanément indisponible. Réessayez plus tard.</div>';return;}
@@ -1136,6 +1137,21 @@ async function verifierAttestation(num,z){
     <table style="width:100%;font-size:15px;border-collapse:collapse">${[['N° de l’attestation',a.numero],['Titulaire',a.titulaire],['Formation suivie',a.formation_titre],['Période',per],['Durée',a.heures],['Modalité',[mod,a.lieu].filter(Boolean).join(' · ')],['Organisée par',a.organisateur],['En partenariat avec',a.partenaires],['Signataires',a.signataires],['Délivrée le',d(a.date_delivrance)]]
       .filter(([,v])=>v).map(([k,v])=>`<tr><td style="padding:6px 10px 6px 0;color:var(--muted);white-space:nowrap;vertical-align:top">${k}</td><td style="padding:6px 0;font-weight:700">${esc(String(v))}</td></tr>`).join('')}</table>
     <p class="note" style="margin-top:10px">Cette attestation certifie le suivi de la formation ; elle ne constitue pas une certification. Le document original porte les signatures manuscrites des signataires.</p></div>`;
+}
+
+
+// ═══ Vérification d’un certificat de formation GPM (GPM-…), H TECH INNOV partenaire accrédité GPM Global ═══
+async function verifierGpm(num,z){
+  const{data,error}=await sb.rpc('verifier_gpm',{p_numero:num});const c=(data||[])[0];
+  if(error){z.innerHTML='<div class="panel vide">Vérification momentanément indisponible. Réessayez plus tard.</div>';return;}
+  if(!c){z.innerHTML=`<div class="panel" style="border-left:5px solid var(--red)"><h3 style="color:var(--red)">✕ Certificat introuvable</h3><p class="note" style="font-size:15px">Aucun certificat GPM délivré par H TECH INNOV ne porte le numéro <b>${esc(num)}</b>. Vérifiez la saisie ou contactez-nous : info@htechinnov.com.</p></div>`;return;}
+  const d=x=>x?new Date(x+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}):'',ok=c.statut==='valide';
+  const duree=c.duree_valeur?(String(c.duree_valeur).replace('.',',')+' '+c.duree_unite+(c.duree_unite==='jours'&&c.heures?' ('+c.heures+' heures)':'')):'';
+  z.innerHTML=`<div class="panel" style="border-left:5px solid ${ok?'var(--green)':'var(--red)'}"><h3 style="color:${ok?'var(--green)':'var(--red)'};margin-top:0">${ok?'✓ Certificat authentique':'✕ Certificat annulé'}</h3>
+    <table style="width:100%;font-size:15px;border-collapse:collapse">${[['N° du certificat',c.numero],['Participant',c.participant],['Formation',c.cours],['Training (EN)',c.cours_en!==c.cours?c.cours_en:''],['Durée',duree],
+      ['Période',c.date_fin&&c.date_fin!==c.date_debut?'Du '+d(c.date_debut)+' au '+d(c.date_fin):d(c.date_debut)],['Formateur',c.formateur],['Délivré par','H TECH INNOV, partenaire de formation accrédité par GPM Global'+(c.atp_numero?' (ATP n° '+c.atp_numero+')':'')],['Délivré le',d(c.date_delivrance)]]
+      .filter(([,v])=>v).map(([k,v])=>`<tr><td style="padding:6px 10px 6px 0;color:var(--muted);white-space:nowrap;vertical-align:top">${k}</td><td style="padding:6px 0;font-weight:700">${esc(String(v))}</td></tr>`).join('')}</table>
+    <p class="note" style="margin-top:10px">Ce certificat atteste la formation suivie. La certification GPM (CSPP, CSPM…) est délivrée par GPM Global après réussite de son examen.</p></div>`;
 }
 
 // ═══ Routage ═══
