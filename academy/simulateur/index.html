@@ -588,7 +588,11 @@ async function simLibsPdf(){
   if(!window.qrcode){try{await simCharger('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
   if(window._SIM_SCRIPT===undefined){try{const r=await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf');const b=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));window._SIM_SCRIPT=btoa(s);}catch(e){window._SIM_SCRIPT=null;}}
 }
-const simPdfTxt=t=>String(t??'').replace(/[\u202f\u00a0]/g,' ').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/→/g,'-').replace(/[\u2018\u2019]/g,'’').replace(/[^\x00-\u024F’“”«»—–…•·€œŒ]/g,'');
+(function(){var OK=/^[\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]$/;
+ var EQ={'Ɛ':'E','ɛ':'e','Ɔ':'O','ɔ':'o','Ŋ':'N','ŋ':'n','Ʋ':'V','ʋ':'v','Ɩ':'I','ɩ':'i','Ɲ':'N','ɲ':'n','Ɓ':'B','ɓ':'b','Ɗ':'D','ɗ':'d','Ƴ':'Y','ƴ':'y','Ə':'E','ə':'e','Đ':'D','đ':'d','Ł':'L','ł':'l','Ø':'Ø','ß':'ß','ı':'i','Ŧ':'T','ŧ':'t','Ħ':'H','ħ':'h'};
+ window.htiLettrePdf=function(ch){if(OK.test(ch))return ch;if(EQ[ch])return EQ[ch];var b=ch.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return b&&b!==ch&&[...b].every(function(x){return OK.test(x);})?b:'';};})();
+const simPdfTxt=t=>String(t??'').replace(/[\u202f\u00a0\u2007\u2009]/g,' ').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/[→⇒➜←]/g,'-').replace(/[✓✔]/g,'v').replace(/[\u2032]/g,"'")
+  .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/gu,c=>htiLettrePdf(c)).replace(/ {2,}/g,' ');
 async function simRapport(source){
   const btn=document.getElementById('simBtnRapport');if(btn){btn.disabled=true;btn.dataset.t=btn.textContent;btn.textContent='…';}
   try{
@@ -686,8 +690,7 @@ async function simRapport(source){
     doc.setFont('helvetica','normal');doc.setFontSize(8.6);doc.setTextColor(...GRIS);doc.text(P((SIM.lang==='en'?'Issued in Abidjan, on ':'Fait à Abidjan, le ')+dfr(new Date())+'.'),M,y);y+=4;
     const sigs=(I.signataires||[]).slice(0,2),zone=(W-2*M-30)/2;
     sigs.forEach((sg,i)=>{const x0=M+i*(zone+4),xm=x0+zone/2,ys=y+14;
-      if(window._SIM_SCRIPT){doc.setFont('GreatVibes','normal');let f=26;doc.setFontSize(f);while(doc.getTextWidth(sg.nom||'')>zone-8&&f>14){f--;doc.setFontSize(f);}doc.setTextColor(59,42,32);doc.text(sg.nom||'',xm,ys,{align:'center'});}
-      else{doc.setFont('times','bolditalic');doc.setFontSize(17);doc.setTextColor(59,42,32);doc.text(P(sg.nom||''),xm,ys,{align:'center'});}
+      doc.setFont('helvetica','italic');doc.setFontSize(6.6);doc.setTextColor(170,175,185);doc.text(P(SIM.lang==='en'?'Signature and stamp':'Signature et cachet'),xm,ys-9,{align:'center'});
       doc.setDrawColor(...NAVY);doc.setLineWidth(0.3);doc.line(x0+4,ys+3,x0+zone-4,ys+3);
       doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(P(sg.nom||''),xm,ys+7.5,{align:'center'});
       doc.setFont('helvetica','normal');doc.setFontSize(7.8);doc.setTextColor(...GRIS);doc.text(P(sg.fonction||''),xm,ys+11.5,{align:'center'});});
