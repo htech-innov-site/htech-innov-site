@@ -11926,6 +11926,15 @@ async function markPaid(id){
 }
 function encMaj(reste){const m=numIn(gv('encMontant')),z=document.getElementById('encApres');if(!z)return;
   z.innerHTML=!m?'':m>reste?`<span style="color:var(--red)">⚠️ Le montant dépasse le reste à payer (${fmtF(reste)} F).</span>`:m===reste?'✅ La facture sera <b>entièrement payée</b>.':`La facture passera en <b>Partiellement payée</b> · reste après ce paiement : <b>${fmtF(reste-m)} F</b>.`;}
+// Recalcule le montant payé, le statut et la date du dernier paiement d’une facture à partir de ses paiements
+async function facRecalculer(id){try{
+  const[{data:pa},{data:f}]=await Promise.all([sb.from('paiements').select('montant,date_paiement').eq('facture_id',id),sb.from('factures').select('total_ttc,statut').eq('id',id).maybeSingle()]);
+  if(!f||['annulee','brouillon'].includes(f.statut))return;
+  const paye=(pa||[]).reduce((s,x)=>s+numIn(x.montant),0),dern=(pa||[]).map(x=>x.date_paiement).filter(Boolean).sort().pop()||null;
+  const statut=paye>0&&paye>=numIn(f.total_ttc)-0.5?'payee':paye>0?'partielle':(['payee','partielle'].includes(f.statut)?'emise':f.statut);
+  let r=await sb.from('factures').update({montant_paye:paye,date_paiement:dern,statut}).eq('id',id);
+  if(r.error&&/partielle|check constraint/i.test(r.error.message)&&statut==='partielle')r=await sb.from('factures').update({montant_paye:paye,date_paiement:dern}).eq('id',id);
+  if(r.error)console.warn('Recalcul facture :',r.error.message);}catch(e){logErr(e);}}
 async function encValider(id,reste){
   const m=Math.round(numIn(gv('encMontant'))),d=gv('encDate');
   if(!m||m<=0){toast('❌ Indiquez le montant reçu');return;}if(m>reste){toast('❌ Le montant dépasse le reste à payer ('+fmtF(reste)+' F)');return;}if(!d){toast('❌ Indiquez la date');return;}
@@ -11933,20 +11942,26 @@ async function encValider(id,reste){
   const{error}=await sb.from('paiements').insert({facture_id:id,montant:m,mode_paiement:gv('encMode'),date_paiement:d,reference:g('encRef')||null,created_by:CU?.id||null});
   if(b)b.disabled=false;
   if(error){toast('❌ '+(/does not exist|schema cache|relation/i.test(error.message)?'Exécutez migration-paiements-partiels.sql dans Supabase':error.message),8000);return;}
+  await facRecalculer(id);
   try{logAudit('paiement','factures',id,{montant:m,mode:gv('encMode'),date:d});}catch(_){}
   closeModal();toast(m>=reste?'✅ Facture soldée — '+fmtF(m)+' F encaissés':'✅ Paiement partiel de '+fmtF(m)+' F enregistré · reste '+fmtF(reste-m)+' F',6000);loadFinance();
 }
 // Onglet Paiements : tous les encaissements, avec suppression d’un paiement saisi par erreur
 async function loadPaiementsFin(){
   const tb=document.getElementById('paiementsTable');if(!tb)return;
-  const{data:pa,error}=await sb.from('paiements').select('*').order('date_paiement',{ascending:false}).order('created_at',{ascending:false}).limit(500);
+  let{data:pa,error}=await sb.from('paiements').select('*').order('date_paiement',{ascending:false}).order('created_at',{ascending:false}).limit(500);pa=pa||[];
   if(error){tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:18px">Exécutez migration-paiements-partiels.sql pour activer le suivi des paiements.</td></tr>';return;}
   const ids=[...new Set((pa||[]).map(x=>x.facture_id))];let F=[];
   if(ids.length){const r=await sb.from('factures').select('id,reference,client_nom,total_ttc,montant_paye,statut').in('id',ids);F=r.data||[];}
+  // Factures payées avant la mise en place du suivi détaillé : affichées comme historique
+  try{const{data:hist}=await sb.from('factures').select('id,reference,client_nom,total_ttc,montant_paye,statut,date_paiement,mode_paiement,type_document').in('statut',['payee','partielle']);
+    (hist||[]).filter(f=>f.type_document!=='avoir'&&!ids.includes(f.id)).forEach(f=>{const m=f.statut==='payee'?(numIn(f.montant_paye)||numIn(f.total_ttc)):numIn(f.montant_paye);if(!m)return;
+      F.push(f);(pa=pa||[]).push({id:null,facture_id:f.id,montant:m,mode_paiement:f.mode_paiement||'—',date_paiement:f.date_paiement,reference:'Historique (sans détail)',_hist:true});});
+    pa.sort((a,b)=>String(b.date_paiement||'').localeCompare(String(a.date_paiement||'')));}catch(e){logErr(e);}
   const th=tb.closest('table')?.querySelector('thead tr');if(th&&!th.querySelector('.pa-act'))th.insertAdjacentHTML('beforeend','<th class="pa-act"></th>');
   tb.innerHTML=(pa||[]).map(x=>{const f=F.find(y=>y.id===x.facture_id)||{};return `<tr><td>${fmtD(x.date_paiement)}</td><td><code class="ref">${esc(f.reference||'—')}</code><div class="cell-sub">${esc(f.client_nom||'')}${f.statut==='partielle'?' · reste '+fmtF(facReste(f))+' F':f.statut==='payee'?' · soldée':''}</div></td>
     <td class="num"><b>${fmtF(x.montant)} F</b></td><td>${esc(x.mode_paiement||'—')}</td><td style="font-size:12px">${esc(x.reference||'')}</td>
-    <td><button class="btn btn-outline btn-sm" onclick="paiementSupprimer('${x.id}')" title="Supprimer ce paiement (saisi par erreur)" aria-label="Supprimer le paiement">🗑</button></td></tr>`;}).join('')
+    <td>${x._hist?'<span class="cell-sub" title="Exécutez migration-paiements-partiels.sql pour enregistrer ce paiement en détail">historique</span>':`<button class="btn btn-outline btn-sm" onclick="paiementSupprimer('${x.id}')" title="Supprimer ce paiement (saisi par erreur)" aria-label="Supprimer le paiement">🗑</button>`}</td></tr>`;}).join('')
     ||'<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:18px">Aucun paiement enregistré.</td></tr>';
 }
 async function paiementSupprimer(id){
@@ -11954,6 +11969,7 @@ async function paiementSupprimer(id){
   const{data:x}=await sb.from('paiements').select('*').eq('id',id).maybeSingle();if(!x)return;
   if(!confirm(`Supprimer le paiement de ${fmtF(x.montant)} F du ${fmtD(x.date_paiement)} ?\nLa facture sera recalculée (montant payé, reste à payer et statut).`))return;
   const{error}=await sb.from('paiements').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
+  await facRecalculer(x.facture_id);
   try{logAudit('suppression_paiement','factures',x.facture_id,{instantane:x});}catch(_){}
   toast('Paiement supprimé : la facture a été recalculée');loadFinance();
 }
