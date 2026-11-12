@@ -19474,7 +19474,7 @@ v4Def('simulateur-pmo',{titre:'Simulateurs',icone:'🎯',custom:async pg=>{
      ${SIMP.apprenant?simSynthese(L):''}
      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Utilisateur</th><th>Session</th><th>Langue</th><th>Score</th><th>Par domaine</th><th>Durée</th><th></th></tr></thead><tbody>
      ${L.map(t=>`<tr><td style="font-size:12px">${new Date(t.created_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</td><td>${esc(nomT(t))}</td><td>${esc(t.libelle||'')}<div class="cell-sub">${t.mode==='exam'?'examen blanc':'entraînement'} · ${esc(nomSim(t.simulateur||'pmo'))}</div></td><td>${(t.langue||'fr').toUpperCase()}</td>
-      <td><b style="color:${t.pct>=80?'#3F8A1E':t.pct>=65?'#1565C0':t.pct>=50?'#B45309':'#B42318'}">${t.pct} %</b><div class="cell-sub">${t.ok}/${t.nb}</div></td>
+      <td>${t.statut==='annule'?`<span class="badge" style="background:#FDECEC;color:#B42318" title="${esc(t.motif_annulation||'')}">Annulé</span><div class="cell-sub" style="color:#B42318">${esc((t.motif_annulation||'').slice(0,60))}</div>`:`<b style="color:${t.pct>=80?'#3F8A1E':t.pct>=65?'#1565C0':t.pct>=50?'#B45309':'#B42318'}">${t.pct} %</b><div class="cell-sub">${t.ok}/${t.nb}</div>`}${t.surveillee?`<div class="cell-sub" title="Examen surveillé · ${(t.incidents||[]).length} événement(s)">🛡️ surveillé</div>`:''}</td>
       <td>${[1,2,3,4,5,6].map(d=>{const v=(t.par_domaine||{})[d];if(!v)return '';const p=Math.round(100*v[0]/v[1]);return `<span title="${SIM_DOMAINES[d-1]} : ${v[0]}/${v[1]}" style="display:inline-block;width:22px;margin-right:2px;text-align:center;font-size:10.5px;border-radius:4px;padding:1px 0;background:${p>=80?'#EDF6E8':p>=50?'#FEF3E2':'#FDECEC'}">${['I','II','III','IV','V','VI'][d-1]}</span>`;}).join('')}</td>
       <td style="font-size:12px">${Math.round((t.duree_s||0)/60)} min</td><td><button class="btn btn-outline btn-sm" onclick="erpSimRapport('${t.id}')" title="Réimprimer le rapport de préparation signé">📄 Rapport</button></td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucune session enregistrée.</td></tr>'}</tbody></table></div></div>`;}
   else if(SIMP.onglet==='formations'){
@@ -19700,7 +19700,11 @@ async function simLibsPdf(){
   if(!window.qrcode){try{await simCharger('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
   if(window._SIM_SCRIPT===undefined){try{const r=await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf');const b=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));window._SIM_SCRIPT=btoa(s);}catch(e){window._SIM_SCRIPT=null;}}
 }
-const simPdfTxt=t=>String(t??'').replace(/[\u202f\u00a0]/g,' ').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/→/g,'-').replace(/[\u2018\u2019]/g,'’').replace(/[^\x00-\u024F’“”«»—–…•·€œŒ]/g,'');
+(function(){var OK=/^[\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]$/;
+ var EQ={'Ɛ':'E','ɛ':'e','Ɔ':'O','ɔ':'o','Ŋ':'N','ŋ':'n','Ʋ':'V','ʋ':'v','Ɩ':'I','ɩ':'i','Ɲ':'N','ɲ':'n','Ɓ':'B','ɓ':'b','Ɗ':'D','ɗ':'d','Ƴ':'Y','ƴ':'y','Ə':'E','ə':'e','Đ':'D','đ':'d','Ł':'L','ł':'l','Ø':'Ø','ß':'ß','ı':'i','Ŧ':'T','ŧ':'t','Ħ':'H','ħ':'h'};
+ window.htiLettrePdf=function(ch){if(OK.test(ch))return ch;if(EQ[ch])return EQ[ch];var b=ch.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return b&&b!==ch&&[...b].every(function(x){return OK.test(x);})?b:'';};})();
+const simPdfTxt=t=>String(t??'').replace(/[\u202f\u00a0\u2007\u2009]/g,' ').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/[→⇒➜←]/g,'-').replace(/[✓✔]/g,'v').replace(/[\u2032]/g,"'")
+  .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/gu,c=>htiLettrePdf(c)).replace(/ {2,}/g,' ');
 async function simRapport(source){
   const btn=document.getElementById('simBtnRapport');if(btn){btn.disabled=true;btn.dataset.t=btn.textContent;btn.textContent='…';}
   try{
@@ -19812,10 +19816,44 @@ async function simRapport(source){
   }catch(e){if(typeof modal==='function')modal(SIM.lang==='en'?'Report unavailable':'Rapport indisponible',esc(e.message||String(e)),'OK',()=>{});else alert(e.message);}
   finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.t||btn.textContent;}}
 }
+/* Rapport d’annulation d’un examen surveillé (PDF) */
+async function simRapportAnnulation(A){
+  try{await simLibsPdf();const{data:inf}=await sbSim.rpc('sim_rapport_infos',simArgs());const I=inf||{};const EN=SIM.lang==='en';
+    const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,M=16,P=simPdfTxt,NAVY=[10,42,102],ROUGE=[180,35,24],GRIS=[90,100,120],CLAIR=[238,243,251];
+    const num='RPT-'+String(A.id||'').replace(/-/g,'').slice(0,10).toUpperCase(),url='https://www.htechinnov.com/academy/#/verifier-rapport/'+(A.id||'');
+    const T=EN?{titre:'EXAM CANCELLATION REPORT',sous:'Proctored mock exam — not completed',cand:'CANDIDATE',sess:'Session',sim:'Simulator',date:'Date',duree:'Time elapsed',rep:'Questions answered',motif:'REASON FOR CANCELLATION',chrono:'TIMELINE OF INCIDENTS',h:'Time',ev:'Event',det:'Details',
+        note:'This mock exam was stopped by the H TECH ACADEMY proctoring system. No score is awarded. No image was recorded: face detection ran only in the candidate’s browser; only the incidents above were kept.',regles:'Rules accepted before the exam: full screen, single window, camera on, no screenshots, one warning allowed.',verif:'Verify online',visa:'H TECH ACADEMY — date and stamp'}
+      :{titre:'RAPPORT D’ANNULATION D’EXAMEN',sous:'Examen blanc surveillé — non finalisé',cand:'CANDIDAT(E)',sess:'Session',sim:'Simulateur',date:'Date',duree:'Temps écoulé',rep:'Questions répondues',motif:'MOTIF DE L’ANNULATION',chrono:'CHRONOLOGIE DES INCIDENTS',h:'Heure',ev:'Événement',det:'Précisions',
+        note:'Cet examen blanc a été arrêté par le dispositif de surveillance de H TECH ACADEMY. Aucun score n’est attribué. Aucune image n’a été enregistrée : la détection du visage s’est faite uniquement dans le navigateur du candidat ; seuls les incidents ci-dessus ont été conservés.',regles:'Règles acceptées avant l’examen : plein écran, fenêtre unique, caméra active, aucune capture d’écran, un seul avertissement toléré.',verif:'Vérifier en ligne',visa:'H TECH ACADEMY — date et cachet'};
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,36,'F');doc.setFillColor(...ROUGE);doc.rect(0,36,W,1.4,'F');try{doc.addImage(SIM_LOGO_ACADEMY,'JPEG',M,5,26,26);}catch(e){}
+    doc.setFont('helvetica','bold');doc.setFontSize(15.5);doc.setTextColor(255,255,255);doc.text(P(T.titre),W-M,15,{align:'right'});doc.setFontSize(10);doc.setTextColor(255,190,180);doc.text(P(T.sous),W-M,22,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(220,228,240);doc.text(P(num+'  ·  '+new Date(A.date).toLocaleDateString(EN?'en-GB':'fr-FR')),W-M,29,{align:'right'});
+    let y=48;doc.setFillColor(...CLAIR);doc.roundedRect(M,y-6,W-2*M,34,2.5,2.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(21,101,192);doc.text(T.cand,M+5,y);
+    doc.setFont('times','bold');doc.setFontSize(17);doc.setTextColor(...NAVY);doc.text(P(I.titulaire||'—'),M+5,y+8);
+    const d=new Date(A.date),loc=EN?'en-GB':'fr-FR',lignes=[[T.sim,I.simulateur||''],[T.sess,A.label],[T.date,d.toLocaleDateString(loc)+' · '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})],[T.duree,fmt(A.secs||0)],[T.rep,(A.rep||0)+' / '+(A.nb||0)],['E-mail',I.email||'—']];
+    doc.setFontSize(8.6);lignes.forEach(([l,v],i)=>{const x=M+5+(i%2)*((W-2*M)/2),yy=y+15+Math.floor(i/2)*5.6;doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(l+' :'),x,yy);doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);doc.text(P(String(v)).slice(0,60),x+doc.getTextWidth(P(l+' : ')),yy);});
+    y+=38;doc.setDrawColor(...ROUGE);doc.setLineWidth(0.8);doc.roundedRect(M,y,W-2*M,16,2,2,'S');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...ROUGE);doc.text(T.motif,M+5,y+5.5);
+    doc.setFontSize(11);doc.text(doc.splitTextToSize(P(A.motif),W-2*M-10)[0],M+5,y+12);y+=24;
+    doc.setFontSize(10.5);doc.setTextColor(...NAVY);doc.text(T.chrono,M,y);y+=4;doc.setFillColor(...NAVY);doc.rect(M,y,W-2*M,6.5,'F');doc.setFontSize(8);doc.setTextColor(255,255,255);
+    doc.text(T.h,M+2,y+4.5);doc.text(T.ev,M+26,y+4.5);doc.text(T.det,M+90,y+4.5);y+=6.5;
+    const TY=EN?{plein_ecran:'Left full screen',onglet:'Switched tab or minimised',fenetre:'Switched window',capture:'Screenshot attempt',raccourci:'Blocked shortcut',camera_hors_cadre:'Face out of frame',camera_plusieurs:'Several people',camera_coupee:'Camera off',retour:'Returned to the exam',fermeture:'Page closed or reloaded',abandon:'Abandoned by the candidate',debut:'Exam started',fin:'Exam ended'}:{plein_ecran:'Sortie du plein écran',onglet:'Changement d’onglet ou réduction',fenetre:'Changement de fenêtre',capture:'Tentative de capture d’écran',raccourci:'Raccourci bloqué',camera_hors_cadre:'Visage hors du cadre',camera_plusieurs:'Plusieurs personnes',camera_coupee:'Caméra coupée',retour:'Retour dans l’examen',fermeture:'Fermeture ou rechargement de la page',abandon:'Abandon par le candidat',debut:'Début de l’examen',fin:'Fin de l’examen'};
+    (A.inc||[]).forEach((x,i)=>{if(y>262){doc.addPage();y=20;}if(i%2===0){doc.setFillColor(247,249,253);doc.rect(M,y,W-2*M,6.3,'F');}
+      const grave=['plein_ecran','onglet','fenetre','capture','camera_hors_cadre','camera_plusieurs','camera_coupee','fermeture','abandon'].includes(x.type);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(...GRIS);doc.text(new Date(x.t).toLocaleTimeString(loc),M+2,y+4.3);
+      doc.setFont('helvetica','bold');doc.setTextColor(...(grave?ROUGE:NAVY));doc.text(P((TY[x.type]||x.type)),M+26,y+4.3);
+      doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(doc.splitTextToSize(P(String(x.detail||'')),W-2*M-92)[0]||'',M+90,y+4.3);y+=6.3;});
+    y+=8;doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.splitTextToSize(P(T.note+' '+T.regles),W-2*M-30).forEach(l=>{doc.text(l,M,y);y+=3.8;});
+    if(window.qrcode&&A.id){try{const q=qrcode(0,'M');q.addData(url);q.make();const n=q.getModuleCount(),sz=22,m=sz/n,qx=W-M-sz,qy=Math.min(y-16,250);
+      doc.setFillColor(...NAVY);for(let a=0;a<n;a++)for(let b=0;b<n;b++)if(q.isDark(a,b))doc.rect(qx+b*m,qy+a*m,m+0.02,m+0.02,'F');doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P(T.verif),qx+sz/2,qy+sz+3,{align:'center'});}catch(e){}}
+    y=Math.max(y+6,0);if(y<262){doc.setDrawColor(213,224,240);doc.roundedRect(M,y,88,22,2,2,'S');doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P(T.visa),M+4,y+18);}
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P('H TECH INNOV | SARL | Cocody Riviera Jules Verne, Abidjan | info@htechinnov.com | www.htechinnov.com'),W/2,289,{align:'center'});
+    doc.save(('Rapport-annulation-'+(I.titulaire||'candidat')+'-'+String(A.date).slice(0,10)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-')+'.pdf');
+  }catch(e){if(typeof modal==='function')modal('Rapport',esc(e.message||String(e)),'OK',()=>{});}}
+
 
   async function simLibsPdf(){await ensurePdf();if(!window.qrcode){try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
-    if(window._SIM_SCRIPT===undefined){if(window._HTA_SCRIPT_FONT)window._SIM_SCRIPT=window._HTA_SCRIPT_FONT;else{try{const r=await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf');const b=new Uint8Array(await r.arrayBuffer());let x='';for(let i=0;i<b.length;i+=8192)x+=String.fromCharCode.apply(null,b.subarray(i,i+8192));window._SIM_SCRIPT=btoa(x);}catch(e){window._SIM_SCRIPT=null;}}}}
-  return{run:async(r,infos,hist)=>{INFOS=infos;store.history=hist||[];return await simRapport(r);}};
+    if(window._SIM_SCRIPT===undefined){if(window._HTA_SCRIPT_FONT)window._SIM_SCRIPT=window._HTA_SCRIPT_FONT;else window._SIM_SCRIPT=null;}}
+  return{run:async(r,infos,hist)=>{INFOS=infos;store.history=hist||[];return await simRapport(r);},runAnnul:async(A,infos)=>{INFOS=infos;return await simRapportAnnulation(A);}};
 }
 function erpSimFabrique_en(){
   const SIM={lang:'en'};let session=null;const store={history:[]};let INFOS=null;
@@ -19902,7 +19940,11 @@ async function simLibsPdf(){
   if(!window.qrcode){try{await simCharger('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
   if(window._SIM_SCRIPT===undefined){try{const r=await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf');const b=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));window._SIM_SCRIPT=btoa(s);}catch(e){window._SIM_SCRIPT=null;}}
 }
-const simPdfTxt=t=>String(t??'').replace(/[\u202f\u00a0]/g,' ').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/→/g,'-').replace(/[\u2018\u2019]/g,'’').replace(/[^\x00-\u024F’“”«»—–…•·€œŒ]/g,'');
+(function(){var OK=/^[\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]$/;
+ var EQ={'Ɛ':'E','ɛ':'e','Ɔ':'O','ɔ':'o','Ŋ':'N','ŋ':'n','Ʋ':'V','ʋ':'v','Ɩ':'I','ɩ':'i','Ɲ':'N','ɲ':'n','Ɓ':'B','ɓ':'b','Ɗ':'D','ɗ':'d','Ƴ':'Y','ƴ':'y','Ə':'E','ə':'e','Đ':'D','đ':'d','Ł':'L','ł':'l','Ø':'Ø','ß':'ß','ı':'i','Ŧ':'T','ŧ':'t','Ħ':'H','ħ':'h'};
+ window.htiLettrePdf=function(ch){if(OK.test(ch))return ch;if(EQ[ch])return EQ[ch];var b=ch.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return b&&b!==ch&&[...b].every(function(x){return OK.test(x);})?b:'';};})();
+const simPdfTxt=t=>String(t??'').replace(/[\u202f\u00a0\u2007\u2009]/g,' ').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/[→⇒➜←]/g,'-').replace(/[✓✔]/g,'v').replace(/[\u2032]/g,"'")
+  .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/gu,c=>htiLettrePdf(c)).replace(/ {2,}/g,' ');
 async function simRapport(source){
   const btn=document.getElementById('simBtnRapport');if(btn){btn.disabled=true;btn.dataset.t=btn.textContent;btn.textContent='…';}
   try{
@@ -20014,10 +20056,44 @@ async function simRapport(source){
   }catch(e){if(typeof modal==='function')modal(SIM.lang==='en'?'Report unavailable':'Rapport indisponible',esc(e.message||String(e)),'OK',()=>{});else alert(e.message);}
   finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.t||btn.textContent;}}
 }
+/* Rapport d’annulation d’un examen surveillé (PDF) */
+async function simRapportAnnulation(A){
+  try{await simLibsPdf();const{data:inf}=await sbSim.rpc('sim_rapport_infos',simArgs());const I=inf||{};const EN=SIM.lang==='en';
+    const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,M=16,P=simPdfTxt,NAVY=[10,42,102],ROUGE=[180,35,24],GRIS=[90,100,120],CLAIR=[238,243,251];
+    const num='RPT-'+String(A.id||'').replace(/-/g,'').slice(0,10).toUpperCase(),url='https://www.htechinnov.com/academy/#/verifier-rapport/'+(A.id||'');
+    const T=EN?{titre:'EXAM CANCELLATION REPORT',sous:'Proctored mock exam — not completed',cand:'CANDIDATE',sess:'Session',sim:'Simulator',date:'Date',duree:'Time elapsed',rep:'Questions answered',motif:'REASON FOR CANCELLATION',chrono:'TIMELINE OF INCIDENTS',h:'Time',ev:'Event',det:'Details',
+        note:'This mock exam was stopped by the H TECH ACADEMY proctoring system. No score is awarded. No image was recorded: face detection ran only in the candidate’s browser; only the incidents above were kept.',regles:'Rules accepted before the exam: full screen, single window, camera on, no screenshots, one warning allowed.',verif:'Verify online',visa:'H TECH ACADEMY — date and stamp'}
+      :{titre:'RAPPORT D’ANNULATION D’EXAMEN',sous:'Examen blanc surveillé — non finalisé',cand:'CANDIDAT(E)',sess:'Session',sim:'Simulateur',date:'Date',duree:'Temps écoulé',rep:'Questions répondues',motif:'MOTIF DE L’ANNULATION',chrono:'CHRONOLOGIE DES INCIDENTS',h:'Heure',ev:'Événement',det:'Précisions',
+        note:'Cet examen blanc a été arrêté par le dispositif de surveillance de H TECH ACADEMY. Aucun score n’est attribué. Aucune image n’a été enregistrée : la détection du visage s’est faite uniquement dans le navigateur du candidat ; seuls les incidents ci-dessus ont été conservés.',regles:'Règles acceptées avant l’examen : plein écran, fenêtre unique, caméra active, aucune capture d’écran, un seul avertissement toléré.',verif:'Vérifier en ligne',visa:'H TECH ACADEMY — date et cachet'};
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,36,'F');doc.setFillColor(...ROUGE);doc.rect(0,36,W,1.4,'F');try{doc.addImage(SIM_LOGO_ACADEMY,'JPEG',M,5,26,26);}catch(e){}
+    doc.setFont('helvetica','bold');doc.setFontSize(15.5);doc.setTextColor(255,255,255);doc.text(P(T.titre),W-M,15,{align:'right'});doc.setFontSize(10);doc.setTextColor(255,190,180);doc.text(P(T.sous),W-M,22,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(220,228,240);doc.text(P(num+'  ·  '+new Date(A.date).toLocaleDateString(EN?'en-GB':'fr-FR')),W-M,29,{align:'right'});
+    let y=48;doc.setFillColor(...CLAIR);doc.roundedRect(M,y-6,W-2*M,34,2.5,2.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(21,101,192);doc.text(T.cand,M+5,y);
+    doc.setFont('times','bold');doc.setFontSize(17);doc.setTextColor(...NAVY);doc.text(P(I.titulaire||'—'),M+5,y+8);
+    const d=new Date(A.date),loc=EN?'en-GB':'fr-FR',lignes=[[T.sim,I.simulateur||''],[T.sess,A.label],[T.date,d.toLocaleDateString(loc)+' · '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})],[T.duree,fmt(A.secs||0)],[T.rep,(A.rep||0)+' / '+(A.nb||0)],['E-mail',I.email||'—']];
+    doc.setFontSize(8.6);lignes.forEach(([l,v],i)=>{const x=M+5+(i%2)*((W-2*M)/2),yy=y+15+Math.floor(i/2)*5.6;doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(l+' :'),x,yy);doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);doc.text(P(String(v)).slice(0,60),x+doc.getTextWidth(P(l+' : ')),yy);});
+    y+=38;doc.setDrawColor(...ROUGE);doc.setLineWidth(0.8);doc.roundedRect(M,y,W-2*M,16,2,2,'S');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...ROUGE);doc.text(T.motif,M+5,y+5.5);
+    doc.setFontSize(11);doc.text(doc.splitTextToSize(P(A.motif),W-2*M-10)[0],M+5,y+12);y+=24;
+    doc.setFontSize(10.5);doc.setTextColor(...NAVY);doc.text(T.chrono,M,y);y+=4;doc.setFillColor(...NAVY);doc.rect(M,y,W-2*M,6.5,'F');doc.setFontSize(8);doc.setTextColor(255,255,255);
+    doc.text(T.h,M+2,y+4.5);doc.text(T.ev,M+26,y+4.5);doc.text(T.det,M+90,y+4.5);y+=6.5;
+    const TY=EN?{plein_ecran:'Left full screen',onglet:'Switched tab or minimised',fenetre:'Switched window',capture:'Screenshot attempt',raccourci:'Blocked shortcut',camera_hors_cadre:'Face out of frame',camera_plusieurs:'Several people',camera_coupee:'Camera off',retour:'Returned to the exam',fermeture:'Page closed or reloaded',abandon:'Abandoned by the candidate',debut:'Exam started',fin:'Exam ended'}:{plein_ecran:'Sortie du plein écran',onglet:'Changement d’onglet ou réduction',fenetre:'Changement de fenêtre',capture:'Tentative de capture d’écran',raccourci:'Raccourci bloqué',camera_hors_cadre:'Visage hors du cadre',camera_plusieurs:'Plusieurs personnes',camera_coupee:'Caméra coupée',retour:'Retour dans l’examen',fermeture:'Fermeture ou rechargement de la page',abandon:'Abandon par le candidat',debut:'Début de l’examen',fin:'Fin de l’examen'};
+    (A.inc||[]).forEach((x,i)=>{if(y>262){doc.addPage();y=20;}if(i%2===0){doc.setFillColor(247,249,253);doc.rect(M,y,W-2*M,6.3,'F');}
+      const grave=['plein_ecran','onglet','fenetre','capture','camera_hors_cadre','camera_plusieurs','camera_coupee','fermeture','abandon'].includes(x.type);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(...GRIS);doc.text(new Date(x.t).toLocaleTimeString(loc),M+2,y+4.3);
+      doc.setFont('helvetica','bold');doc.setTextColor(...(grave?ROUGE:NAVY));doc.text(P((TY[x.type]||x.type)),M+26,y+4.3);
+      doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(doc.splitTextToSize(P(String(x.detail||'')),W-2*M-92)[0]||'',M+90,y+4.3);y+=6.3;});
+    y+=8;doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.splitTextToSize(P(T.note+' '+T.regles),W-2*M-30).forEach(l=>{doc.text(l,M,y);y+=3.8;});
+    if(window.qrcode&&A.id){try{const q=qrcode(0,'M');q.addData(url);q.make();const n=q.getModuleCount(),sz=22,m=sz/n,qx=W-M-sz,qy=Math.min(y-16,250);
+      doc.setFillColor(...NAVY);for(let a=0;a<n;a++)for(let b=0;b<n;b++)if(q.isDark(a,b))doc.rect(qx+b*m,qy+a*m,m+0.02,m+0.02,'F');doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P(T.verif),qx+sz/2,qy+sz+3,{align:'center'});}catch(e){}}
+    y=Math.max(y+6,0);if(y<262){doc.setDrawColor(213,224,240);doc.roundedRect(M,y,88,22,2,2,'S');doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P(T.visa),M+4,y+18);}
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P('H TECH INNOV | SARL | Cocody Riviera Jules Verne, Abidjan | info@htechinnov.com | www.htechinnov.com'),W/2,289,{align:'center'});
+    doc.save(('Rapport-annulation-'+(I.titulaire||'candidat')+'-'+String(A.date).slice(0,10)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-')+'.pdf');
+  }catch(e){if(typeof modal==='function')modal('Rapport',esc(e.message||String(e)),'OK',()=>{});}}
+
 
   async function simLibsPdf(){await ensurePdf();if(!window.qrcode){try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
-    if(window._SIM_SCRIPT===undefined){if(window._HTA_SCRIPT_FONT)window._SIM_SCRIPT=window._HTA_SCRIPT_FONT;else{try{const r=await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf');const b=new Uint8Array(await r.arrayBuffer());let x='';for(let i=0;i<b.length;i+=8192)x+=String.fromCharCode.apply(null,b.subarray(i,i+8192));window._SIM_SCRIPT=btoa(x);}catch(e){window._SIM_SCRIPT=null;}}}}
-  return{run:async(r,infos,hist)=>{INFOS=infos;store.history=hist||[];return await simRapport(r);}};
+    if(window._SIM_SCRIPT===undefined){if(window._HTA_SCRIPT_FONT)window._SIM_SCRIPT=window._HTA_SCRIPT_FONT;else window._SIM_SCRIPT=null;}}
+  return{run:async(r,infos,hist)=>{INFOS=infos;store.history=hist||[];return await simRapport(r);},runAnnul:async(A,infos)=>{INFOS=infos;return await simRapportAnnulation(A);}};
 }
 var ERP_SIM_FAB={};
 async function erpSimRapport(id){
@@ -20038,10 +20114,11 @@ async function erpSimRapport(id){
       const ids=[...new Set((rep||[]).map(x=>x.question_id))];if(ids.length){const{data:qs}=await sb.from('sim_questions').select('id,domaine,tache').in('id',ids).eq('langue','fr');
         (rep||[]).forEach(x=>{const q=(qs||[]).find(y=>y.id===x.question_id);if(q){const k=q.domaine+':'+q.tache;erreurs[k]=(erreurs[k]||0)+1;}});}}catch(e){}
     const meme=x=>(t.user_id&&x.user_id===t.user_id)||(t.code_id&&x.code_id===t.code_id);
-    const hist=T.filter(x=>meme(x)&&(x.simulateur||'pmo')===simc&&x.created_at<=t.created_at).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))
+    const hist=T.filter(x=>x.statut!=='annule'&&meme(x)&&(x.simulateur||'pmo')===simc&&x.created_at<=t.created_at).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))
       .map(x=>({id:x.id,date:x.created_at,label:x.libelle,ok:x.ok,n:x.nb,pct:x.pct,byD:x.par_domaine||{},secs:x.duree_s||0}));
     const lg=t.langue==='en'?'en':'fr';if(!ERP_SIM_FAB[lg])ERP_SIM_FAB[lg]=lg==='en'?erpSimFabrique_en():erpSimFabrique_fr();
-    await ERP_SIM_FAB[lg].run({id:t.id,ok:t.ok,n:t.nb,pct:t.pct,byD:t.par_domaine||{},secs:t.duree_s||0,date:t.created_at,label:t.libelle,erreurs},infos,hist);
+    if(t.statut==='annule')await ERP_SIM_FAB[lg].runAnnul({id:t.id,motif:t.motif_annulation||'',inc:t.incidents||[],label:t.libelle,secs:t.duree_s||0,nb:t.nb,rep:t.nb_repondues||0,date:t.created_at},infos);
+    else await ERP_SIM_FAB[lg].run({id:t.id,ok:t.ok,n:t.nb,pct:t.pct,byD:t.par_domaine||{},secs:t.duree_s||0,date:t.created_at,label:t.libelle,erreurs},infos,hist);
     try{logAudit('rapport_simulateur','sim_tentatives',id,{titulaire:infos.titulaire,pct:t.pct});}catch(e){}
   }catch(e){toast('❌ Rapport : '+(e.message||e),8000);}
 }
