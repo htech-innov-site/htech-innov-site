@@ -359,7 +359,7 @@ function renderExamSetup(){
    <button class="opt-card" data-eformat="full" aria-pressed="${eFormat==="full"}"><strong>Full simulator exam</strong><span>${Math.min(120,Q.length)} questions · ${Math.round(Math.min(120,Q.length)*1.375)} min</span></button>
   </div>
  </div>
- <button class="btn" data-start="exam">Start the exam</button>
+ <p class="note" style="margin:0 0 12px;color:#0A2A66;font-weight:600">🛡️ Proctored exam: full screen and camera required until the end. Leaving the exam window or staying out of the camera frame for more than one minute cancels the exam.</p><button class="btn" data-start="exam">Start the exam</button>
  <p class="note" style="margin-top:18px">The levels shown at the end of the exam (above target, target, below target, needs improvement) are H TECH ACADEMY learning benchmarks.</p>
  </div>`}
 
@@ -446,7 +446,7 @@ function renderHistory(){
  <div class="bars" style="margin-top:22px">${DOMAINS.map(d=>{const m=mastery(d.id);return `<div class="bar-row" style="--c:${d.c}"><span>${roman[d.id-1]}. ${esc(d.short)}</span><div class="bar"><i style="width:${m.pct||0}%"></i></div><span class="n">${m.pct===null?"—":m.pct+"%"}</span></div>`}).join("")}</div>
  <p class="note">Mastery is based on your latest answer to each question you have seen.</p>
  <h3 style="margin-top:30px;margin-bottom:12px">Session history</h3>
- ${h.length?`<div class="tablewrap"><table class="hist"><thead><tr><th>Date</th><th>Session</th><th>Score</th><th>Time</th><th></th></tr></thead><tbody>${h.map((x,i)=>`<tr><td>${new Date(x.date).toLocaleString("en-GB",{dateStyle:"short",timeStyle:"short"})}</td><td>${esc(x.label)}</td><td><strong>${x.pct}%</strong> <span class="muted">(${x.ok}/${x.n})</span></td><td>${fmt(x.secs)}</td><td>${x.id?`<button class="btn ghost small" onclick="simRapportHistorique(${i})">📄 Report</button>`:""}</td></tr>`).join("")}</tbody></table></div>
+ ${h.length?`<div class="tablewrap"><table class="hist"><thead><tr><th>Date</th><th>Session</th><th>Score</th><th>Time</th><th></th></tr></thead><tbody>${h.map((x,i)=>`<tr><td>${new Date(x.date).toLocaleString("en-GB",{dateStyle:"short",timeStyle:"short"})}</td><td>${esc(x.label)}</td><td>${x.statut==='annule'?`<span style="color:#B42318;font-weight:700" title="${esc(x.motif||'')}">Cancelled</span>`:`<strong>${x.pct}%</strong> <span class="muted">(${x.ok}/${x.n})</span>`}</td><td>${fmt(x.secs)}</td><td>${x.id?`<button class="btn ghost small" onclick="simRapportHistorique(${i})">📄 Report</button>`:""}</td></tr>`).join("")}</tbody></table></div>
  `
  :`<div class="empty">No sessions yet. Start a practice session or a mock exam to track your progress here.<div class="actions" style="margin-top:14px"><button class="btn small" data-go="practice">Start practicing</button></div></div>`}`}
 
@@ -519,7 +519,7 @@ async function simDemarrer(){
   Q=(qs||[]).map(r=>({id:r.id,d:r.domaine,t:r.tache,q:r.enonce,o:r.options,k:r.nb}));
   const{data:m}=await sbSim.rpc('sim_maitrise',simArgs());store.last={};(m||[]).forEach(x=>store.last[x.question_id]=x.correct);
   const{data:h}=await sbSim.rpc('sim_historique',simArgs());
-  store.history=(h||[]).map(x=>({id:x.id,date:x.created_at,label:x.libelle,ok:x.ok,n:x.nb,pct:x.pct,byD:x.par_domaine||{},secs:x.duree_s||0}));
+  store.history=(h||[]).map(x=>({statut:x.statut||'termine',motif:x.motif_annulation,inc:x.incidents||[],rep:x.nb_repondues,id:x.id,date:x.created_at,label:x.libelle,ok:x.ok,n:x.nb,pct:x.pct,byD:x.par_domaine||{},secs:x.duree_s||0}));
   const jr=a.fin?Math.max(0,Math.ceil((new Date(a.fin)-new Date())/864e5)):null,b=document.getElementById('sim-acces');
   if(b)b.textContent=a.equipe&&!a.actif?'H TECH INNOV team access':((a.titulaire?a.titulaire+' · ':'')+(jr!=null?jr+' '+TP.jours:''));
   document.querySelector('nav.tabs').style.display='';setView('home');
@@ -704,7 +704,153 @@ async function simRapport(source){
   }catch(e){if(typeof modal==='function')modal(SIM.lang==='en'?'Report unavailable':'Rapport indisponible',esc(e.message||String(e)),'OK',()=>{});else alert(e.message);}
   finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.t||btn.textContent;}}
 }
-async function simRapportHistorique(i){const h=store.history[i];if(!h||!h.id)return;return simRapport({id:h.id,ok:h.ok,n:h.n,pct:h.pct,byD:h.byD,secs:h.secs,date:h.date,label:h.label});}
+/* Rapport d’annulation d’un examen surveillé (PDF) */
+async function simRapportAnnulation(A){
+  try{await simLibsPdf();const{data:inf}=await sbSim.rpc('sim_rapport_infos',simArgs());const I=inf||{};const EN=SIM.lang==='en';
+    const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,M=16,P=simPdfTxt,NAVY=[10,42,102],ROUGE=[180,35,24],GRIS=[90,100,120],CLAIR=[238,243,251];
+    const num='RPT-'+String(A.id||'').replace(/-/g,'').slice(0,10).toUpperCase(),url='https://www.htechinnov.com/academy/#/verifier-rapport/'+(A.id||'');
+    const T=EN?{titre:'EXAM CANCELLATION REPORT',sous:'Proctored mock exam — not completed',cand:'CANDIDATE',sess:'Session',sim:'Simulator',date:'Date',duree:'Time elapsed',rep:'Questions answered',motif:'REASON FOR CANCELLATION',chrono:'TIMELINE OF INCIDENTS',h:'Time',ev:'Event',det:'Details',
+        note:'This mock exam was stopped by the H TECH ACADEMY proctoring system. No score is awarded. No image was recorded: face detection ran only in the candidate’s browser; only the incidents above were kept.',regles:'Rules accepted before the exam: full screen, single window, camera on, no screenshots, one warning allowed.',verif:'Verify online',visa:'H TECH ACADEMY — date and stamp'}
+      :{titre:'RAPPORT D’ANNULATION D’EXAMEN',sous:'Examen blanc surveillé — non finalisé',cand:'CANDIDAT(E)',sess:'Session',sim:'Simulateur',date:'Date',duree:'Temps écoulé',rep:'Questions répondues',motif:'MOTIF DE L’ANNULATION',chrono:'CHRONOLOGIE DES INCIDENTS',h:'Heure',ev:'Événement',det:'Précisions',
+        note:'Cet examen blanc a été arrêté par le dispositif de surveillance de H TECH ACADEMY. Aucun score n’est attribué. Aucune image n’a été enregistrée : la détection du visage s’est faite uniquement dans le navigateur du candidat ; seuls les incidents ci-dessus ont été conservés.',regles:'Règles acceptées avant l’examen : plein écran, fenêtre unique, caméra active, aucune capture d’écran, un seul avertissement toléré.',verif:'Vérifier en ligne',visa:'H TECH ACADEMY — date et cachet'};
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,36,'F');doc.setFillColor(...ROUGE);doc.rect(0,36,W,1.4,'F');try{doc.addImage(SIM_LOGO_ACADEMY,'JPEG',M,5,26,26);}catch(e){}
+    doc.setFont('helvetica','bold');doc.setFontSize(15.5);doc.setTextColor(255,255,255);doc.text(P(T.titre),W-M,15,{align:'right'});doc.setFontSize(10);doc.setTextColor(255,190,180);doc.text(P(T.sous),W-M,22,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(220,228,240);doc.text(P(num+'  ·  '+new Date(A.date).toLocaleDateString(EN?'en-GB':'fr-FR')),W-M,29,{align:'right'});
+    let y=48;doc.setFillColor(...CLAIR);doc.roundedRect(M,y-6,W-2*M,34,2.5,2.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(21,101,192);doc.text(T.cand,M+5,y);
+    doc.setFont('times','bold');doc.setFontSize(17);doc.setTextColor(...NAVY);doc.text(P(I.titulaire||'—'),M+5,y+8);
+    const d=new Date(A.date),loc=EN?'en-GB':'fr-FR',lignes=[[T.sim,I.simulateur||''],[T.sess,A.label],[T.date,d.toLocaleDateString(loc)+' · '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})],[T.duree,fmt(A.secs||0)],[T.rep,(A.rep||0)+' / '+(A.nb||0)],['E-mail',I.email||'—']];
+    doc.setFontSize(8.6);lignes.forEach(([l,v],i)=>{const x=M+5+(i%2)*((W-2*M)/2),yy=y+15+Math.floor(i/2)*5.6;doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(l+' :'),x,yy);doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);doc.text(P(String(v)).slice(0,60),x+doc.getTextWidth(P(l+' : ')),yy);});
+    y+=38;doc.setDrawColor(...ROUGE);doc.setLineWidth(0.8);doc.roundedRect(M,y,W-2*M,16,2,2,'S');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...ROUGE);doc.text(T.motif,M+5,y+5.5);
+    doc.setFontSize(11);doc.text(doc.splitTextToSize(P(A.motif),W-2*M-10)[0],M+5,y+12);y+=24;
+    doc.setFontSize(10.5);doc.setTextColor(...NAVY);doc.text(T.chrono,M,y);y+=4;doc.setFillColor(...NAVY);doc.rect(M,y,W-2*M,6.5,'F');doc.setFontSize(8);doc.setTextColor(255,255,255);
+    doc.text(T.h,M+2,y+4.5);doc.text(T.ev,M+26,y+4.5);doc.text(T.det,M+90,y+4.5);y+=6.5;
+    const TY=EN?{plein_ecran:'Left full screen',onglet:'Switched tab or minimised',fenetre:'Switched window',capture:'Screenshot attempt',raccourci:'Blocked shortcut',camera_hors_cadre:'Face out of frame',camera_plusieurs:'Several people',camera_coupee:'Camera off',retour:'Returned to the exam',fermeture:'Page closed or reloaded',abandon:'Abandoned by the candidate',debut:'Exam started',fin:'Exam ended'}:{plein_ecran:'Sortie du plein écran',onglet:'Changement d’onglet ou réduction',fenetre:'Changement de fenêtre',capture:'Tentative de capture d’écran',raccourci:'Raccourci bloqué',camera_hors_cadre:'Visage hors du cadre',camera_plusieurs:'Plusieurs personnes',camera_coupee:'Caméra coupée',retour:'Retour dans l’examen',fermeture:'Fermeture ou rechargement de la page',abandon:'Abandon par le candidat',debut:'Début de l’examen',fin:'Fin de l’examen'};
+    (A.inc||[]).forEach((x,i)=>{if(y>262){doc.addPage();y=20;}if(i%2===0){doc.setFillColor(247,249,253);doc.rect(M,y,W-2*M,6.3,'F');}
+      const grave=['plein_ecran','onglet','fenetre','capture','camera_hors_cadre','camera_plusieurs','camera_coupee','fermeture','abandon'].includes(x.type);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(...GRIS);doc.text(new Date(x.t).toLocaleTimeString(loc),M+2,y+4.3);
+      doc.setFont('helvetica','bold');doc.setTextColor(...(grave?ROUGE:NAVY));doc.text(P((TY[x.type]||x.type)),M+26,y+4.3);
+      doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(doc.splitTextToSize(P(String(x.detail||'')),W-2*M-92)[0]||'',M+90,y+4.3);y+=6.3;});
+    y+=8;doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.splitTextToSize(P(T.note+' '+T.regles),W-2*M-30).forEach(l=>{doc.text(l,M,y);y+=3.8;});
+    if(window.qrcode&&A.id){try{const q=qrcode(0,'M');q.addData(url);q.make();const n=q.getModuleCount(),sz=22,m=sz/n,qx=W-M-sz,qy=Math.min(y-16,250);
+      doc.setFillColor(...NAVY);for(let a=0;a<n;a++)for(let b=0;b<n;b++)if(q.isDark(a,b))doc.rect(qx+b*m,qy+a*m,m+0.02,m+0.02,'F');doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P(T.verif),qx+sz/2,qy+sz+3,{align:'center'});}catch(e){}}
+    y=Math.max(y+6,0);if(y<262){doc.setDrawColor(213,224,240);doc.roundedRect(M,y,88,22,2,2,'S');doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P(T.visa),M+4,y+18);}
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P('H TECH INNOV | SARL | Cocody Riviera Jules Verne, Abidjan | info@htechinnov.com | www.htechinnov.com'),W/2,289,{align:'center'});
+    doc.save(('Rapport-annulation-'+(I.titulaire||'candidat')+'-'+String(A.date).slice(0,10)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-')+'.pdf');
+  }catch(e){if(typeof modal==='function')modal('Rapport',esc(e.message||String(e)),'OK',()=>{});}}
+
+async function simRapportHistorique(i){const h=store.history[i];if(!h||!h.id)return;if(h.statut==='annule')return simRapportAnnulation({id:h.id,motif:h.motif,inc:h.inc||[],label:h.label,secs:h.secs,nb:h.n,rep:h.rep,date:h.date});return simRapport({id:h.id,ok:h.ok,n:h.n,pct:h.pct,byD:h.byD,secs:h.secs,date:h.date,label:h.label});}
+
+
+/* ===================== EXAMEN SURVEILLÉ (plein écran, caméra, incidents) — examens blancs de tous les simulateurs ===================== */
+const PROC_CFG={delaiCamera:60,delaiRetour:10,sortiesTolerees:1,modele:'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',mp:'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14'};
+const PR=SIM.lang==='en'?{
+  titre:'Proctored exam',intro:'This mock exam is taken under exam conditions, as with remote certification exams.',
+  regles:['The exam runs in full screen until you finish.','Leaving full screen, switching tab or window, or taking a screenshot is detected. The first time, you have 10 seconds to come back; the second time, the exam is cancelled.','Your camera stays on: if your face is out of frame for more than one minute, or if several people are detected for more than one minute, the exam stops.','Closing or reloading the page cancels the exam.','No image is recorded or sent: face detection runs only in your browser. Only incidents (time and type) are kept.'],
+  consent:'I have read these rules and I agree to the use of my camera during the exam.',cam:'Turn on the camera',camOk:'Camera on',visageOk:'✓ Face detected',visageNon:'Place your face in the frame',sansDetection:'Face detection is not available in this browser: the camera must stay on.',
+  camRefus:'Camera access refused or unavailable. The proctored exam requires a camera.',go:'Start the exam in full screen',annulerB:'Cancel',
+  sortieT:'You have left the exam',sortieP:s=>`Come back to the exam within ${s} s, otherwise it will be cancelled. This is your only warning.`,revenir:'Back to the exam (full screen)',
+  horsCadre:s=>`Face out of frame — the exam stops in ${s} s`,plusieurs:s=>`Several people detected — the exam stops in ${s} s`,camPerdue:s=>`Camera off — the exam stops in ${s} s`,
+  annuleT:'Exam cancelled — not completed',annuleP:'The exam was stopped by the proctoring system. No score is awarded.',motif:'Reason',chrono:'Timeline of incidents',rapportB:'📄 Cancellation report (PDF)',accueil:'Back to home',
+  types:{plein_ecran:'Left full screen',onglet:'Switched tab or minimised',fenetre:'Switched window',capture:'Screenshot attempt',raccourci:'Blocked shortcut',camera_hors_cadre:'Face out of frame',camera_plusieurs:'Several people',camera_coupee:'Camera off',retour:'Returned to the exam',fermeture:'Page closed or reloaded',abandon:'Abandoned by the candidate',debut:'Exam started',fin:'Exam completed'},
+  motifs:{deuxieme:'Second exit from the exam window or full screen',delai:'No return to the exam within the allowed time',hors:'Face out of the camera frame for more than one minute',plusieurs:'Several people in front of the camera for more than one minute',coupee:'Camera off for more than one minute',fermeture:'Page closed or reloaded during the exam',abandon:'Exam abandoned by the candidate'}}
+ :{titre:'Examen surveillé',intro:'Cet examen blanc se déroule en conditions d’examen, comme les examens de certification passés à distance.',
+  regles:['L’examen se déroule en plein écran jusqu’à la fin.','Sortir du plein écran, changer d’onglet ou de fenêtre, ou faire une capture d’écran est détecté. La première fois, vous disposez de 10 secondes pour revenir ; la deuxième fois, l’examen est annulé.','Votre caméra reste active : si votre visage sort du cadre plus d’une minute, ou si plusieurs personnes sont détectées plus d’une minute, l’examen s’arrête.','Fermer ou recharger la page annule l’examen.','Aucune image n’est enregistrée ni envoyée : la détection du visage se fait uniquement dans votre navigateur. Seuls les incidents (heure et nature) sont conservés.'],
+  consent:'J’ai lu ces règles et j’accepte l’utilisation de ma caméra pendant l’examen.',cam:'Activer la caméra',camOk:'Caméra active',visageOk:'✓ Visage détecté',visageNon:'Placez votre visage dans le cadre',sansDetection:'La détection du visage n’est pas disponible dans ce navigateur : la caméra doit rester active.',
+  camRefus:'Accès à la caméra refusé ou indisponible. L’examen surveillé nécessite une caméra.',go:'Commencer l’examen en plein écran',annulerB:'Annuler',
+  sortieT:'Vous avez quitté l’examen',sortieP:s=>`Revenez dans l’examen d’ici ${s} s, sinon il sera annulé. C’est votre seul avertissement.`,revenir:'Revenir à l’examen (plein écran)',
+  horsCadre:s=>`Visage hors du cadre — arrêt de l’examen dans ${s} s`,plusieurs:s=>`Plusieurs personnes détectées — arrêt de l’examen dans ${s} s`,camPerdue:s=>`Caméra coupée — arrêt de l’examen dans ${s} s`,
+  annuleT:'Examen annulé — non finalisé',annuleP:'L’examen a été arrêté par le dispositif de surveillance. Aucun score n’est attribué.',motif:'Motif',chrono:'Chronologie des incidents',rapportB:'📄 Rapport d’annulation (PDF)',accueil:'Retour à l’accueil',
+  types:{plein_ecran:'Sortie du plein écran',onglet:'Changement d’onglet ou réduction',fenetre:'Changement de fenêtre',capture:'Tentative de capture d’écran',raccourci:'Raccourci bloqué',camera_hors_cadre:'Visage hors du cadre',camera_plusieurs:'Plusieurs personnes',camera_coupee:'Caméra coupée',retour:'Retour dans l’examen',fermeture:'Fermeture ou rechargement de la page',abandon:'Abandon par le candidat',debut:'Début de l’examen',fin:'Fin de l’examen'},
+  motifs:{deuxieme:'Deuxième sortie de la fenêtre d’examen ou du plein écran',delai:'Pas de retour dans l’examen dans le délai imparti',hors:'Visage hors du cadre de la caméra pendant plus d’une minute',plusieurs:'Plusieurs personnes devant la caméra pendant plus d’une minute',coupee:'Caméra coupée pendant plus d’une minute',fermeture:'Fermeture ou rechargement de la page pendant l’examen',abandon:'Abandon de l’examen par le candidat'}};
+const PROC={on:false,inc:[],sorties:0,stream:null,det:null,detType:null,boucle:null,hors:0,multi:0,coupe:0,retour:null,token:null,annul:null};
+const procLog=(type,detail)=>PROC.inc.push({t:new Date().toISOString(),type,detail:detail||''});
+async function procDetecteur(){if(PROC.detType!==null)return;
+  try{const m=await import(PROC_CFG.mp);const fs=await m.FilesetResolver.forVisionTasks(PROC_CFG.mp+'/wasm');
+    PROC.det=await m.FaceDetector.createFromOptions(fs,{baseOptions:{modelAssetPath:PROC_CFG.modele,delegate:'CPU'},runningMode:'VIDEO',minDetectionConfidence:0.5});PROC.detType='mediapipe';}
+  catch(e){if('FaceDetector' in window){try{PROC.det=new window.FaceDetector({fastMode:true,maxDetectedFaces:3});PROC.detType='natif';}catch(_){PROC.detType='aucun';}}else PROC.detType='aucun';}}
+async function procVisages(v){if(!v||v.readyState<2)return null;try{if(PROC.detType==='mediapipe')return PROC.det.detectForVideo(v,performance.now()).detections.length;if(PROC.detType==='natif')return(await PROC.det.detect(v)).length;}catch(e){}return null;}
+function procEcran(html){let z=document.getElementById('procEcran');if(!z){z=document.createElement('div');z.id='procEcran';z.style.cssText='position:fixed;inset:0;z-index:9000;background:rgba(8,23,52,.92);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto';document.body.appendChild(z);}
+  z.innerHTML=`<div style="background:#fff;color:#14213d;border-radius:14px;max-width:640px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.4)">${html}</div>`;z.style.display='flex';return z;}
+function procFermerEcran(){const z=document.getElementById('procEcran');if(z)z.remove();}
+// 1. Préparation : règles, consentement, test de la caméra et du visage
+function procPreparer(lancer){PROC.inc=[];PROC.sorties=0;PROC.annul=null;
+  procEcran(`<h2 style="margin:0 0 6px">🛡️ ${PR.titre}</h2><p class="muted" style="margin:0 0 12px">${PR.intro}</p><ul style="margin:0 0 12px;padding-left:20px;line-height:1.55;font-size:14px">${PR.regles.map(r=>`<li>${r}</li>`).join('')}</ul>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:10px 0"><video id="procApercu" autoplay muted playsinline style="width:200px;height:150px;background:#0b1730;border-radius:10px;object-fit:cover"></video>
+      <div style="flex:1;min-width:200px"><button class="btn ghost" id="procCamB">${PR.cam}</button><div id="procEtat" style="margin-top:8px;font-size:14px"></div></div></div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:10px 0"><input type="checkbox" id="procOk" style="margin-top:3px"> ${PR.consent}</label>
+    <div class="actions" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="procNon">${PR.annulerB}</button><button class="btn" id="procGo" disabled>${PR.go}</button></div>`);
+  let pret=false;const maj=()=>{document.getElementById('procGo').disabled=!(pret&&document.getElementById('procOk').checked);};
+  document.getElementById('procOk').onchange=maj;document.getElementById('procNon').onclick=()=>{procCamStop();procFermerEcran();};
+  document.getElementById('procCamB').onclick=async()=>{const et=document.getElementById('procEtat');
+    try{PROC.stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});}catch(e){et.innerHTML=`<span style="color:#B42318">${PR.camRefus}</span>`;return;}
+    const v=document.getElementById('procApercu');v.srcObject=PROC.stream;et.textContent=PR.camOk+' · …';await procDetecteur();
+    if(PROC.detType==='aucun'){et.innerHTML=`<span style="color:#1F7A3A">${PR.camOk}</span><div class="muted">${PR.sansDetection}</div>`;pret=true;maj();return;}
+    const t=setInterval(async()=>{if(!document.getElementById('procApercu')){clearInterval(t);return;}const n=await procVisages(v);
+      if(n===1){et.innerHTML=`<span style="color:#1F7A3A;font-weight:700">${PR.visageOk}</span>`;pret=true;}else{et.innerHTML=`<span style="color:#B45309">${PR.visageNon}</span>`;pret=false;}maj();},800);};
+  document.getElementById('procGo').onclick=async()=>{try{await document.documentElement.requestFullscreen();}catch(e){}
+    try{const{data}=await sbSim.auth.getSession();PROC.token=data?.session?.access_token||null;}catch(e){}
+    procFermerEcran();PROC.on=true;procLog('debut','');lancer();procDemarrerSurveillance();};}
+// 2. Surveillance pendant l’examen
+function procCamStop(){try{(PROC.stream?.getTracks()||[]).forEach(t=>t.stop());}catch(e){}PROC.stream=null;}
+function procBandeau(txt){let b=document.getElementById('procBandeau');if(!txt){if(b)b.remove();return;}
+  if(!b){b=document.createElement('div');b.id='procBandeau';b.setAttribute('role','alert');b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:8500;background:#B42318;color:#fff;font-weight:700;text-align:center;padding:10px;font-size:15px';document.body.appendChild(b);}b.textContent='⚠️ '+txt;}
+function procDemarrerSurveillance(){
+  let v=document.getElementById('procCam');if(!v){v=document.createElement('video');v.id='procCam';v.autoplay=true;v.muted=true;v.playsInline=true;
+    v.style.cssText='position:fixed;right:12px;bottom:12px;width:132px;height:99px;object-fit:cover;border-radius:10px;border:3px solid #1F7A3A;z-index:8400;background:#0b1730';document.body.appendChild(v);}
+  v.srcObject=PROC.stream;PROC.hors=PROC.multi=PROC.coupe=0;
+  PROC.boucle=setInterval(async()=>{if(!PROC.on)return;const piste=PROC.stream?.getVideoTracks?.()[0];
+    if(!piste||piste.readyState!=='live'||piste.muted){PROC.coupe++;if(PROC.coupe===1)procLog('camera_coupee','');procBandeau(PR.camPerdue(PROC_CFG.delaiCamera-PROC.coupe));v.style.borderColor='#B42318';
+      if(PROC.coupe>=PROC_CFG.delaiCamera)return procAnnuler(PR.motifs.coupee);return;}
+    if(PROC.coupe){procLog('retour','Caméra rétablie après '+PROC.coupe+' s');PROC.coupe=0;}
+    const n=await procVisages(v);if(n===null){procBandeau(null);v.style.borderColor='#1F7A3A';return;}
+    if(n===0){PROC.hors++;PROC.multi=0;if(PROC.hors===1)procLog('camera_hors_cadre','');if(PROC.hors>=3)procBandeau(PR.horsCadre(PROC_CFG.delaiCamera-PROC.hors));v.style.borderColor='#B42318';
+      if(PROC.hors>=PROC_CFG.delaiCamera)return procAnnuler(PR.motifs.hors);}
+    else if(n>1){PROC.multi++;PROC.hors=0;if(PROC.multi===1)procLog('camera_plusieurs',n+' visages');if(PROC.multi>=3)procBandeau(PR.plusieurs(PROC_CFG.delaiCamera-PROC.multi));v.style.borderColor='#B42318';
+      if(PROC.multi>=PROC_CFG.delaiCamera)return procAnnuler(PR.motifs.plusieurs);}
+    else{if(PROC.hors>=3)procLog('retour','Visage de retour dans le cadre après '+PROC.hors+' s');if(PROC.multi>=3)procLog('retour','Une seule personne après '+PROC.multi+' s');PROC.hors=PROC.multi=0;procBandeau(null);v.style.borderColor='#1F7A3A';}},1000);
+}
+function procSortie(type,detail){if(!PROC.on||PROC.retour)return;PROC.sorties++;procLog(type,detail||'');
+  if(PROC.sorties>PROC_CFG.sortiesTolerees)return procAnnuler(PR.motifs.deuxieme);
+  let s=PROC_CFG.delaiRetour;const aff=()=>procEcran(`<h2 style="margin:0 0 8px;color:#B42318">⚠️ ${PR.sortieT}</h2><p style="font-size:15px">${PR.sortieP(s)}</p><div class="actions" style="justify-content:flex-end"><button class="btn" id="procRevenir">${PR.revenir}</button></div>`);
+  aff();const lier=()=>{const b=document.getElementById('procRevenir');if(b)b.onclick=async()=>{try{await document.documentElement.requestFullscreen();}catch(e){}if(document.fullscreenElement&&!document.hidden){clearInterval(PROC.retour);PROC.retour=null;procFermerEcran();procLog('retour','Après '+(PROC_CFG.delaiRetour-s)+' s');}};};lier();
+  PROC.retour=setInterval(()=>{s--;if(s<=0){clearInterval(PROC.retour);PROC.retour=null;return procAnnuler(PR.motifs.delai);}aff();lier();},1000);}
+document.addEventListener('fullscreenchange',()=>{if(PROC.on&&!document.fullscreenElement)procSortie('plein_ecran');});
+document.addEventListener('visibilitychange',()=>{if(PROC.on&&document.hidden)procSortie('onglet');});
+window.addEventListener('blur',()=>{if(!PROC.on)return;setTimeout(()=>{if(PROC.on&&!document.hasFocus()&&!document.hidden&&document.fullscreenElement)procSortie('fenetre');},1200);});
+document.addEventListener('keydown',e=>{if(!PROC.on)return;const k=e.key.toLowerCase();
+  if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&['i','j','c'].includes(k))||((e.ctrlKey||e.metaKey)&&['c','v','x','p','s','u','a'].includes(k))||(e.altKey&&e.key==='Tab')||e.key==='ContextMenu'){e.preventDefault();e.stopPropagation();procLog('raccourci',(e.ctrlKey?'Ctrl+':'')+(e.shiftKey?'Maj+':'')+(e.altKey?'Alt+':'')+e.key);}},true);
+document.addEventListener('keyup',e=>{if(PROC.on&&e.key==='PrintScreen'){try{navigator.clipboard?.writeText('');}catch(_){}procSortie('capture','Touche Impr. écran');}},true);
+['contextmenu','copy','cut','paste','dragstart'].forEach(ev=>document.addEventListener(ev,e=>{if(PROC.on)e.preventDefault();},true));
+window.addEventListener('pagehide',()=>{if(PROC.on)procAnnulerKeepalive(PR.motifs.fermeture);});
+window.addEventListener('beforeunload',e=>{if(PROC.on){procAnnulerKeepalive(PR.motifs.fermeture);e.preventDefault();e.returnValue='';}});
+// 3. Annulation : enregistrement serveur, écran, rapport
+function procParams(motif){const s=session||{};return{p_libelle:s.label||'Examen',p_langue:SIM.lang,p_duree:s.start?Math.floor((Date.now()-s.start)/1000):0,p_nb:(s.items||[]).length,
+  p_repondues:(s.items||[]).filter(x=>x.sel&&x.sel.length).length,p_motif:motif,p_incidents:PROC.inc,p_code:SIM.code||null,p_simulateur:SIM.sim||'pmo'};}
+function procAnnulerKeepalive(motif){if(!PROC.on)return;PROC.on=false;procLog('fermeture','');const p=procParams(motif);
+  try{localStorage.setItem('hti-sim-annulation',JSON.stringify(p));}catch(_){}
+  try{fetch(sbSim.supabaseUrl+'/rest/v1/rpc/sim_annuler_examen',{method:'POST',keepalive:true,headers:{apikey:sbSim.supabaseKey,Authorization:'Bearer '+(PROC.token||sbSim.supabaseKey),'Content-Type':'application/json'},body:JSON.stringify(p)})
+    .then(r=>{if(r.ok)try{localStorage.removeItem('hti-sim-annulation');}catch(_){}}).catch(()=>{});}catch(_){}}
+async function procRenvoyerEnAttente(){let p=null;try{p=JSON.parse(localStorage.getItem('hti-sim-annulation')||'null');}catch(_){}if(!p)return;
+  const{error}=await sbSim.rpc('sim_annuler_examen',p);if(!error)try{localStorage.removeItem('hti-sim-annulation');}catch(_){}}
+async function procAnnuler(motif){if(!PROC.on)return;PROC.on=false;clearInterval(PROC.boucle);clearInterval(PROC.retour);PROC.retour=null;clearInterval(timerId);procBandeau(null);
+  procLog('fin','Examen annulé : '+motif);const p=procParams(motif);session&&(session.done=true);
+  const{data,error}=await sbSim.rpc('sim_annuler_examen',p);if(error){try{localStorage.setItem('hti-sim-annulation',JSON.stringify(p));}catch(_){}}
+  PROC.annul={id:data?.id||null,motif,inc:PROC.inc.slice(),label:p.p_libelle,secs:p.p_duree,nb:p.p_nb,rep:p.p_repondues,date:new Date().toISOString()};
+  store.history.unshift({id:PROC.annul.id,date:PROC.annul.date,label:p.p_libelle,ok:0,n:p.p_nb,pct:0,byD:{},secs:p.p_duree,statut:'annule',motif,inc:PROC.annul.inc,rep:p.p_repondues});
+  procCamStop();document.getElementById('procCam')?.remove();try{if(document.fullscreenElement)await document.exitFullscreen();}catch(_){}
+  procEcran(`<h2 style="margin:0 0 8px;color:#B42318">⛔ ${PR.annuleT}</h2><p>${PR.annuleP}</p><p><b>${PR.motif} :</b> ${esc(motif)}</p>
+    <details open><summary style="cursor:pointer;font-weight:700">${PR.chrono}</summary><ul style="font-size:13px;line-height:1.6;padding-left:18px">${PROC.annul.inc.map(x=>`<li>${new Date(x.t).toLocaleTimeString(SIM.lang==='en'?'en-GB':'fr-FR')} — ${esc(PR.types[x.type]||x.type)}${x.detail?' · '+esc(x.detail):''}</li>`).join('')}</ul></details>
+    <div class="actions" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="procAccueil">${PR.accueil}</button><button class="btn" id="procRapport">${PR.rapportB}</button></div>`);
+  document.getElementById('procAccueil').onclick=()=>{procFermerEcran();setView('home');};document.getElementById('procRapport').onclick=()=>simRapportAnnulation(PROC.annul);}
+function procArreter(){PROC.on=false;clearInterval(PROC.boucle);clearInterval(PROC.retour);PROC.retour=null;procBandeau(null);procCamStop();document.getElementById('procCam')?.remove();procFermerEcran();
+  try{if(document.fullscreenElement)document.exitFullscreen();}catch(_){}}
+// 4. Branchement : examens blancs surveillés, fin normale, abandon volontaire
+(function(){const _start=startSession;startSession=function(mode,opts={}){if(mode==='exam'&&!opts._proc){if(!navigator.mediaDevices?.getUserMedia||!document.documentElement.requestFullscreen){modal(PR.titre,PR.camRefus,'OK',()=>{});return;}
+    return procPreparer(()=>_start(mode,{...opts,_proc:true}));}return _start(mode,opts);};
+  const _fin=finish;finish=async function(){const surv=PROC.on;if(surv){PROC.on=false;procLog('fin','');}const r=await _fin.apply(this,arguments);
+    if(surv){procArreter();const id=session?.result?.id;if(id)try{await sbSim.rpc('sim_tentative_surveillance',{p_id:id,p_incidents:PROC.inc,p_code:SIM.code||null,p_simulateur:SIM.sim||'pmo'});}catch(_){}}return r;};
+  const _quit=confirmQuit;confirmQuit=function(cb){if(PROC.on){modal(PR.titre,PR.motifs.abandon+' ?','OK',()=>{procLog('abandon','');procAnnuler(PR.motifs.abandon);});return;}return _quit(cb);};
+  setTimeout(()=>procRenvoyerEnAttente().catch(()=>{}),2500);})();
 
 simDemarrer();
 </script>
