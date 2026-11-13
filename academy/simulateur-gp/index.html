@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulateur Gestion de projet — Débutant — H TECH ACADEMY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F5F7F6; --surface:#FFFFFF; --ink:#18222F; --muted:#5A6572; --rule:#D9DFE3; --soft:#EBEFF1;
+  --good:#2F7A4F; --bad:#B04A3A; --warn:#A8761F;
+  --d1:#2E7D7A; --d2:#B07C2A; --d3:#6E4C8E; --d4:#3C6AA6; --d5:#5C7F36; --d6:#A4513F;
+  --serif:"Newsreader", Georgia, "Times New Roman", serif;
+  --sans:"Public Sans", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#141A21; --surface:#1C242D; --ink:#E7ECEF; --muted:#A3AEB8; --rule:#323D48; --soft:#252F39;
+    --good:#5DBB84; --bad:#E07C6B; --warn:#D9A64E;
+    --d1:#4FB3AE; --d2:#D9A54E; --d3:#A585C4; --d4:#6E9AD6; --d5:#8DB664; --d6:#D5806C;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141A21; --surface:#1C242D; --ink:#E7ECEF; --muted:#A3AEB8; --rule:#323D48; --soft:#252F39;
+  --good:#5DBB84; --bad:#E07C6B; --warn:#D9A64E;
+  --d1:#4FB3AE; --d2:#D9A54E; --d3:#A585C4; --d4:#6E9AD6; --d5:#8DB664; --d6:#D5806C;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--d4);outline-offset:2px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);border-bottom:1px solid var(--rule)}
+.top .wrap{display:flex;align-items:center;gap:16px;min-height:58px;flex-wrap:wrap}
+.brand{font-family:var(--serif);font-size:1.2rem;font-weight:600;margin-right:auto;letter-spacing:-.01em}
+nav.tabs{display:flex;gap:4px;flex-wrap:wrap}
+nav.tabs button{background:none;border:0;padding:8px 12px;border-radius:6px;color:var(--muted);font-weight:500}
+nav.tabs button[aria-current="true"]{color:var(--ink);background:var(--soft)}
+main{padding:28px 0 64px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,4.6vw,3.1rem)}
+h2{font-size:1.65rem}
+h3{font-size:1.2rem}
+p{margin:0 0 .8em}
+.muted{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:8px;font-weight:600}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.small{padding:6px 12px;font-size:.9rem}
+
+/* Hero */
+.hero{display:grid;grid-template-columns:minmax(260px,400px) 1fr;gap:40px;align-items:center}
+.ringbox{position:relative}
+.ringbox svg{width:100%;height:auto;display:block}
+.ring-seg{cursor:pointer;transition:stroke-width .2s}
+.ring-seg:hover,.ring-seg:focus-visible{stroke-width:30}
+.ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}
+.ring-center .big{font-family:var(--serif);font-size:3.2rem;font-weight:600;line-height:1}
+.ring-center .lbl{font-size:.85rem;color:var(--muted);max-width:140px}
+.facts{display:flex;gap:28px;flex-wrap:wrap;margin:20px 0 26px}
+.facts div{font-size:.9rem;color:var(--muted)}
+.facts strong{display:block;font-family:var(--serif);font-size:1.6rem;color:var(--ink);font-weight:600}
+.legend{list-style:none;padding:0;margin:32px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2px 28px}
+.legend li{display:grid;grid-template-columns:14px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--rule)}
+.legend button{background:none;border:0;padding:0;text-align:left;font-weight:500}
+.sw{width:14px;height:14px;border-radius:3px}
+.legend .pct{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.9rem}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+
+/* Guide */
+.guide-layout{display:grid;grid-template-columns:240px 1fr;gap:36px}
+.dlist{list-style:none;margin:0;padding:0;position:sticky;top:80px;align-self:start}
+.dlist button{display:flex;gap:10px;align-items:baseline;width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:6px;color:var(--muted);font-size:.95rem}
+.dlist button[aria-current="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 3px 0 0 var(--c)}
+.dlist .rn{font-family:var(--serif);font-weight:600;color:var(--c);min-width:22px}
+.dhead{border-left:4px solid var(--c);padding-left:16px;margin-bottom:22px}
+.dhead .w{font-size:.95rem;color:var(--muted);margin-top:6px}
+.lead{font-family:var(--serif);font-size:1.18rem;line-height:1.6;max-width:68ch;margin:0 0 26px}
+.task{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:18px 20px;margin-bottom:12px}
+.task h3{font-size:1.08rem;margin-bottom:8px;display:flex;gap:10px}
+.task h3 .tn{color:var(--c);min-width:62px}
+.task ul{margin:0;padding-left:20px;color:var(--muted);font-size:.95rem}
+.task li{margin:3px 0}
+.reflex{margin-top:26px;padding:18px 20px;border-radius:10px;background:var(--soft)}
+.reflex h3{margin-bottom:10px}
+.reflex ul{margin:0;padding-left:20px}
+.reflex li{margin:6px 0}
+
+/* Setup */
+.setup{max-width:760px}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:22px 24px;margin:18px 0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
+.chip{border:1px solid var(--rule);background:var(--paper);padding:7px 12px;border-radius:999px;font-size:.92rem;display:inline-flex;align-items:center;gap:8px}
+.chip[aria-pressed="true"]{border-color:var(--c,var(--ink));background:var(--surface);box-shadow:inset 0 0 0 1px var(--c,var(--ink));font-weight:600}
+.chip .dot{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.options-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
+.opt-card{border:1px solid var(--rule);border-radius:10px;padding:14px 16px;background:var(--paper);text-align:left}
+.opt-card[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);background:var(--surface)}
+.opt-card strong{display:block;font-size:1.02rem}
+.opt-card span{font-size:.88rem;color:var(--muted)}
+
+/* Question runner */
+.runbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.runbar .count{font-weight:600;font-variant-numeric:tabular-nums}
+.timer{font-variant-numeric:tabular-nums;font-weight:600;padding:5px 10px;border-radius:6px;background:var(--soft)}
+.timer.low{color:var(--bad)}
+.progress{flex:1;min-width:120px;height:6px;background:var(--soft);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--ink)}
+.qcard{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:26px 28px;max-width:820px}
+.qmeta{font-size:.88rem;color:var(--muted);margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.qmeta .tag{color:var(--c);font-weight:600}
+.qtext{font-family:var(--serif);font-size:1.22rem;line-height:1.55;margin:0 0 8px;max-width:66ch}
+.qhint{font-size:.9rem;font-weight:600;color:var(--warn);margin-bottom:12px}
+.choices{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:10px}
+.choice{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;width:100%;text-align:left;border:1px solid var(--rule);border-radius:9px;padding:12px 14px;background:var(--paper)}
+.choice .key{width:26px;height:26px;border-radius:50%;border:1px solid var(--rule);display:grid;place-items:center;font-size:.82rem;font-weight:600;color:var(--muted)}
+.choice.multi .key{border-radius:5px}
+.choice[aria-pressed="true"]{border-color:var(--ink);background:var(--surface)}
+.choice[aria-pressed="true"] .key{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.choice.ok{border-color:var(--good);box-shadow:inset 0 0 0 1px var(--good)}
+.choice.ok .key{background:var(--good);border-color:var(--good);color:#fff}
+.choice.ko{border-color:var(--bad);box-shadow:inset 0 0 0 1px var(--bad)}
+.choice.ko .key{background:var(--bad);border-color:var(--bad);color:#fff}
+.choice:disabled{cursor:default}
+.expl{margin-top:18px;padding:16px 18px;border-radius:9px;background:var(--soft);font-size:.97rem}
+.expl strong{display:block;margin-bottom:4px}
+.expl.good strong{color:var(--good)} .expl.bad strong{color:var(--bad)}
+.qnav{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;align-items:center}
+.qnav .spacer{flex:1}
+.flag[aria-pressed="true"]{border-color:var(--warn);color:var(--warn)}
+.grid-nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:6px;margin-top:18px;max-width:820px}
+.grid-nav button{height:36px;border-radius:6px;border:1px solid var(--rule);background:var(--surface);font-size:.85rem;font-variant-numeric:tabular-nums}
+.grid-nav button.ans{background:var(--soft);font-weight:600}
+.grid-nav button.cur{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.grid-nav button.fl{border-color:var(--warn);color:var(--warn)}
+
+/* Results */
+.score-head{display:flex;gap:36px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.score-big{font-family:var(--serif);font-size:4.4rem;font-weight:600;line-height:1}
+.band{display:inline-block;padding:4px 10px;border-radius:6px;font-weight:600;font-size:.92rem;margin-top:6px}
+.bars{display:grid;gap:14px;margin:24px 0;max-width:760px}
+.bar-row{display:grid;grid-template-columns:minmax(150px,280px) 1fr 70px;gap:14px;align-items:center;font-size:.95rem}
+.bar{height:10px;background:var(--soft);border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c)}
+.bar-row .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.review-item{border-top:1px solid var(--rule);padding:18px 0}
+.review-item .qtext{font-size:1.06rem}
+.review-item ul{list-style:none;padding:0;margin:10px 0}
+.review-item li{padding:6px 10px;border-radius:6px;font-size:.95rem;margin:3px 0}
+.review-item li.r{background:color-mix(in srgb,var(--good) 14%,transparent)}
+.review-item li.w{background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.hist{width:100%;border-collapse:collapse;font-size:.93rem}
+.hist th,.hist td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--rule)}
+.hist th{color:var(--muted);font-weight:500}
+.tablewrap{overflow-x:auto}
+.empty{padding:28px;border:1px dashed var(--rule);border-radius:12px;color:var(--muted);max-width:640px}
+.note{font-size:.86rem;color:var(--muted);max-width:70ch}
+.modal-bg{position:fixed;inset:0;background:rgba(10,15,20,.5);display:grid;place-items:center;z-index:20;padding:20px}
+.modal{background:var(--surface);border-radius:12px;padding:24px;max-width:460px;width:100%;border:1px solid var(--rule)}
+.modal h3{margin-bottom:10px}
+
+@media (max-width:820px){
+  .hero{grid-template-columns:1fr;gap:20px}
+  .ringbox{max-width:320px;margin:0 auto}
+  .guide-layout{grid-template-columns:1fr}
+  .dlist{position:static;display:flex;overflow-x:auto;gap:4px}
+  .dlist button{white-space:nowrap}
+  .qcard{padding:20px}
+  .bar-row{grid-template-columns:1fr 60px}
+  .bar-row .bar{grid-column:1 / -1;grid-row:2}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* Charte H TECH ACADEMY */
+header.top{background:#0A2A66;border-bottom:3px solid #3F8A1E}
+header.top .brand{color:#fff;display:flex;flex-direction:column;line-height:1.1}
+header.top .brand small{font-family:var(--sans);font-size:10.5px;letter-spacing:.14em;color:#9FD27A;font-weight:700;text-transform:uppercase;margin-top:3px}
+header.top nav.tabs button{color:#C9D6EC}
+header.top nav.tabs button[aria-current="true"]{color:#fff;border-color:#9FD27A}
+.btn{background:#0A2A66;border-color:#0A2A66;color:#fff}
+.btn.ghost{background:transparent;color:#0A2A66;border-color:#0A2A66}
+.sim-outils{display:flex;gap:10px;align-items:center;font-size:12.5px;color:#C9D6EC;margin-left:auto}
+.sim-outils a{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:4px 10px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.ghost{color:#C9D6EC;border-color:#C9D6EC}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">Simulateur Gestion de projet<small>H TECH ACADEMY · Débutant</small></div>
+    <nav class="tabs" aria-label="Sections" style="display:none">
+      <button data-go="home">Accueil</button>
+      <button data-go="guide">Guide d’étude</button>
+      <button data-go="practice">Entraînement</button>
+      <button data-go="exam">Examen blanc</button>
+      <button data-go="history">Résultats</button>
+    </nav>
+    <div class="sim-outils"><span id="sim-acces"></span><a href="en.html">English</a><a href="../#/espace">Mon espace</a></div>
+  </div>
+</header>
+<main><div class="wrap" id="app"></div></main>
+<div id="modal-root"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+/* Référentiel Gestion de projet — Débutant — H TECH ACADEMY */
+const DOMAINS = [
+ {id:1,name:"Démarrage",short:"Démarrage",w:15,c:"var(--d1)",
+  lead:"Avant d’engager des moyens, on vérifie que le projet en vaut la peine et on l’autorise officiellement. Le démarrage répond à trois questions : pourquoi ce projet, est-il faisable, et qui est concerné ?",
+  tasks:[
+   ["Analyser l’opportunité : business case, business plan et faisabilité",["Le business case justifie l’investissement : besoin, options (dont « ne rien faire »), coûts, bénéfices, recommandation","Le business plan décrit le modèle économique d’une activité ou d’une entreprise","Faisabilité technique, économique, organisationnelle, réglementaire et sociale","Indicateurs : délai de retour sur investissement, valeur actuelle nette","Le sponsor est garant du business case, revu aux étapes clés"]],
+   ["Diagnostiquer le contexte : SWOT, PESTEL et objectifs SMART",["SWOT : forces et faiblesses internes, opportunités et menaces externes","PESTEL : facteurs politiques, économiques, sociaux, technologiques, environnementaux et légaux","Objectifs SMART : spécifiques, mesurables, atteignables, réalistes, temporellement définis","Transformer le diagnostic en actions et en objectifs du projet"]],
+   ["Élaborer la charte du projet",["Autorise le projet et nomme le chef de projet, avec son niveau d’autorité","Contient objectifs, exigences de haut niveau, jalons, budget global, risques majeurs","Signée par le sponsor ou par une autorité capable d’engager les ressources","Distinguer contraintes (limites imposées) et hypothèses (supposées vraies)"]],
+   ["Identifier et analyser les parties prenantes",["Toute personne ou organisation qui influence le projet ou est affectée par lui","Registre : rôle, attentes, influence, intérêt, attitude","Grille pouvoir/intérêt : gérer de près, maintenir satisfait, tenir informé, surveiller","Identification dès le démarrage et tout au long du projet"]]],
+  reflex:["Pas de projet sans justification : le business case précède la charte.","Pas d’autorité sans charte signée par le sponsor.","Interne = forces et faiblesses ; externe = opportunités et menaces.","Une opposition se traite d’abord par l’écoute, puis par l’escalade."]},
+ {id:2,name:"Planification",short:"Planification",w:30,c:"var(--d2)",
+  lead:"On définit précisément ce qui sera fait, quand, avec quels moyens et à quel coût. Le plan de management du projet et ses références de base (contenu, délais, coûts) deviennent la référence pour piloter.",
+  tasks:[
+   ["Planifier le contenu : exigences, périmètre et WBS",["Recueil des exigences : entretiens, ateliers, observation, questionnaires","Énoncé du contenu : livrables, critères d’acceptation, exclusions","WBS : décomposition jusqu’aux lots de travail, règle des 100 %","Dictionnaire de la WBS ; prévenir la dérive du contenu"]],
+   ["Planifier les délais : activités, dépendances, chemin critique et Gantt",["Activités, dépendances (fin à début…), durées, jalons","Chemin critique : plus longue séquence, marge nulle","Estimation à trois points : (O + 4P + Pe) ÷ 6","Compression : chevauchement (risque) ou ajout de ressources (coût)"]],
+   ["Planifier les coûts : estimations, budget et réserves",["Estimations par analogie, paramétrique, ascendante","Référence de base des coûts = budget réparti dans le temps, réserve pour aléas comprise","Budget total = référence de base + réserve de management","La précision progresse avec l’élaboration du projet"]],
+   ["Planifier la qualité, les ressources et la communication",["Qualité = conformité aux exigences, sans « surqualité »","Coût de la qualité : prévention, évaluation, défaillances","RACI : un seul « A » par tâche ; nivellement et lissage des ressources","Plan de communication ; canaux = n × (n − 1) ÷ 2"]],
+   ["Planifier les risques et les approvisionnements",["Risque = événement incertain, menace ou opportunité","Valeur monétaire attendue = probabilité × impact","Menaces : éviter, transférer, atténuer, accepter ; opportunités : exploiter, partager, améliorer","Faire ou acheter, cahier des charges, critères d’évaluation, types de contrats"]]],
+  reflex:["Ce qui n’est pas dans la WBS n’est pas dans le projet.","Toute demande hors périmètre suit la procédure de modification.","Le chemin critique fixe la durée minimale du projet.","Un risque identifié a toujours un propriétaire et une réponse."]},
+ {id:3,name:"Exécution",short:"Exécution",w:25,c:"var(--d3)",
+  lead:"On réalise le travail prévu, on dirige l’équipe, on assure la qualité, on communique et on engage les parties prenantes et les fournisseurs, conformément au plan.",
+  tasks:[
+   ["Diriger et piloter le travail du projet",["Réunion de lancement : objectifs, rôles, planning, règles","Registres des problèmes et des décisions","Données de performance du travail","Cycle planifier, faire, vérifier, agir ; leçons apprises en continu"]],
+   ["Gérer l’équipe et les ressources",["Étapes de Tuckman : formation, tension, normalisation, performance, dissolution","Gestion des conflits : privilégier la collaboration","Charte d’équipe, reconnaissance, développement des compétences","Organisation matricielle : priorités négociées, arbitrage du sponsor"]],
+   ["Gérer la qualité et les communications",["Assurance qualité (processus) et contrôle qualité (livrables)","Audits qualité, cause racine, Ishikawa, Pareto","Communication push, pull et interactive","Adapter le message à son destinataire"]],
+   ["Mettre en œuvre les réponses aux risques, conduire les achats, engager les parties prenantes",["Appliquer le plan de réponse, puis évaluer son efficacité","Contournement : réponse non planifiée à un événement imprévu","Sélection objective des fournisseurs ; avenants écrits","Engagement régulier des parties prenantes"]]],
+  reflex:["Le chef de projet coordonne ; le sponsor lève les obstacles.","Un sujet sensible se communique en direct, l’écrit confirme.","Écouter d’abord : désaccord, démotivation, réticence.","Aucune modification sans procédure, même pour faire plaisir."]},
+ {id:4,name:"Surveillance et maîtrise",short:"Surveillance et maîtrise",w:20,c:"var(--d4)",
+  lead:"On compare en continu le réalisé au prévu, on analyse les écarts et on décide : actions correctives, actions préventives ou demandes de modification approuvées.",
+  tasks:[
+   ["Suivre l’avancement et maîtriser les changements",["Références de base : contenu, délais, coûts approuvés","Demande de modification : enregistrer, analyser, décider, mettre à jour, communiquer","Comité de contrôle des modifications","Actions correctives et préventives ; rapport d’avancement"]],
+   ["Maîtriser le contenu, les délais et les coûts (valeur acquise)",["VP (prévu), VA (réalisé), CR (coût réel)","Écart de délai = VA − VP ; écart de coût = VA − CR","IPD = VA ÷ VP ; IPC = VA ÷ CR (< 1 = défavorable)","EAC = BAC ÷ IPC ; courbe en S ; vérification du contenu"]],
+   ["Contrôler la qualité, surveiller les risques, la communication, les achats et les parties prenantes",["Non-conformité : enregistrer, corriger, revérifier","Carte de contrôle et tendances","Revues des risques ; risque résiduel","Performance des fournisseurs et niveau d’engagement des parties prenantes"]]],
+  reflex:["L’avancement se mesure au travail achevé, pas au temps passé.","IPC et IPD : au-dessus de 1, c’est favorable ; en dessous, défavorable.","Un comité décide sur la base d’un écart expliqué et d’options.","Une tendance se traite avant qu’elle ne devienne un défaut."]},
+ {id:5,name:"Clôture",short:"Clôture",w:10,c:"var(--d5)",
+  lead:"On fait accepter les livrables, on transfère le résultat, on solde les contrats, on libère les ressources et on capitalise l’expérience, même si le projet a été arrêté avant son terme.",
+  tasks:[
+   ["Faire valider les livrables et transférer",["Procès-verbal de réception, avec ou sans réserves","Transfert à l’exploitation : documentation, formation, accès","Une nouvelle demande en fin de projet suit la procédure de modification","Réalisation des bénéfices, souvent après le projet"]],
+   ["Clôturer les contrats et le projet administrativement",["Vérifier les obligations, régler les litiges, solder les paiements","Rapport final : résultats et écarts","Libérer les ressources ; archiver","Un projet arrêté se clôture aussi"]],
+   ["Capitaliser : retour d’expérience et archivage",["Leçons apprises recueillies tout au long du projet","Retour d’expérience sans recherche de coupables","Leçons concrètes et actionnables, base de connaissances","Enrichir les modèles de l’organisation ; célébrer la fin du projet"]]],
+  reflex:["Pas de clôture sans acceptation formelle des livrables.","Un projet interrompu se clôture aussi.","Apprendre, pas accuser.","Une leçon utile est concrète et réutilisable."]}
+];
+
+/* ===================== Banque de questions (originales, non officielles) ===================== */
+let Q=[];
+
+
+/* ===================== Persistance (par navigateur) ===================== */
+let store={last:{},history:[]};function save(){}
+
+/* ===================== Utilitaires ===================== */
+const $=s=>document.querySelector(s);
+const app=$("#app");
+const dom=id=>DOMAINS[id-1];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const roman=["I","II","III","IV","V","VI"];
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function mastery(d){const qs=Q.filter(q=>!d||q.d===d);const seen=qs.filter(q=>store.last[q.id]!==undefined);const ok=seen.filter(q=>store.last[q.id]);return{seen:seen.length,total:qs.length,pct:seen.length?Math.round(ok.length/seen.length*100):null}}
+function band(p){if(p>=80)return["Réussi","var(--good)"];if(p>=65)return["Presque","var(--d4)"];if(p>=50)return["Insuffisant","var(--warn)"];return["À retravailler","var(--bad)"]}
+function fmt(s){const m=Math.floor(s/60),r=s%60;return (m>=60?Math.floor(m/60)+" h "+String(m%60).padStart(2,"0"):m)+" min "+String(r).padStart(2,"0")}
+
+let view="home", guideD=1, session=null, timerId=null;
+
+function setView(v){view=v;if(timerId&&v!=="run"){/* keep timer only during run */}
+ document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.go===v||(v==="run"&&session&&b.dataset.go===session.mode)||(v==="result"&&b.dataset.go==="history")?"true":"false"));
+ render();window.scrollTo(0,0)}
+
+/* ===================== Anneau des domaines ===================== */
+function ringSVG(){
+ const R=110,C=2*Math.PI*R,gap=1.2;let acc=0,out="";
+ DOMAINS.forEach(d=>{
+  const len=C*d.w/100-gap*2,off=-(C*acc/100)-gap;const m=mastery(d.id);const fill=m.pct===null?0:len*m.pct/100;
+  out+=`<circle cx="140" cy="140" r="${R}" fill="none" stroke="${d.c}" stroke-opacity=".2" stroke-width="26" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${off}" transform="rotate(-90 140 140)" class="ring-seg" data-dom="${d.id}" tabindex="0" role="button" aria-label="Domaine ${roman[d.id-1]} : ${esc(d.name)}, ${d.w} %"><title>${esc(d.name)} — ${d.w} %</title></circle>`;
+  if(fill>0)out+=`<circle cx="140" cy="140" r="${R}" fill="none" stroke="${d.c}" stroke-width="26" stroke-dasharray="${fill} ${C-fill}" stroke-dashoffset="${off}" transform="rotate(-90 140 140)" pointer-events="none"/>`;
+  const mid=(acc+d.w/2)/100*2*Math.PI-Math.PI/2;const lx=140+(R+30)*Math.cos(mid),ly=140+(R+30)*Math.sin(mid);
+  out+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="Newsreader, Georgia, serif" font-size="15" font-weight="600" fill="${d.c}">${roman[d.id-1]}</text>`;
+  acc+=d.w;});
+ return `<svg viewBox="0 0 280 280" role="img" aria-label="Anneau des six domaines de l’examen, pondérés selon le référentiel">${out}</svg>`}
+
+/* ===================== Vues ===================== */
+function renderHome(){
+ const m=mastery();
+ app.innerHTML=`
+ <section class="hero">
+  <div class="ringbox">${ringSVG()}
+   <div class="ring-center"><div class="big">${m.pct===null?"—":m.pct+"<span style='font-size:.5em'> %</span>"}</div><div class="lbl">${m.seen?`de réussite sur ${m.seen} questions vues`:"Répondez à des questions pour remplir l’anneau"}</div></div>
+  </div>
+  <div>
+   <h1>Maîtrisez les fondamentaux de la gestion de projet, étape par étape</h1>
+   <p class="lead" style="margin-top:14px">Chaque arc représente un groupe de processus, à la taille de son poids dans l’examen. Il se remplit à mesure de vos bonnes réponses. Cliquez sur un arc pour ouvrir la fiche du domaine.</p>
+   <div class="facts"><div><strong>5</strong>groupes de processus · 10 domaines de connaissances</div><div><strong>1 min</strong>par question · réussite à 80 %</div><div><strong>${Q.length}</strong>questions dans ce simulateur</div></div>
+   <div class="actions"><button class="btn" data-go="exam">Passer un examen blanc</button><button class="btn ghost" data-go="practice">S’entraîner par domaine</button><button class="btn ghost" data-go="guide">Ouvrir le guide</button></div>
+  </div>
+ </section>
+ <ul class="legend">${DOMAINS.map(d=>{const mm=mastery(d.id);return `<li style="--c:${d.c}"><span class="sw" style="background:${d.c}"></span><button data-guide="${d.id}">${roman[d.id-1]}. ${esc(d.name)}</button><span class="pct">${d.w} % · ${mm.pct===null?"non commencé":mm.pct+" %"}</span></li>`}).join("")}</ul>
+ <p class="note" style="margin-top:28px">Questions originales conçues par H TECH ACADEMY. Votre progression est enregistrée dans votre espace apprenant et suivie par votre expert.</p>`}
+
+function renderGuide(){
+ const d=dom(guideD);
+ app.innerHTML=`<div class="guide-layout">
+ <ul class="dlist">${DOMAINS.map(x=>`<li><button style="--c:${x.c}" data-guide="${x.id}" aria-current="${x.id===guideD}"><span class="rn">${roman[x.id-1]}</span>${esc(x.short)}</button></li>`).join("")}</ul>
+ <article style="--c:${d.c}">
+  <div class="dhead"><h2>Domaine ${roman[d.id-1]} · ${esc(d.name)}</h2><div class="w">${d.w} % des questions · ${d.tasks.length} tâches · ${Q.filter(q=>q.d===d.id).length} questions d’entraînement</div></div>
+  <p class="lead">${esc(d.lead)}</p>
+  ${d.tasks.map((t,i)=>`<div class="task"><h3><span class="tn">Tâche ${i+1}</span><span>${esc(t[0])}</span></h3><ul>${t[1].map(e=>`<li>${esc(e)}</li>`).join("")}</ul></div>`).join("")}
+  <div class="reflex"><h3>Réflexes pour l’examen</h3><ul>${d.reflex.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>
+  <div class="actions" style="margin-top:22px"><button class="btn" data-practice-dom="${d.id}">S’entraîner sur ce domaine</button>${d.id<6?`<button class="btn ghost" data-guide="${d.id+1}">Domaine suivant</button>`:""}</div>
+ </article></div>`}
+
+let pSel=new Set([1,2,3,4,5,6]), pCount=10, eFormat="mini";
+function renderPracticeSetup(){
+ const avail=Q.filter(q=>pSel.has(q.d)).length;
+ app.innerHTML=`<div class="setup">
+ <h2>Entraînement</h2><p class="muted" style="margin-top:8px">Correction immédiate après chaque question, avec l’explication rattachée à la tâche du référentiel.</p>
+ <div class="panel"><strong>Domaines</strong>
+  <div class="chips">${DOMAINS.map(d=>`<button class="chip" style="--c:${d.c}" data-psel="${d.id}" aria-pressed="${pSel.has(d.id)}"><span class="dot"></span>${roman[d.id-1]}. ${esc(d.short)}</button>`).join("")}</div>
+  <strong style="display:block;margin-top:18px">Nombre de questions</strong>
+  <div class="chips">${[10,20,0].map(n=>`<button class="chip" data-pcount="${n}" aria-pressed="${pCount===n}">${n?n:"Toutes ("+avail+")"}</button>`).join("")}</div>
+  <div class="chips"><button class="chip" data-pweak="1">Uniquement mes erreurs (${Q.filter(q=>pSel.has(q.d)&&store.last[q.id]===false).length})</button></div>
+ </div>
+ <button class="btn" data-start="practice" ${avail?"":"disabled"}>Commencer l’entraînement</button>
+ </div>`}
+
+function renderExamSetup(){
+ app.innerHTML=`<div class="setup">
+ <h2>Examen blanc</h2><p class="muted" style="margin-top:8px">Conditions d’examen : chronomètre (1 minute par question, soit 120 questions en 2 heures), réussite à partir de 80 %, questions marquées pour révision, correction à la fin seulement.</p>
+ <div class="panel"><strong>Format</strong>
+  <div class="options-row">
+   <button class="opt-card" data-eformat="mini" aria-pressed="${eFormat==="mini"}"><strong>Mini-examen</strong><span>30 questions réparties selon les poids des groupes · 30 min</span></button>
+   <button class="opt-card" data-eformat="full" aria-pressed="${eFormat==="full"}"><strong>Examen complet du simulateur</strong><span>${Math.min(120,Q.length)} questions · ${Math.round(Math.min(120,Q.length))} min</span></button>
+  </div>
+ </div>
+ <p class="note" style="margin:0 0 12px;color:#0A2A66;font-weight:600">🛡️ Examen surveillé : plein écran et caméra obligatoires jusqu’à la fin. Quitter la fenêtre d’examen ou rester hors du cadre de la caméra plus d’une minute annule l’examen.</p><button class="btn" data-start="exam">Lancer l’examen</button>
+ <p class="note" style="margin-top:18px">Seuil de réussite : 80 % au global. Niveaux par groupe : réussi (80 % et plus), presque (65 à 79 %), insuffisant (50 à 64 %), à retravailler (moins de 50 %).</p>
+ </div>`}
+
+function pickExam(n){
+ const quota=DOMAINS.map(d=>({d:d.id,n:Math.floor(n*d.w/100),r:n*d.w/100%1}));
+ let sum=quota.reduce((a,b)=>a+b.n,0);[...quota].sort((a,b)=>b.r-a.r).forEach(q=>{if(sum<n){q.n++;sum++;}});
+ return shuffle(quota.flatMap(x=>shuffle(Q.filter(q=>q.d===x.d)).slice(0,x.n)))}
+
+function startSession(mode,opts={}){
+ let qs;
+ if(mode==="practice"){qs=Q.filter(q=>pSel.has(q.d));if(opts.weak)qs=qs.filter(q=>store.last[q.id]===false);qs=shuffle(qs);if(pCount&&!opts.weak)qs=qs.slice(0,pCount);if(!qs.length)return;}
+ else qs=eFormat==="mini"?pickExam(30):pickExam(Math.min(120,Q.length));
+ session={mode,items:qs.map(q=>({q,order:shuffle(q.o.map((_,i)=>i)),sel:[],flag:false,checked:false})),i:0,start:Date.now(),
+  limit:mode==="exam"?Math.round(qs.length*60):null,label:mode==="exam"?(eFormat==="mini"?"Mini-examen":"Examen complet"):"Entraînement"};
+ clearInterval(timerId);
+ if(session.limit){timerId=setInterval(tick,1000)}
+ setView("run")}
+function remaining(){return Math.max(0,session.limit-Math.floor((Date.now()-session.start)/1000))}
+function tick(){if(!session||!session.limit)return;const r=remaining();const el=$("#timer");if(el){el.textContent=fmt(r);el.classList.toggle("low",r<300)}if(r<=0){clearInterval(timerId);finish()}}
+
+function renderRun(){
+ const s=session,it=s.items[s.i],q=it.q,d=dom(q.d),multi=q.k>1,exam=s.mode==="exam";
+ const answered=s.items.filter(x=>x.sel.length).length;
+ const letters="ABCD";
+ const showFb=!exam&&it.checked;
+ const right=it.checked&&isRight(it);
+ app.innerHTML=`
+ <div class="runbar">
+  <span class="count">${esc(s.label)} · ${s.i+1} / ${s.items.length}</span>
+  <div class="progress" aria-hidden="true"><i style="width:${(exam?answered:s.i+ (it.checked?1:0))/s.items.length*100}%"></i></div>
+  ${s.limit?`<span class="timer" id="timer" aria-live="off">${fmt(remaining())}</span>`:""}
+  <button class="btn ghost small" data-act="quit">Quitter</button>
+ </div>
+ <div class="qcard" style="--c:${d.c}">
+  <div class="qmeta"><span class="tag">Domaine ${roman[d.id-1]}</span><span>${esc(d.short)} · Tâche ${q.t}</span></div>
+  <p class="qtext">${esc(q.q)}</p>
+  ${multi?`<div class="qhint">Choisissez ${q.k} réponses.</div>`:""}
+  <ul class="choices">${it.order.map((oi,k)=>{
+    const pressed=it.sel.includes(oi);let cls="choice"+(multi?" multi":"");
+    if(showFb){if((it.a||[]).includes(oi))cls+=" ok";else if(pressed)cls+=" ko"}
+    return `<li><button class="${cls}" data-pick="${oi}" aria-pressed="${pressed}" ${showFb?"disabled":""}><span class="key">${letters[k]}</span><span>${esc(q.o[oi])}</span></button></li>`}).join("")}</ul>
+  ${showFb?`<div class="expl ${right?"good":"bad"}"><strong>${right?"Bonne réponse.":"Réponse incorrecte."}</strong>${esc(it.x||"")}</div>`:""}
+  <div class="qnav">
+   <button class="btn ghost" data-act="prev" ${s.i===0?"disabled":""}>Précédente</button>
+   ${exam?`<button class="btn ghost flag" data-act="flag" aria-pressed="${it.flag}">${it.flag?"Marquée pour révision":"Marquer pour révision"}</button>`:""}
+   <span class="spacer"></span>
+   ${!exam&&!it.checked?`<button class="btn" data-act="check" ${it.sel.length===q.k?"":"disabled"}>Valider</button>`:""}
+   ${(exam||it.checked)&&s.i<s.items.length-1?`<button class="btn" data-act="next">Suivante</button>`:""}
+   ${(exam||it.checked)&&s.i===s.items.length-1?`<button class="btn" data-act="submit">${exam?"Terminer l’examen":"Voir le bilan"}</button>`:""}
+  </div>
+ </div>
+ ${exam?`<div class="grid-nav" aria-label="Navigation entre les questions">${s.items.map((x,k)=>`<button data-jump="${k}" class="${x.sel.length?"ans":""} ${k===s.i?"cur":""} ${x.flag?"fl":""}" aria-label="Question ${k+1}${x.flag?", marquée":""}">${k+1}</button>`).join("")}</div>
+ <div class="actions" style="margin-top:16px"><button class="btn ghost small" data-act="submit">Terminer l’examen</button></div>`:""}`}
+
+function isRight(it){return it.ok===true}
+
+/* finish() : voir la couche de données */
+
+let reviewFilter="all";
+function renderResult(){
+ const s=session,r=s.result;const[bl,bc]=band(r.pct);
+ const items=s.items.filter(it=>s.mode==="exam"||it.checked);
+ const shown=items.filter(it=>reviewFilter==="all"||(reviewFilter==="wrong"&&!isRight(it))||(reviewFilter==="flag"&&it.flag));
+ app.innerHTML=`
+ <h2>${esc(s.label)} terminé</h2>
+ <div class="score-head" style="margin-top:18px">
+  <div><div class="score-big">${r.pct} %</div><span class="band" style="background:color-mix(in srgb,${bc} 16%,transparent);color:${bc}">${bl}</span></div>
+  <div class="muted">${r.ok} bonnes réponses sur ${r.n}<br>Durée : ${fmt(r.secs)}${s.limit?` sur ${fmt(s.limit)}`:""}</div>
+ </div>
+ <h3 style="margin-top:28px">Par domaine</h3>
+ <div class="bars">${DOMAINS.filter(d=>r.byD[d.id]).map(d=>{const[o,n]=r.byD[d.id];const p=Math.round(o/n*100);return `<div class="bar-row" style="--c:${d.c}"><span>${roman[d.id-1]}. ${esc(d.short)}</span><div class="bar"><i style="width:${p}%"></i></div><span class="n">${o}/${n}</span></div>`}).join("")}</div>
+ <div class="actions"><button class="btn" id="simBtnRapport" onclick="simRapport()">📄 Télécharger mon rapport (PDF)</button><button class="btn ghost" data-go="${s.mode}">Nouvelle session</button><button class="btn ghost" data-go="guide">Revoir le guide</button></div>
+ <h3 style="margin-top:36px">Correction détaillée</h3>
+ <div class="chips">${[["all","Toutes"],["wrong","Erreurs"],["flag","Marquées"]].filter(f=>f[0]!=="flag"||s.mode==="exam").map(f=>`<button class="chip" data-rf="${f[0]}" aria-pressed="${reviewFilter===f[0]}">${f[1]}</button>`).join("")}</div>
+ ${shown.length?shown.map(it=>{const q=it.q,d=dom(q.d),ok=isRight(it);return `<div class="review-item" style="--c:${d.c}">
+  <div class="qmeta"><span class="tag">Domaine ${roman[d.id-1]} · Tâche ${q.t}</span><span style="color:${ok?"var(--good)":"var(--bad)"};font-weight:600">${ok?"Correct":it.sel.length?"Incorrect":"Sans réponse"}</span></div>
+  <p class="qtext">${esc(q.q)}</p>
+  <ul>${q.o.map((o,oi)=>`<li class="${(it.a||[]).includes(oi)?"r":it.sel.includes(oi)?"w":""}">${(it.a||[]).includes(oi)?"✓ ":it.sel.includes(oi)?"✗ ":"· "}${esc(o)}</li>`).join("")}</ul>
+  <p class="muted" style="max-width:70ch">${esc(it.x||"")}</p></div>`}).join(""):`<div class="empty">Aucune question dans ce filtre.</div>`}`}
+
+function renderHistory(){
+ const h=store.history;
+ app.innerHTML=`<h2>Résultats</h2>
+ <div class="bars" style="margin-top:22px">${DOMAINS.map(d=>{const m=mastery(d.id);return `<div class="bar-row" style="--c:${d.c}"><span>${roman[d.id-1]}. ${esc(d.short)}</span><div class="bar"><i style="width:${m.pct||0}%"></i></div><span class="n">${m.pct===null?"—":m.pct+" %"}</span></div>`}).join("")}</div>
+ <p class="note">Maîtrise calculée sur votre dernière réponse à chaque question vue.</p>
+ <h3 style="margin-top:30px;margin-bottom:12px">Historique des sessions</h3>
+ ${h.length?`<div class="tablewrap"><table class="hist"><thead><tr><th>Date</th><th>Session</th><th>Score</th><th>Durée</th><th></th></tr></thead><tbody>${h.map((x,i)=>`<tr><td>${new Date(x.date).toLocaleString("fr-FR",{dateStyle:"short",timeStyle:"short"})}</td><td>${esc(x.label)}</td><td>${x.statut==='annule'?`<span style="color:#B42318;font-weight:700" title="${esc(x.motif||'')}">Annulé</span>`:`<strong>${x.pct} %</strong> <span class="muted">(${x.ok}/${x.n})</span>`}</td><td>${fmt(x.secs)}</td><td>${x.id?`<button class="btn ghost small" onclick="simRapportHistorique(${i})">📄 Rapport</button>`:""}</td></tr>`).join("")}</tbody></table></div>
+ `
+ :`<div class="empty">Aucune session pour l’instant. Lancez un entraînement ou un examen blanc pour suivre votre progression ici.<div class="actions" style="margin-top:14px"><button class="btn small" data-go="practice">S’entraîner</button></div></div>`}`}
+
+function modal(title,body,okLabel,onOk){
+ $("#modal-root").innerHTML=`<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt"><h3 id="mt">${title}</h3><p class="muted">${body}</p><div class="actions" style="margin-top:16px;justify-content:flex-end"><button class="btn ghost" data-m="no">Annuler</button><button class="btn" data-m="ok">${okLabel}</button></div></div></div>`;
+ $("#modal-root [data-m=ok]").focus();
+ $("#modal-root").onclick=e=>{const m=e.target.closest("[data-m]");if(!m&&!e.target.classList.contains("modal-bg"))return;$("#modal-root").innerHTML="";if(m&&m.dataset.m==="ok")onOk()}}
+
+function render(){
+ if(view==="home")renderHome();else if(view==="guide")renderGuide();else if(view==="practice")renderPracticeSetup();
+ else if(view==="exam")renderExamSetup();else if(view==="run")renderRun();else if(view==="result")renderResult();else renderHistory()}
+
+/* ===================== Événements ===================== */
+document.addEventListener("click",e=>{
+ const t=e.target.closest("button, .ring-seg");if(!t)return;
+ if(t.dataset.go){if(view==="run"&&session&&!session.done){confirmQuit(()=>setView(t.dataset.go));return}setView(t.dataset.go);return}
+ if(t.dataset.guide||t.dataset.dom){guideD=+(t.dataset.guide||t.dataset.dom);setView("guide");return}
+ if(t.dataset.practiceDom){pSel=new Set([+t.dataset.practiceDom]);pCount=0;setView("practice");return}
+ if(t.dataset.psel){const n=+t.dataset.psel;pSel.has(n)?pSel.delete(n):pSel.add(n);render();return}
+ if(t.dataset.pcount!==undefined){pCount=+t.dataset.pcount;render();return}
+ if(t.dataset.pweak){startSession("practice",{weak:true});return}
+ if(t.dataset.eformat){eFormat=t.dataset.eformat;render();return}
+ if(t.dataset.start){startSession(t.dataset.start);return}
+ if(t.dataset.rf){reviewFilter=t.dataset.rf;render();return}
+ if(t.dataset.jump!==undefined){session.i=+t.dataset.jump;render();return}
+ if(t.dataset.pick!==undefined){const it=session.items[session.i],oi=+t.dataset.pick,multi=it.q.k>1;
+  if(multi){if(it.sel.includes(oi))it.sel=it.sel.filter(x=>x!==oi);else if(it.sel.length<it.q.k)it.sel.push(oi)}else it.sel=[oi];render();return}
+ const a=t.dataset.act;if(!a)return;
+ if(a==="prev"){session.i--;render()}
+ else if(a==="next"){session.i++;render()}
+ else if(a==="check"){simCorriger(session.items[session.i])}
+ else if(a==="flag"){const it=session.items[session.i];it.flag=!it.flag;render()}
+ else if(a==="submit"){if(session.mode!=="exam"){finish();return}
+  const un=session.items.filter(x=>!x.sel.length).length,fl=session.items.filter(x=>x.flag).length;
+  modal("Terminer l’examen ?",`${un?un+" question"+(un>1?"s":"")+" sans réponse. ":""}${fl?fl+" question"+(fl>1?"s":"")+" marquée"+(fl>1?"s":"")+" pour révision. ":""}Une fois l’examen terminé, vous ne pourrez plus modifier vos réponses.`,"Terminer",finish)}
+ else if(a==="quit"){confirmQuit(()=>{clearInterval(timerId);setView(session.mode)})}
+});
+document.addEventListener("keydown",e=>{
+ if(e.target.classList&&e.target.classList.contains("ring-seg")&&(e.key==="Enter"||e.key===" ")){e.preventDefault();guideD=+e.target.dataset.dom;setView("guide")}
+ if(e.key==="Escape"&&$("#modal-root").innerHTML){$("#modal-root").innerHTML=""}
+});
+function confirmQuit(cb){const answered=session.items.some(x=>x.sel.length);if(!answered){clearInterval(timerId);cb();return}
+ modal("Quitter la session ?","Les réponses de cette session ne seront pas enregistrées.","Quitter",()=>{clearInterval(timerId);session.done=true;cb()})}
+
+
+/* ===================== Données : base H TECH ACADEMY (questions sans réponses, correction par le serveur) ===================== */
+const SIM={lang:document.documentElement.lang==='en'?'en':'fr',espace:'../#/espace',wa:'2250714942421'};
+const sbSim=supabase.createClient('https://mgdpbngmjybqphonshsl.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZHBibmdtanlicXBob25zaHNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzk4NTUsImV4cCI6MjA5Njk1NTg1NX0.Xe0cONWJBxIltu7WlAq_aGGbQ5MoRZk1zhmrCIn3XWA',{auth:{persistSession:true,autoRefreshToken:true,storageKey:'hti-academy-auth'}});
+const TP={chargement:'Chargement du simulateur…',connexionT:'Connectez-vous pour accéder au simulateur',connexionP:'Le Simulateur Gestion de projet est réservé aux apprenants de H TECH ACADEMY. Connectez-vous avec l’identifiant reçu lors de votre inscription.',connexionB:'Se connecter à mon espace',
+accesT:'Accédez au Simulateur Gestion de projet',accesP:'Guide d’étude des 5 groupes de processus, entraînement corrigé et expliqué, examens blancs chronométrés et suivi de votre progression par votre expert H TECH ACADEMY.',
+offre1:'Inclus dans notre formation Gestion de projet — Débutant',offre1p:'Accès ouvert automatiquement dès votre inscription.',offre2:'50 000 FCFA',offre2p:'30 jours de préparation, sans formation.',
+waB:'Commander par WhatsApp',wa:'Bonjour H TECH ACADEMY, je souhaite acheter un accès de 30 jours au Simulateur Gestion de projet — Débutant (50 000 FCFA). Mon identifiant : ',expire:'Votre accès a pris fin le ',retour:'Retour à mon espace',
+enreg:'Enregistrement de vos réponses et correction…',erreur:'Enregistrement impossible',verif:'Correction…'};
+Object.assign(TP,{"codeT": "Vous avez un code d’accès ?", "codeP": "Saisissez le code reçu par e-mail ou WhatsApp après la validation de votre demande.", "codeB": "Valider le code", "codeKo": "Ce code est invalide ou a expiré.", "apprT": "Apprenant H TECH ACADEMY", "apprP": "Connectez-vous avec l’identifiant reçu lors de votre inscription.", "demT": "Pas encore d’accès ?", "demP": "Demandez un accès de 30 jours (100 000 FCFA) : notre équipe vous envoie votre code après validation.", "demB": "Demander un accès", "changer": "Utiliser un autre code", "jours": "jour(s) d’accès restant(s)", "ph": "GP-XXXX-XXXX"});
+SIM.sim='gp';
+SIM.code=((new URLSearchParams(location.search).get('code'))||localStorage.getItem('hti-sim-code-gp')||'').trim().toUpperCase()||null;
+const simArgs=o=>Object.assign({p_code:SIM.code,p_simulateur:SIM.sim},o||{});
+async function simDemarrer(){
+ app.innerHTML=`<div class="empty">${TP.chargement}</div>`;
+ try{
+  const{data:{session:s}}=await sbSim.auth.getSession();SIM.user=s?s.user:null;
+  if(!s&&!SIM.code)return simPorte('connexion');
+  let{data:acc}=await sbSim.rpc('sim_mon_acces',{p_simulateur:SIM.sim,p_code:SIM.code});let a=(acc||[])[0]||{};
+  if(SIM.code&&!a.actif&&s){const r=await sbSim.rpc('sim_mon_acces',{p_simulateur:SIM.sim,p_code:null});const b=(r.data||[])[0]||{};if(b.actif||b.equipe){a=b;SIM.code=null;localStorage.removeItem('hti-sim-code-gp');}}
+  SIM.acces=a;
+  if(!a.actif&&!a.equipe){if(SIM.code)localStorage.removeItem('hti-sim-code-gp');return simPorte(SIM.code?'code':(s?'acces':'connexion'),a);}
+  if(SIM.code)localStorage.setItem('hti-sim-code-gp',SIM.code);
+  if(location.search.includes('code='))history.replaceState(null,'',location.pathname);
+  const{data:qs,error}=await sbSim.rpc('sim_questions_pour',simArgs({p_langue:SIM.lang}));if(error)return simPorte('acces',a);
+  Q=(qs||[]).map(r=>({id:r.id,d:r.domaine,t:r.tache,q:r.enonce,o:r.options,k:r.nb}));
+  const{data:m}=await sbSim.rpc('sim_maitrise',simArgs());store.last={};(m||[]).forEach(x=>store.last[x.question_id]=x.correct);
+  const{data:h}=await sbSim.rpc('sim_historique',simArgs());
+  store.history=(h||[]).map(x=>({statut:x.statut||'termine',motif:x.motif_annulation,inc:x.incidents||[],rep:x.nb_repondues,id:x.id,date:x.created_at,label:x.libelle,ok:x.ok,n:x.nb,pct:x.pct,byD:x.par_domaine||{},secs:x.duree_s||0}));
+  const jr=a.fin?Math.max(0,Math.ceil((new Date(a.fin)-new Date())/864e5)):null,b=document.getElementById('sim-acces');
+  if(b)b.textContent=a.equipe&&!a.actif?'Accès équipe H TECH INNOV':((a.titulaire?a.titulaire+' · ':'')+(jr!=null?jr+' '+TP.jours:''));
+  document.querySelector('nav.tabs').style.display='';setView('home');
+ }catch(e){app.innerHTML=`<div class="empty">${esc(e.message||String(e))}</div>`;}
+}
+function simCodeValider(){const v=(document.getElementById('simCode').value||'').trim().toUpperCase();if(!v){document.getElementById('simCode').focus();return;}SIM.code=v;localStorage.setItem('hti-sim-code-gp',v);simDemarrer();}
+function simCodeOublier(){localStorage.removeItem('hti-sim-code-gp');SIM.code=null;simDemarrer();}
+function simBlocCode(ko){return `<div class="opt-card" style="text-align:left"><strong>${TP.codeT}</strong><span>${TP.codeP}</span>${ko?`<span style="color:#B42318;font-weight:600">${TP.codeKo}</span>`:''}
+  <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input id="simCode" placeholder="${TP.ph}" value="${esc(SIM.code||'')}" style="flex:1;min-width:150px;padding:10px 12px;border:1px solid var(--line,#ccd);border-radius:10px;font:inherit;text-transform:uppercase" onkeydown="if(event.key==='Enter')simCodeValider()"><button class="btn" onclick="simCodeValider()">${TP.codeB}</button></div></div>`;}
+function simPorte(type,a){
+ document.querySelector('nav.tabs').style.display='none';
+ const dem=`<div class="opt-card" style="text-align:left"><strong>${TP.demT}</strong><span>${TP.demP}</span><div style="margin-top:10px"><a class="btn ghost" href="../#/simulateurs">${TP.demB}</a></div></div>`;
+ if(type==='connexion'||type==='code'){
+  app.innerHTML=`<div class="setup"><h2>${TP.accesT}</h2><p class="muted" style="margin-top:8px">${TP.accesP}</p>
+   <div class="options-row" style="margin-top:18px;align-items:stretch">
+    <div class="opt-card" style="text-align:left"><strong>${TP.apprT}</strong><span>${TP.apprP}</span><div style="margin-top:10px"><a class="btn" href="${SIM.espace}">${TP.connexionB}</a></div></div>
+    ${simBlocCode(type==='code')}</div>
+   <div class="options-row" style="margin-top:12px">${dem}</div>
+   ${type==='code'?`<p class="note" style="margin-top:12px"><a href="#" onclick="simCodeOublier();return false">${TP.changer}</a></p>`:''}</div>`;return;}
+ const id=SIM.user?.user_metadata?.identifiant||SIM.user?.email||'';
+ app.innerHTML=`<div class="setup"><h2>${TP.accesT}</h2><p class="muted" style="margin-top:8px">${TP.accesP}</p>
+  ${a&&a.fin?`<p class="note">${TP.expire}${new Date(a.fin).toLocaleDateString(SIM.lang==='en'?'en-GB':'fr-FR')}.</p>`:''}
+  <div class="options-row" style="margin-top:18px"><div class="opt-card"><strong>${TP.offre1}</strong><span>${TP.offre1p}</span></div><div class="opt-card"><strong>${TP.offre2}</strong><span>${TP.offre2p}</span></div></div>
+  <div class="options-row" style="margin-top:12px">${simBlocCode(false)}${dem}</div>
+  <div class="actions" style="margin-top:18px"><a class="btn" target="_blank" rel="noopener" href="https://wa.me/${SIM.wa}?text=${encodeURIComponent(TP.wa+id)}">${TP.waB}</a><a class="btn ghost" href="${SIM.espace}">${TP.retour}</a></div></div>`;
+}
+async function simCorriger(it){
+ const b=document.querySelector('[data-act=check]');if(b){b.disabled=true;b.textContent=TP.verif;}
+ const{data,error}=await sbSim.rpc('sim_corriger',{p_langue:SIM.lang,p_reponses:{[it.q.id]:it.sel},p_code:SIM.code,p_simulateur:SIM.sim});
+ if(error){modal(TP.erreur,esc(error.message),'OK',()=>{});render();return;}
+ const r=(data||[])[0]||{};it.ok=!!r.correct;it.a=r.reponses||[];it.x=r.explication||'';it.checked=true;store.last[it.q.id]=it.ok;render();
+}
+async function finish(){
+ clearInterval(timerId);const s=session;const counted=s.items.filter(it=>s.mode==="exam"||it.checked);
+ if(!counted.length){s.done=true;setView(s.mode);return;}
+ app.innerHTML=`<div class="empty">${TP.enreg}</div>`;const rep={};counted.forEach(it=>rep[it.q.id]=it.sel);const secs=Math.floor((Date.now()-s.start)/1000);
+ const{data,error}=await sbSim.rpc('sim_enregistrer',{p_mode:s.mode,p_libelle:s.label,p_langue:SIM.lang,p_duree:secs,p_reponses:rep,p_code:SIM.code,p_simulateur:SIM.sim});
+ if(error){s.done=false;modal(TP.erreur,esc(error.message),'OK',()=>{});setView("run");return;}
+ s.done=true;counted.forEach(it=>{const c=(data.corrections||{})[it.q.id];if(c){it.ok=!!c.correct;it.a=c.reponses||[];it.x=c.explication||'';store.last[it.q.id]=it.ok;}});
+ s.result={ok:data.ok,n:data.nb,pct:data.pct,byD:data.par_domaine||{},secs,id:data.id,date:new Date().toISOString(),label:s.label};
+ store.history.unshift({id:data.id,date:new Date().toISOString(),label:s.label,ok:data.ok,n:data.nb,pct:data.pct,byD:s.result.byD,secs});
+ reviewFilter="all";setView("result");
+}
+
+/* ===================== Rapport de préparation signé (PDF, charte H TECH INNOV) ===================== */
+const SIM_LOGO_ACADEMY='data:image/jpeg;base64,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';
+const RT=SIM.lang==='en'?{titre:'PREPARATION REPORT',partenariat:'IN PARTNERSHIP WITH',partenariatATP:'AUTHORIZED TRAINING PARTNER',enPart:'Report issued in partnership with',enATP:(n,a)=>'H TECH ACADEMY is an Authorized Training Partner (ATP) of '+n+(a?' (approval no. '+a+')':'')+'. This report covers exam preparation and is not a certification issued by '+n+'. ',sous:'H TECH ACADEMY · Training centre of H TECH INNOV · Abidjan',num:'Report no.',date:'Date',appr:'LEARNER',ident:'E-mail',acces:'Access',accesV:{formation:'Included in H TECH ACADEMY training',code:'30-day access code',compte:'Learner account'},
+  session:'Session',jour:'Date of the session',duree:'Duration',langue:'Language',langueV:'English',res:'OVERALL RESULT',bonnes:'correct answers out of',seuil:'Pass mark: 80 % · intermediate benchmark: 65 %',
+  dom:'RESULTS BY DOMAIN',colD:['Domain','Questions','Correct','Score','Level'],forts:'STRENGTHS',axes:'AREAS FOR IMPROVEMENT',aucunFort:'No domain is above 80 % yet: keep consolidating the fundamentals.',aucunAxe:'No domain below target: maintain your level with regular mock exams.',
+  revoir:'Tasks to review',reflexe:'Key exam reflex',plan:'RECOMMENDED ACTION PLAN',prog:'PROGRESSION (LAST SESSIONS)',sig:'Signatures',verif:'Verify online',genere:'Report generated electronically by H TECH ACADEMY. Scores are calculated by the H TECH ACADEMY server and cannot be modified.',
+  verdict:p=>p>=80?'Ready: your level is above target. Keep training with full mock exams until the exam.':p>=65?'On target: consolidate your weakest domains to secure your result.':p>=50?'Below target: a targeted revision plan is needed before sitting the exam.':'Needs improvement: go back to the study guide and train domain by domain before a new mock exam.',
+  actions:(faibles,p)=>[faibles.length?'Re-read the study guide for: '+faibles.join(', ')+'.':'Re-read the study guide for the domains below 80 %.','Run a targeted practice session on your mistakes, then 20 questions per weak domain.',
+    p>=80?'Keep one full mock exam (120 questions) per week until the exam.':'Take a new full mock exam (120 questions) within 7 days; goal: 80 % or more.','Review these results with your H TECH ACADEMY expert.'],
+  page:'Page',de:'of',sans:'—'}
+ :{titre:'RAPPORT DE PRÉPARATION',partenariat:'EN PARTENARIAT AVEC',partenariatATP:'PARTENAIRE DE FORMATION AGRÉÉ',enPart:'Rapport établi en partenariat avec',enATP:(n,a)=>'H TECH ACADEMY est partenaire de formation agréé (ATP) de '+n+(a?' (agrément n° '+a+')':'')+'. Ce rapport porte sur une préparation et ne constitue pas une certification délivrée par '+n+'. ',sous:'H TECH ACADEMY · Centre de formation de H TECH INNOV · Abidjan',num:'N° du rapport',date:'Date',appr:'APPRENANT(E)',ident:'E-mail',acces:'Accès',accesV:{formation:'Inclus dans une formation H TECH ACADEMY',code:'Code d’accès de 30 jours',compte:'Compte apprenant'},
+  session:'Session',jour:'Date de la session',duree:'Durée',langue:'Langue',langueV:'Français',res:'RÉSULTAT GLOBAL',bonnes:'bonnes réponses sur',seuil:'Seuil de réussite : 80 % · repère intermédiaire : 65 %',
+  dom:'RÉSULTATS PAR DOMAINE',colD:['Domaine','Questions','Bonnes','Score','Niveau'],forts:'POINTS FORTS',axes:'AXES D’AMÉLIORATION',aucunFort:'Aucun groupe de processus n’atteint encore 80 % : poursuivez la consolidation des fondamentaux.',aucunAxe:'Tous les groupes de processus atteignent 80 % : maintenez votre niveau par des examens blancs réguliers.',
+  revoir:'Points à revoir',reflexe:'Réflexe d’examen',plan:'PLAN D’ACTION RECOMMANDÉ',prog:'PROGRESSION (DERNIÈRES SESSIONS)',sig:'Signatures',verif:'Vérifier en ligne',genere:'Rapport généré électroniquement par H TECH ACADEMY. Les scores sont calculés par le serveur de H TECH ACADEMY et ne peuvent pas être modifiés.',
+  verdict:p=>p>=80?'Réussi : votre niveau atteint le seuil de 80 %. Entretenez-le avec des examens blancs complets.':p>=65?'Presque : consolidez les groupes de processus les plus faibles pour franchir le seuil de 80 %.':p>=50?'Insuffisant : un plan de révision ciblé est nécessaire avant un nouvel examen blanc.':'À retravailler : reprenez le cours et le guide d’étude, puis entraînez-vous groupe par groupe.',
+  actions:(faibles,p)=>[faibles.length?'Relire le guide d’étude des domaines : '+faibles.join(', ')+'.':'Relire le guide d’étude des domaines sous 80 %.','Faire un entraînement ciblé sur vos erreurs, puis 20 questions par domaine faible.',
+    p>=80?'Maintenir un examen blanc complet (120 questions) par semaine jusqu’à l’examen.':'Repasser un examen blanc complet (120 questions) sous 7 jours ; objectif : 80 % ou plus.','Faire le point sur ces résultats avec votre expert H TECH ACADEMY.'],
+  page:'Page',de:'sur',sans:'—'};
+function simCharger(u){return new Promise((ok,ko)=>{const s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=()=>ko(new Error('Chargement impossible : '+u));document.head.appendChild(s);});}
+async function simLibsPdf(){
+  if(!window.jspdf)await simCharger('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!window.qrcode){try{await simCharger('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
+  if(window._SIM_SCRIPT===undefined){try{const r=await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf');const b=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));window._SIM_SCRIPT=btoa(s);}catch(e){window._SIM_SCRIPT=null;}}
+}
+(function(){var OK=/^[\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]$/;
+ var EQ={'Ɛ':'E','ɛ':'e','Ɔ':'O','ɔ':'o','Ŋ':'N','ŋ':'n','Ʋ':'V','ʋ':'v','Ɩ':'I','ɩ':'i','Ɲ':'N','ɲ':'n','Ɓ':'B','ɓ':'b','Ɗ':'D','ɗ':'d','Ƴ':'Y','ƴ':'y','Ə':'E','ə':'e','Đ':'D','đ':'d','Ł':'L','ł':'l','Ø':'Ø','ß':'ß','ı':'i','Ŧ':'T','ŧ':'t','Ħ':'H','ħ':'h'};
+ window.htiLettrePdf=function(ch){if(OK.test(ch))return ch;if(EQ[ch])return EQ[ch];var b=ch.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return b&&b!==ch&&[...b].every(function(x){return OK.test(x);})?b:'';};})();
+const simPdfTxt=t=>String(t??'').replace(/[\u202f\u00a0\u2007\u2009]/g,' ').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/[→⇒➜←]/g,'-').replace(/[✓✔]/g,'v').replace(/[\u2032]/g,"'")
+  .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/gu,c=>htiLettrePdf(c)).replace(/ {2,}/g,' ');
+async function simRapport(source){
+  const btn=document.getElementById('simBtnRapport');if(btn){btn.disabled=true;btn.dataset.t=btn.textContent;btn.textContent='…';}
+  try{
+    await simLibsPdf();
+    const s=session,r=source||(s&&s.result);if(!r){throw new Error('Aucun résultat');}
+    const{data:inf}=await sbSim.rpc('sim_rapport_infos',simArgs());const I=inf||{};
+    const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,H=297,M=16,P=simPdfTxt;
+    if(window._SIM_SCRIPT){try{doc.addFileToVFS('GreatVibes.ttf',window._SIM_SCRIPT);doc.addFont('GreatVibes.ttf','GreatVibes','normal');}catch(e){window._SIM_SCRIPT=null;}}
+    const NAVY=[10,42,102],BLEU=[21,101,192],VERT=[63,138,30],GRIS=[90,100,120],CLAIR=[238,243,251],ROUGE=[180,35,24],AMBRE=[180,83,9];
+    const col=p=>p>=80?VERT:p>=65?BLEU:p>=50?AMBRE:ROUGE;
+    const dateS=new Date(r.date||Date.now()),dfr=d=>d.toLocaleDateString(SIM.lang==='en'?'en-GB':'fr-FR',{day:'numeric',month:'long',year:'numeric'});
+    const num='RPT-'+String(r.id||'').replace(/-/g,'').slice(0,10).toUpperCase(),url='https://www.htechinnov.com/academy/#/verifier-rapport/'+(r.id||'');
+    const simNom=I.simulateur||(SIM.lang==='en'?'Project Management Simulator — Beginner':'Simulateur Gestion de projet — Débutant');
+    let y=0;
+    const piedDePage=()=>{const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setDrawColor(...BLEU);doc.setLineWidth(0.4);doc.line(M,H-17,W-M,H-17);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);
+      doc.text(P('H TECH INNOV | SARL | RCCM CI-ABJ-03-2026-B12-06284 | Cocody Riviera Jules Verne, Abidjan, Côte d’Ivoire'),W/2,H-12.5,{align:'center'});
+      doc.text(P('Standard +225 27 22 56 28 37 | +225 07 14 94 24 21 | info@htechinnov.com | www.htechinnov.com'),W/2,H-9,{align:'center'});
+      doc.text(P(num),M,H-5);doc.text(P(`${RT.page} ${i} ${RT.de} ${n}`),W-M,H-5,{align:'right'});}};
+    const enteteSuite=()=>{doc.setFillColor(...NAVY);doc.rect(0,0,W,12,'F');doc.setFillColor(...VERT);doc.rect(0,12,W,1.2,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);doc.text('H TECH ACADEMY',M,8);doc.setFont('helvetica','normal');doc.text(P(RT.titre+' · '+num),W-M,8,{align:'right'});y=22;};
+    const place=h=>{if(y+h>H-22){doc.addPage();enteteSuite();}};
+    const titre=t=>{place(14);doc.setFillColor(...BLEU);doc.rect(M,y-3.6,1.6,5.2,'F');doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...NAVY);doc.text(P(t),M+4,y+0.6);y+=7;};
+    const para=(t,sz=9,c=GRIS,ind=0,gras=false)=>{doc.setFont('helvetica',gras?'bold':'normal');doc.setFontSize(sz);doc.setTextColor(...c);const L=doc.splitTextToSize(P(t),W-2*M-ind);place(L.length*sz*0.45+1);doc.text(L,M+ind,y);y+=L.length*sz*0.45+1.2;};
+    // ── En-tête ──
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,40,'F');doc.setFillColor(...VERT);doc.rect(0,40,W,1.4,'F');doc.setFillColor(...BLEU);doc.rect(0,41.4,W,0.8,'F');
+    try{doc.addImage(SIM_LOGO_ACADEMY,'JPEG',M,6,28,28);}catch(e){}
+    const PT=I.partenaire;
+    if(PT&&(PT.nom||PT.logo)){const bx=M+31,by=6,bw=54,bh=28.5;doc.setFillColor(255,255,255);doc.roundedRect(bx,by,bw,bh,2,2,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.setTextColor(...GRIS);doc.text(P(PT.type==='atp'?RT.partenariatATP:RT.partenariat),bx+bw/2,by+3.8,{align:'center'});
+      if(PT.logo){try{const fm=/^data:image\/png/i.test(PT.logo)?'PNG':'JPEG',pr=doc.getImageProperties(PT.logo),k=Math.min((bw-12)/pr.width,11/pr.height);doc.addImage(PT.logo,fm,bx+bw/2-pr.width*k/2,by+5.2+(11-pr.height*k)/2,pr.width*k,pr.height*k);}catch(e){}}
+      doc.setFont('helvetica','bold');let fs=6.8;doc.setFontSize(fs);let L=doc.splitTextToSize(P(PT.nom||''),bw-6);while(L.length>2&&fs>5){fs-=0.3;doc.setFontSize(fs);L=doc.splitTextToSize(P(PT.nom||''),bw-6);}
+      doc.setTextColor(...NAVY);L.slice(0,2).forEach((t,k)=>doc.text(t,bx+bw/2,by+19.6+k*fs*0.42,{align:'center'}));
+      if(PT.type==='atp'&&PT.agrement){doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(...GRIS);doc.text(P((SIM.lang==='en'?'Approval no. ':'Agrément n° ')+PT.agrement),bx+bw/2,by+26.4,{align:'center'});}
+      else if(PT.lien){const site=String(PT.lien).replace(/^https?:\/\//,'').replace(/\/$/,'');doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(...BLEU);doc.text(P(site),bx+bw/2,by+26.4,{align:'center'});doc.link(bx,by+23.5,bw,4,{url:PT.lien});}}
+    doc.setFont('helvetica','bold');doc.setFontSize(PT&&(PT.nom||PT.logo)?15.5:18);doc.setTextColor(255,255,255);doc.text(P(RT.titre),W-M,15,{align:'right'});
+    doc.setFontSize(11.5);doc.setTextColor(159,210,122);doc.text(P(simNom),W-M,22,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(201,214,236);doc.text(P(RT.sous),W-M,27.5,{align:'right'});
+    doc.setFontSize(8.5);doc.setTextColor(255,255,255);doc.text(P(`${RT.num} : ${num}   ·   ${RT.date} : ${dfr(new Date())}`),W-M,34,{align:'right'});
+    y=52;
+    // ── Apprenant ──
+    doc.setFillColor(...CLAIR);doc.roundedRect(M,y-6,W-2*M,40,2.5,2.5,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...BLEU);doc.text(P(RT.appr),M+5,y);
+    doc.setFont('times','bold');let tn=19;doc.setFontSize(tn);const nomA=P(I.titulaire||RT.sans);while(doc.getTextWidth(nomA)>W-2*M-12&&tn>12){tn--;doc.setFontSize(tn);}
+    doc.setTextColor(...NAVY);doc.text(nomA,M+5,y+8);
+    const lignes=[[RT.ident,I.email||RT.sans],[RT.acces,(RT.accesV[I.acces]||RT.accesV.compte)],[RT.session,(source?r.label:(s&&s.label))||RT.sans],[RT.jour,dfr(dateS)+' · '+dateS.toLocaleTimeString(SIM.lang==='en'?'en-GB':'fr-FR',{hour:'2-digit',minute:'2-digit'})],[RT.duree,typeof fmt==='function'?fmt(r.secs||0):RT.sans],[RT.langue,RT.langueV]];
+    doc.setFontSize(8.6);lignes.forEach(([l,v],i)=>{const x=M+5+(i%2)*((W-2*M)/2),yy=y+15+Math.floor(i/2)*6;doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(l+' :'),x,yy);const wl=doc.getTextWidth(P(l+' : '));doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);doc.text(P(String(v)).slice(0,62),x+wl,yy);});
+    y+=42;
+    // ── Résultat global ──
+    titre(RT.res);const[bl]=band(r.pct),cc=col(r.pct);
+    doc.setDrawColor(...cc);doc.setLineWidth(1.2);doc.roundedRect(M,y-2,44,26,3,3,'S');
+    doc.setFont('helvetica','bold');doc.setFontSize(26);doc.setTextColor(...cc);doc.text(r.pct+' %',M+22,y+11,{align:'center'});
+    doc.setFontSize(8.2);doc.text(P(bl),M+22,y+19,{align:'center'});
+    doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(...NAVY);doc.text(P(`${r.ok} ${RT.bonnes} ${r.n}`),M+50,y+3);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...GRIS);const vd=doc.splitTextToSize(P(RT.verdict(r.pct)),W-2*M-52);doc.text(vd,M+50,y+9);
+    doc.setFontSize(7.6);doc.text(P(RT.seuil),M+50,y+10+vd.length*4.2);
+    y+=31;
+    // ── Par domaine ──
+    titre(RT.dom);const D=DOMAINS.filter(d=>r.byD&&r.byD[d.id]).map(d=>{const[o,n]=r.byD[d.id];return{d,o,n,p:Math.round(o/n*100)};});
+    const cx=[M,M+76,M+96,M+114,M+146];doc.setFillColor(...NAVY);doc.rect(M,y-4,W-2*M,6.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(255,255,255);
+    RT.colD.forEach((h,i)=>doc.text(P(h),cx[i]+2,y));y+=6;
+    D.forEach((x,i)=>{place(8);if(i%2===0){doc.setFillColor(247,249,253);doc.rect(M,y-4.4,W-2*M,7.2,'F');}
+      doc.setFont('helvetica','bold');doc.setFontSize(8.4);doc.setTextColor(...NAVY);doc.text(P(['I','II','III','IV','V','VI'][x.d.id-1]+'. '+x.d.short),cx[0]+2,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(String(x.n),cx[1]+2,y);doc.text(String(x.o),cx[2]+2,y);
+      doc.setFillColor(226,232,242);doc.rect(cx[3]+2,y-2.6,18,3,'F');doc.setFillColor(...col(x.p));doc.rect(cx[3]+2,y-2.6,18*x.p/100,3,'F');
+      doc.setFont('helvetica','bold');doc.setTextColor(...col(x.p));doc.text(x.p+' %',cx[3]+22,y);doc.setFontSize(7.6);doc.text(P(band(x.p)[0]),cx[4]+2,y);y+=7.2;});
+    y+=3;
+    // Erreurs par tâche (session en cours uniquement)
+    const err=Object.assign({},r.erreurs||{});if(s&&s.items&&!source)s.items.filter(it=>(s.mode==='exam'||it.checked)&&it.ok===false).forEach(it=>{const k=it.q.d+':'+it.q.t;err[k]=(err[k]||0)+1;});
+    // ── Points forts ──
+    titre(RT.forts);const forts=D.filter(x=>x.p>=80).sort((a,b)=>b.p-a.p);
+    if(forts.length)forts.forEach(x=>para('•  '+x.d.name+' — '+x.p+' %',9,[40,60,90],2));else para(RT.aucunFort,9,GRIS,2);
+    y+=2;
+    // ── Axes d’amélioration ──
+    titre(RT.axes);const faibles=D.filter(x=>x.p<65).sort((a,b)=>a.p-b.p);const aRenforcer=faibles.length?faibles:D.filter(x=>x.p<80).sort((a,b)=>a.p-b.p).slice(0,2);
+    if(!aRenforcer.length)para(RT.aucunAxe,9,GRIS,2);
+    aRenforcer.forEach(x=>{place(22);para(['I','II','III','IV','V','VI'][x.d.id-1]+'. '+x.d.name+' — '+x.p+' % ('+band(x.p)[0]+')',9.4,col(x.p),2,true);
+      const taches=x.d.tasks.map((t,i)=>({t:t[0],n:err[x.d.id+':'+(i+1)]||0})).sort((a,b)=>b.n-a.n);const sel=taches.filter(t=>t.n>0).slice(0,3);const L=(sel.length?sel:taches.slice(0,2)).map(t=>t.t+(t.n?` (${t.n} ${SIM.lang==='en'?'error(s)':'erreur(s)'})`:''));
+      para(RT.revoir+' : '+L.join(' ; ')+'.',8.6,GRIS,6);
+      const ref=(x.d.reflex||[])[0];if(ref)para(RT.reflexe+' : '+ref,8.6,[40,60,90],6);y+=1.5;});
+    y+=1;
+    // ── Plan d’action ──
+    place(34);titre(RT.plan);RT.actions(aRenforcer.map(x=>['I','II','III','IV','V','VI'][x.d.id-1]+'. '+x.d.short),r.pct).forEach((a,i)=>para((i+1)+'.  '+a,9,[40,60,90],2));
+    y+=2;
+    // ── Progression ──
+    const H0=(store.history||[]).slice(0,8).reverse();
+    if(H0.length>1){titre(RT.prog);place(36);const bx=M+4,bw=(W-2*M-8)/H0.length,bh=24,base=y+bh;
+      doc.setDrawColor(210,218,232);doc.setLineWidth(0.2);[65,80].forEach(v=>{const yy=base-bh*v/100;doc.line(M,yy,W-M,yy);doc.setFontSize(6.5);doc.setTextColor(...GRIS);doc.text(v+' %',W-M,yy-0.8,{align:'right'});});
+      H0.forEach((h,i)=>{const hh=Math.max(1,bh*h.pct/100),x=bx+i*bw+bw*0.2;doc.setFillColor(...col(h.pct));doc.rect(x,base-hh,bw*0.6,hh,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...col(h.pct));doc.text(h.pct+' %',x+bw*0.3,base-hh-1.2,{align:'center'});
+        doc.setFont('helvetica','normal');doc.setFontSize(6.3);doc.setTextColor(...GRIS);doc.text(new Date(h.date).toLocaleDateString(SIM.lang==='en'?'en-GB':'fr-FR',{day:'2-digit',month:'2-digit'}),x+bw*0.3,base+3.5,{align:'center'});});
+      y=base+9;}
+    // ── Signatures + QR ──
+    place(52);y+=2;doc.setDrawColor(...BLEU);doc.setLineWidth(0.3);doc.line(M,y,W-M,y);y+=6;
+    doc.setFont('helvetica','normal');doc.setFontSize(8.6);doc.setTextColor(...GRIS);doc.text(P((SIM.lang==='en'?'Issued in Abidjan, on ':'Fait à Abidjan, le ')+dfr(new Date())+'.'),M,y);y+=4;
+    const sigs=(I.signataires||[]).slice(0,2),zone=(W-2*M-30)/2;
+    sigs.forEach((sg,i)=>{const x0=M+i*(zone+4),xm=x0+zone/2,ys=y+14;
+      doc.setFont('helvetica','italic');doc.setFontSize(6.6);doc.setTextColor(170,175,185);doc.text(P(SIM.lang==='en'?'Signature and stamp':'Signature et cachet'),xm,ys-9,{align:'center'});
+      doc.setDrawColor(...NAVY);doc.setLineWidth(0.3);doc.line(x0+4,ys+3,x0+zone-4,ys+3);
+      doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(P(sg.nom||''),xm,ys+7.5,{align:'center'});
+      doc.setFont('helvetica','normal');doc.setFontSize(7.8);doc.setTextColor(...GRIS);doc.text(P(sg.fonction||''),xm,ys+11.5,{align:'center'});});
+    if(window.qrcode&&r.id){try{const q=qrcode(0,'M');q.addData(url);q.make();const n=q.getModuleCount(),sz=24,m=sz/n,qx=W-M-sz,qy=y+1;
+      doc.setFillColor(...NAVY);for(let a=0;a<n;a++)for(let b=0;b<n;b++)if(q.isDark(a,b))doc.rect(qx+b*m,qy+a*m,m+0.02,m+0.02,'F');
+      doc.setFontSize(6.8);doc.setTextColor(...BLEU);doc.text(P(RT.verif),qx+sz/2,qy+sz+3.2,{align:'center'});doc.link(qx,qy,sz,sz,{url});}catch(e){}}
+    y+=34;doc.setFont('helvetica','italic');doc.setFontSize(7.2);doc.setTextColor(...GRIS);doc.text(doc.splitTextToSize(P((PT&&PT.nom&&PT.type==='atp'?RT.enATP(PT.nom,PT.agrement):'')+(PT&&PT.nom&&PT.type!=='atp'?RT.enPart+' '+PT.nom+(PT.lien?' ('+String(PT.lien).replace(/^https?:\/\//,'').replace(/\/$/,'')+')':'')+'. ':'')+RT.genere),W-2*M),M,y);
+    piedDePage();
+    const nf=('Rapport-'+simNom+'-'+(I.titulaire||'apprenant')+'-'+dateS.toISOString().slice(0,10)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-')+'.pdf';
+    doc.save(nf);return doc;
+  }catch(e){if(typeof modal==='function')modal(SIM.lang==='en'?'Report unavailable':'Rapport indisponible',esc(e.message||String(e)),'OK',()=>{});else alert(e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.t||btn.textContent;}}
+}
+/* Rapport d’annulation d’un examen surveillé (PDF) */
+async function simRapportAnnulation(A){
+  try{await simLibsPdf();const{data:inf}=await sbSim.rpc('sim_rapport_infos',simArgs());const I=inf||{};const EN=SIM.lang==='en';
+    const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,M=16,P=simPdfTxt,NAVY=[10,42,102],ROUGE=[180,35,24],GRIS=[90,100,120],CLAIR=[238,243,251];
+    const num='RPT-'+String(A.id||'').replace(/-/g,'').slice(0,10).toUpperCase(),url='https://www.htechinnov.com/academy/#/verifier-rapport/'+(A.id||'');
+    const T=EN?{titre:'EXAM CANCELLATION REPORT',sous:'Proctored mock exam — not completed',cand:'CANDIDATE',sess:'Session',sim:'Simulator',date:'Date',duree:'Time elapsed',rep:'Questions answered',motif:'REASON FOR CANCELLATION',chrono:'TIMELINE OF INCIDENTS',h:'Time',ev:'Event',det:'Details',
+        note:'This mock exam was stopped by the H TECH ACADEMY proctoring system. No score is awarded. No image was recorded: face detection ran only in the candidate’s browser; only the incidents above were kept.',regles:'Rules accepted before the exam: full screen, single window, camera on, no screenshots, one warning allowed.',verif:'Verify online',visa:'H TECH ACADEMY — date and stamp'}
+      :{titre:'RAPPORT D’ANNULATION D’EXAMEN',sous:'Examen blanc surveillé — non finalisé',cand:'CANDIDAT(E)',sess:'Session',sim:'Simulateur',date:'Date',duree:'Temps écoulé',rep:'Questions répondues',motif:'MOTIF DE L’ANNULATION',chrono:'CHRONOLOGIE DES INCIDENTS',h:'Heure',ev:'Événement',det:'Précisions',
+        note:'Cet examen blanc a été arrêté par le dispositif de surveillance de H TECH ACADEMY. Aucun score n’est attribué. Aucune image n’a été enregistrée : la détection du visage s’est faite uniquement dans le navigateur du candidat ; seuls les incidents ci-dessus ont été conservés.',regles:'Règles acceptées avant l’examen : plein écran, fenêtre unique, caméra active, aucune capture d’écran, un seul avertissement toléré.',verif:'Vérifier en ligne',visa:'H TECH ACADEMY — date et cachet'};
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,36,'F');doc.setFillColor(...ROUGE);doc.rect(0,36,W,1.4,'F');try{doc.addImage(SIM_LOGO_ACADEMY,'JPEG',M,5,26,26);}catch(e){}
+    doc.setFont('helvetica','bold');doc.setFontSize(15.5);doc.setTextColor(255,255,255);doc.text(P(T.titre),W-M,15,{align:'right'});doc.setFontSize(10);doc.setTextColor(255,190,180);doc.text(P(T.sous),W-M,22,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(220,228,240);doc.text(P(num+'  ·  '+new Date(A.date).toLocaleDateString(EN?'en-GB':'fr-FR')),W-M,29,{align:'right'});
+    let y=48;doc.setFillColor(...CLAIR);doc.roundedRect(M,y-6,W-2*M,34,2.5,2.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(21,101,192);doc.text(T.cand,M+5,y);
+    doc.setFont('times','bold');doc.setFontSize(17);doc.setTextColor(...NAVY);doc.text(P(I.titulaire||'—'),M+5,y+8);
+    const d=new Date(A.date),loc=EN?'en-GB':'fr-FR',lignes=[[T.sim,I.simulateur||''],[T.sess,A.label],[T.date,d.toLocaleDateString(loc)+' · '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})],[T.duree,fmt(A.secs||0)],[T.rep,(A.rep||0)+' / '+(A.nb||0)],['E-mail',I.email||'—']];
+    doc.setFontSize(8.6);lignes.forEach(([l,v],i)=>{const x=M+5+(i%2)*((W-2*M)/2),yy=y+15+Math.floor(i/2)*5.6;doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(l+' :'),x,yy);doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);doc.text(P(String(v)).slice(0,60),x+doc.getTextWidth(P(l+' : ')),yy);});
+    y+=38;doc.setDrawColor(...ROUGE);doc.setLineWidth(0.8);doc.roundedRect(M,y,W-2*M,16,2,2,'S');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...ROUGE);doc.text(T.motif,M+5,y+5.5);
+    doc.setFontSize(11);doc.text(doc.splitTextToSize(P(A.motif),W-2*M-10)[0],M+5,y+12);y+=24;
+    doc.setFontSize(10.5);doc.setTextColor(...NAVY);doc.text(T.chrono,M,y);y+=4;doc.setFillColor(...NAVY);doc.rect(M,y,W-2*M,6.5,'F');doc.setFontSize(8);doc.setTextColor(255,255,255);
+    doc.text(T.h,M+2,y+4.5);doc.text(T.ev,M+26,y+4.5);doc.text(T.det,M+90,y+4.5);y+=6.5;
+    const TY=EN?{plein_ecran:'Left full screen',onglet:'Switched tab or minimised',fenetre:'Switched window',capture:'Screenshot attempt',raccourci:'Blocked shortcut',camera_hors_cadre:'Face out of frame',camera_plusieurs:'Several people',camera_coupee:'Camera off',retour:'Returned to the exam',fermeture:'Page closed or reloaded',abandon:'Abandoned by the candidate',debut:'Exam started',fin:'Exam ended'}:{plein_ecran:'Sortie du plein écran',onglet:'Changement d’onglet ou réduction',fenetre:'Changement de fenêtre',capture:'Tentative de capture d’écran',raccourci:'Raccourci bloqué',camera_hors_cadre:'Visage hors du cadre',camera_plusieurs:'Plusieurs personnes',camera_coupee:'Caméra coupée',retour:'Retour dans l’examen',fermeture:'Fermeture ou rechargement de la page',abandon:'Abandon par le candidat',debut:'Début de l’examen',fin:'Fin de l’examen'};
+    (A.inc||[]).forEach((x,i)=>{if(y>262){doc.addPage();y=20;}if(i%2===0){doc.setFillColor(247,249,253);doc.rect(M,y,W-2*M,6.3,'F');}
+      const grave=['plein_ecran','onglet','fenetre','capture','camera_hors_cadre','camera_plusieurs','camera_coupee','fermeture','abandon'].includes(x.type);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(...GRIS);doc.text(new Date(x.t).toLocaleTimeString(loc),M+2,y+4.3);
+      doc.setFont('helvetica','bold');doc.setTextColor(...(grave?ROUGE:NAVY));doc.text(P((TY[x.type]||x.type)),M+26,y+4.3);
+      doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(doc.splitTextToSize(P(String(x.detail||'')),W-2*M-92)[0]||'',M+90,y+4.3);y+=6.3;});
+    y+=8;doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.splitTextToSize(P(T.note+' '+T.regles),W-2*M-30).forEach(l=>{doc.text(l,M,y);y+=3.8;});
+    if(window.qrcode&&A.id){try{const q=qrcode(0,'M');q.addData(url);q.make();const n=q.getModuleCount(),sz=22,m=sz/n,qx=W-M-sz,qy=Math.min(y-16,250);
+      doc.setFillColor(...NAVY);for(let a=0;a<n;a++)for(let b=0;b<n;b++)if(q.isDark(a,b))doc.rect(qx+b*m,qy+a*m,m+0.02,m+0.02,'F');doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P(T.verif),qx+sz/2,qy+sz+3,{align:'center'});}catch(e){}}
+    y=Math.max(y+6,0);if(y<262){doc.setDrawColor(213,224,240);doc.roundedRect(M,y,88,22,2,2,'S');doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P(T.visa),M+4,y+18);}
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P('H TECH INNOV | SARL | Cocody Riviera Jules Verne, Abidjan | info@htechinnov.com | www.htechinnov.com'),W/2,289,{align:'center'});
+    doc.save(('Rapport-annulation-'+(I.titulaire||'candidat')+'-'+String(A.date).slice(0,10)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-')+'.pdf');
+  }catch(e){if(typeof modal==='function')modal('Rapport',esc(e.message||String(e)),'OK',()=>{});}}
+
+async function simRapportHistorique(i){const h=store.history[i];if(!h||!h.id)return;if(h.statut==='annule')return simRapportAnnulation({id:h.id,motif:h.motif,inc:h.inc||[],label:h.label,secs:h.secs,nb:h.n,rep:h.rep,date:h.date});return simRapport({id:h.id,ok:h.ok,n:h.n,pct:h.pct,byD:h.byD,secs:h.secs,date:h.date,label:h.label});}
+
+
+/* ===================== EXAMEN SURVEILLÉ (plein écran, caméra, incidents) — examens blancs de tous les simulateurs ===================== */
+const PROC_CFG={delaiCamera:60,delaiRetour:10,sortiesTolerees:1,modele:'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',mp:'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14'};
+const PR=SIM.lang==='en'?{
+  titre:'Proctored exam',intro:'This mock exam is taken under exam conditions, as with remote certification exams.',
+  regles:['The exam runs in full screen until you finish.','Leaving full screen, switching tab or window, or taking a screenshot is detected. The first time, you have 10 seconds to come back; the second time, the exam is cancelled.','Your camera stays on: if your face is out of frame for more than one minute, or if several people are detected for more than one minute, the exam stops.','Closing or reloading the page cancels the exam.','No image is recorded or sent: face detection runs only in your browser. Only incidents (time and type) are kept.'],
+  consent:'I have read these rules and I agree to the use of my camera during the exam.',cam:'Turn on the camera',camOk:'Camera on',visageOk:'✓ Face detected',visageNon:'Place your face in the frame',sansDetection:'Face detection is not available in this browser: the camera must stay on.',
+  camRefus:'Camera access refused or unavailable. The proctored exam requires a camera.',go:'Start the exam in full screen',annulerB:'Cancel',
+  sortieT:'You have left the exam',sortieP:s=>`Come back to the exam within ${s} s, otherwise it will be cancelled. This is your only warning.`,revenir:'Back to the exam (full screen)',
+  horsCadre:s=>`Face out of frame — the exam stops in ${s} s`,plusieurs:s=>`Several people detected — the exam stops in ${s} s`,camPerdue:s=>`Camera off — the exam stops in ${s} s`,
+  annuleT:'Exam cancelled — not completed',annuleP:'The exam was stopped by the proctoring system. No score is awarded.',motif:'Reason',chrono:'Timeline of incidents',rapportB:'📄 Cancellation report (PDF)',accueil:'Back to home',
+  types:{plein_ecran:'Left full screen',onglet:'Switched tab or minimised',fenetre:'Switched window',capture:'Screenshot attempt',raccourci:'Blocked shortcut',camera_hors_cadre:'Face out of frame',camera_plusieurs:'Several people',camera_coupee:'Camera off',retour:'Returned to the exam',fermeture:'Page closed or reloaded',abandon:'Abandoned by the candidate',debut:'Exam started',fin:'Exam completed'},
+  motifs:{deuxieme:'Second exit from the exam window or full screen',delai:'No return to the exam within the allowed time',hors:'Face out of the camera frame for more than one minute',plusieurs:'Several people in front of the camera for more than one minute',coupee:'Camera off for more than one minute',fermeture:'Page closed or reloaded during the exam',abandon:'Exam abandoned by the candidate'}}
+ :{titre:'Examen surveillé',intro:'Cet examen blanc se déroule en conditions d’examen, comme les examens de certification passés à distance.',
+  regles:['L’examen se déroule en plein écran jusqu’à la fin.','Sortir du plein écran, changer d’onglet ou de fenêtre, ou faire une capture d’écran est détecté. La première fois, vous disposez de 10 secondes pour revenir ; la deuxième fois, l’examen est annulé.','Votre caméra reste active : si votre visage sort du cadre plus d’une minute, ou si plusieurs personnes sont détectées plus d’une minute, l’examen s’arrête.','Fermer ou recharger la page annule l’examen.','Aucune image n’est enregistrée ni envoyée : la détection du visage se fait uniquement dans votre navigateur. Seuls les incidents (heure et nature) sont conservés.'],
+  consent:'J’ai lu ces règles et j’accepte l’utilisation de ma caméra pendant l’examen.',cam:'Activer la caméra',camOk:'Caméra active',visageOk:'✓ Visage détecté',visageNon:'Placez votre visage dans le cadre',sansDetection:'La détection du visage n’est pas disponible dans ce navigateur : la caméra doit rester active.',
+  camRefus:'Accès à la caméra refusé ou indisponible. L’examen surveillé nécessite une caméra.',go:'Commencer l’examen en plein écran',annulerB:'Annuler',
+  sortieT:'Vous avez quitté l’examen',sortieP:s=>`Revenez dans l’examen d’ici ${s} s, sinon il sera annulé. C’est votre seul avertissement.`,revenir:'Revenir à l’examen (plein écran)',
+  horsCadre:s=>`Visage hors du cadre — arrêt de l’examen dans ${s} s`,plusieurs:s=>`Plusieurs personnes détectées — arrêt de l’examen dans ${s} s`,camPerdue:s=>`Caméra coupée — arrêt de l’examen dans ${s} s`,
+  annuleT:'Examen annulé — non finalisé',annuleP:'L’examen a été arrêté par le dispositif de surveillance. Aucun score n’est attribué.',motif:'Motif',chrono:'Chronologie des incidents',rapportB:'📄 Rapport d’annulation (PDF)',accueil:'Retour à l’accueil',
+  types:{plein_ecran:'Sortie du plein écran',onglet:'Changement d’onglet ou réduction',fenetre:'Changement de fenêtre',capture:'Tentative de capture d’écran',raccourci:'Raccourci bloqué',camera_hors_cadre:'Visage hors du cadre',camera_plusieurs:'Plusieurs personnes',camera_coupee:'Caméra coupée',retour:'Retour dans l’examen',fermeture:'Fermeture ou rechargement de la page',abandon:'Abandon par le candidat',debut:'Début de l’examen',fin:'Fin de l’examen'},
+  motifs:{deuxieme:'Deuxième sortie de la fenêtre d’examen ou du plein écran',delai:'Pas de retour dans l’examen dans le délai imparti',hors:'Visage hors du cadre de la caméra pendant plus d’une minute',plusieurs:'Plusieurs personnes devant la caméra pendant plus d’une minute',coupee:'Caméra coupée pendant plus d’une minute',fermeture:'Fermeture ou rechargement de la page pendant l’examen',abandon:'Abandon de l’examen par le candidat'}};
+const PROC={on:false,inc:[],sorties:0,stream:null,det:null,detType:null,boucle:null,hors:0,multi:0,coupe:0,retour:null,token:null,annul:null};
+const procLog=(type,detail)=>PROC.inc.push({t:new Date().toISOString(),type,detail:detail||''});
+async function procDetecteur(){if(PROC.detType!==null)return;
+  try{const m=await import(PROC_CFG.mp);const fs=await m.FilesetResolver.forVisionTasks(PROC_CFG.mp+'/wasm');
+    PROC.det=await m.FaceDetector.createFromOptions(fs,{baseOptions:{modelAssetPath:PROC_CFG.modele,delegate:'CPU'},runningMode:'VIDEO',minDetectionConfidence:0.5});PROC.detType='mediapipe';}
+  catch(e){if('FaceDetector' in window){try{PROC.det=new window.FaceDetector({fastMode:true,maxDetectedFaces:3});PROC.detType='natif';}catch(_){PROC.detType='aucun';}}else PROC.detType='aucun';}}
+async function procVisages(v){if(!v||v.readyState<2)return null;try{if(PROC.detType==='mediapipe')return PROC.det.detectForVideo(v,performance.now()).detections.length;if(PROC.detType==='natif')return(await PROC.det.detect(v)).length;}catch(e){}return null;}
+function procEcran(html){let z=document.getElementById('procEcran');if(!z){z=document.createElement('div');z.id='procEcran';z.style.cssText='position:fixed;inset:0;z-index:9000;background:rgba(8,23,52,.92);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto';document.body.appendChild(z);}
+  z.innerHTML=`<div style="background:#fff;color:#14213d;border-radius:14px;max-width:640px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.4)">${html}</div>`;z.style.display='flex';return z;}
+function procFermerEcran(){const z=document.getElementById('procEcran');if(z)z.remove();}
+// 1. Préparation : règles, consentement, test de la caméra et du visage
+function procPreparer(lancer){PROC.inc=[];PROC.sorties=0;PROC.annul=null;
+  procEcran(`<h2 style="margin:0 0 6px">🛡️ ${PR.titre}</h2><p class="muted" style="margin:0 0 12px">${PR.intro}</p><ul style="margin:0 0 12px;padding-left:20px;line-height:1.55;font-size:14px">${PR.regles.map(r=>`<li>${r}</li>`).join('')}</ul>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:10px 0"><video id="procApercu" autoplay muted playsinline style="width:200px;height:150px;background:#0b1730;border-radius:10px;object-fit:cover"></video>
+      <div style="flex:1;min-width:200px"><button class="btn ghost" id="procCamB">${PR.cam}</button><div id="procEtat" style="margin-top:8px;font-size:14px"></div></div></div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:10px 0"><input type="checkbox" id="procOk" style="margin-top:3px"> ${PR.consent}</label>
+    <div class="actions" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="procNon">${PR.annulerB}</button><button class="btn" id="procGo" disabled>${PR.go}</button></div>`);
+  let pret=false;const maj=()=>{document.getElementById('procGo').disabled=!(pret&&document.getElementById('procOk').checked);};
+  document.getElementById('procOk').onchange=maj;document.getElementById('procNon').onclick=()=>{procCamStop();procFermerEcran();};
+  document.getElementById('procCamB').onclick=async()=>{const et=document.getElementById('procEtat');
+    try{PROC.stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});}catch(e){et.innerHTML=`<span style="color:#B42318">${PR.camRefus}</span>`;return;}
+    const v=document.getElementById('procApercu');v.srcObject=PROC.stream;et.textContent=PR.camOk+' · …';await procDetecteur();
+    if(PROC.detType==='aucun'){et.innerHTML=`<span style="color:#1F7A3A">${PR.camOk}</span><div class="muted">${PR.sansDetection}</div>`;pret=true;maj();return;}
+    const t=setInterval(async()=>{if(!document.getElementById('procApercu')){clearInterval(t);return;}const n=await procVisages(v);
+      if(n===1){et.innerHTML=`<span style="color:#1F7A3A;font-weight:700">${PR.visageOk}</span>`;pret=true;}else{et.innerHTML=`<span style="color:#B45309">${PR.visageNon}</span>`;pret=false;}maj();},800);};
+  document.getElementById('procGo').onclick=async()=>{try{await document.documentElement.requestFullscreen();}catch(e){}
+    try{const{data}=await sbSim.auth.getSession();PROC.token=data?.session?.access_token||null;}catch(e){}
+    procFermerEcran();PROC.on=true;procLog('debut','');lancer();procDemarrerSurveillance();};}
+// 2. Surveillance pendant l’examen
+function procCamStop(){try{(PROC.stream?.getTracks()||[]).forEach(t=>t.stop());}catch(e){}PROC.stream=null;}
+function procBandeau(txt){let b=document.getElementById('procBandeau');if(!txt){if(b)b.remove();return;}
+  if(!b){b=document.createElement('div');b.id='procBandeau';b.setAttribute('role','alert');b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:8500;background:#B42318;color:#fff;font-weight:700;text-align:center;padding:10px;font-size:15px';document.body.appendChild(b);}b.textContent='⚠️ '+txt;}
+function procDemarrerSurveillance(){
+  let v=document.getElementById('procCam');if(!v){v=document.createElement('video');v.id='procCam';v.autoplay=true;v.muted=true;v.playsInline=true;
+    v.style.cssText='position:fixed;right:12px;bottom:12px;width:132px;height:99px;object-fit:cover;border-radius:10px;border:3px solid #1F7A3A;z-index:8400;background:#0b1730';document.body.appendChild(v);}
+  v.srcObject=PROC.stream;PROC.hors=PROC.multi=PROC.coupe=0;
+  PROC.boucle=setInterval(async()=>{if(!PROC.on)return;const piste=PROC.stream?.getVideoTracks?.()[0];
+    if(!piste||piste.readyState!=='live'||piste.muted){PROC.coupe++;if(PROC.coupe===1)procLog('camera_coupee','');procBandeau(PR.camPerdue(PROC_CFG.delaiCamera-PROC.coupe));v.style.borderColor='#B42318';
+      if(PROC.coupe>=PROC_CFG.delaiCamera)return procAnnuler(PR.motifs.coupee);return;}
+    if(PROC.coupe){procLog('retour','Caméra rétablie après '+PROC.coupe+' s');PROC.coupe=0;}
+    const n=await procVisages(v);if(n===null){procBandeau(null);v.style.borderColor='#1F7A3A';return;}
+    if(n===0){PROC.hors++;PROC.multi=0;if(PROC.hors===1)procLog('camera_hors_cadre','');if(PROC.hors>=3)procBandeau(PR.horsCadre(PROC_CFG.delaiCamera-PROC.hors));v.style.borderColor='#B42318';
+      if(PROC.hors>=PROC_CFG.delaiCamera)return procAnnuler(PR.motifs.hors);}
+    else if(n>1){PROC.multi++;PROC.hors=0;if(PROC.multi===1)procLog('camera_plusieurs',n+' visages');if(PROC.multi>=3)procBandeau(PR.plusieurs(PROC_CFG.delaiCamera-PROC.multi));v.style.borderColor='#B42318';
+      if(PROC.multi>=PROC_CFG.delaiCamera)return procAnnuler(PR.motifs.plusieurs);}
+    else{if(PROC.hors>=3)procLog('retour','Visage de retour dans le cadre après '+PROC.hors+' s');if(PROC.multi>=3)procLog('retour','Une seule personne après '+PROC.multi+' s');PROC.hors=PROC.multi=0;procBandeau(null);v.style.borderColor='#1F7A3A';}},1000);
+}
+function procSortie(type,detail){if(!PROC.on||PROC.retour)return;PROC.sorties++;procLog(type,detail||'');
+  if(PROC.sorties>PROC_CFG.sortiesTolerees)return procAnnuler(PR.motifs.deuxieme);
+  let s=PROC_CFG.delaiRetour;const aff=()=>procEcran(`<h2 style="margin:0 0 8px;color:#B42318">⚠️ ${PR.sortieT}</h2><p style="font-size:15px">${PR.sortieP(s)}</p><div class="actions" style="justify-content:flex-end"><button class="btn" id="procRevenir">${PR.revenir}</button></div>`);
+  aff();const lier=()=>{const b=document.getElementById('procRevenir');if(b)b.onclick=async()=>{try{await document.documentElement.requestFullscreen();}catch(e){}if(document.fullscreenElement&&!document.hidden){clearInterval(PROC.retour);PROC.retour=null;procFermerEcran();procLog('retour','Après '+(PROC_CFG.delaiRetour-s)+' s');}};};lier();
+  PROC.retour=setInterval(()=>{s--;if(s<=0){clearInterval(PROC.retour);PROC.retour=null;return procAnnuler(PR.motifs.delai);}aff();lier();},1000);}
+document.addEventListener('fullscreenchange',()=>{if(PROC.on&&!document.fullscreenElement)procSortie('plein_ecran');});
+document.addEventListener('visibilitychange',()=>{if(PROC.on&&document.hidden)procSortie('onglet');});
+window.addEventListener('blur',()=>{if(!PROC.on)return;setTimeout(()=>{if(PROC.on&&!document.hasFocus()&&!document.hidden&&document.fullscreenElement)procSortie('fenetre');},1200);});
+document.addEventListener('keydown',e=>{if(!PROC.on)return;const k=e.key.toLowerCase();
+  if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&['i','j','c'].includes(k))||((e.ctrlKey||e.metaKey)&&['c','v','x','p','s','u','a'].includes(k))||(e.altKey&&e.key==='Tab')||e.key==='ContextMenu'){e.preventDefault();e.stopPropagation();procLog('raccourci',(e.ctrlKey?'Ctrl+':'')+(e.shiftKey?'Maj+':'')+(e.altKey?'Alt+':'')+e.key);}},true);
+document.addEventListener('keyup',e=>{if(PROC.on&&e.key==='PrintScreen'){try{navigator.clipboard?.writeText('');}catch(_){}procSortie('capture','Touche Impr. écran');}},true);
+['contextmenu','copy','cut','paste','dragstart'].forEach(ev=>document.addEventListener(ev,e=>{if(PROC.on)e.preventDefault();},true));
+window.addEventListener('pagehide',()=>{if(PROC.on)procAnnulerKeepalive(PR.motifs.fermeture);});
+window.addEventListener('beforeunload',e=>{if(PROC.on){procAnnulerKeepalive(PR.motifs.fermeture);e.preventDefault();e.returnValue='';}});
+// 3. Annulation : enregistrement serveur, écran, rapport
+function procParams(motif){const s=session||{};return{p_libelle:s.label||'Examen',p_langue:SIM.lang,p_duree:s.start?Math.floor((Date.now()-s.start)/1000):0,p_nb:(s.items||[]).length,
+  p_repondues:(s.items||[]).filter(x=>x.sel&&x.sel.length).length,p_motif:motif,p_incidents:PROC.inc,p_code:SIM.code||null,p_simulateur:SIM.sim||'pmo'};}
+function procAnnulerKeepalive(motif){if(!PROC.on)return;PROC.on=false;procLog('fermeture','');const p=procParams(motif);
+  try{localStorage.setItem('hti-sim-annulation',JSON.stringify(p));}catch(_){}
+  try{fetch(sbSim.supabaseUrl+'/rest/v1/rpc/sim_annuler_examen',{method:'POST',keepalive:true,headers:{apikey:sbSim.supabaseKey,Authorization:'Bearer '+(PROC.token||sbSim.supabaseKey),'Content-Type':'application/json'},body:JSON.stringify(p)})
+    .then(r=>{if(r.ok)try{localStorage.removeItem('hti-sim-annulation');}catch(_){}}).catch(()=>{});}catch(_){}}
+async function procRenvoyerEnAttente(){let p=null;try{p=JSON.parse(localStorage.getItem('hti-sim-annulation')||'null');}catch(_){}if(!p)return;
+  const{error}=await sbSim.rpc('sim_annuler_examen',p);if(!error)try{localStorage.removeItem('hti-sim-annulation');}catch(_){}}
+async function procAnnuler(motif){if(!PROC.on)return;PROC.on=false;clearInterval(PROC.boucle);clearInterval(PROC.retour);PROC.retour=null;clearInterval(timerId);procBandeau(null);
+  procLog('fin','Examen annulé : '+motif);const p=procParams(motif);session&&(session.done=true);
+  const{data,error}=await sbSim.rpc('sim_annuler_examen',p);if(error){try{localStorage.setItem('hti-sim-annulation',JSON.stringify(p));}catch(_){}}
+  PROC.annul={id:data?.id||null,motif,inc:PROC.inc.slice(),label:p.p_libelle,secs:p.p_duree,nb:p.p_nb,rep:p.p_repondues,date:new Date().toISOString()};
+  store.history.unshift({id:PROC.annul.id,date:PROC.annul.date,label:p.p_libelle,ok:0,n:p.p_nb,pct:0,byD:{},secs:p.p_duree,statut:'annule',motif,inc:PROC.annul.inc,rep:p.p_repondues});
+  procCamStop();document.getElementById('procCam')?.remove();try{if(document.fullscreenElement)await document.exitFullscreen();}catch(_){}
+  procEcran(`<h2 style="margin:0 0 8px;color:#B42318">⛔ ${PR.annuleT}</h2><p>${PR.annuleP}</p><p><b>${PR.motif} :</b> ${esc(motif)}</p>
+    <details open><summary style="cursor:pointer;font-weight:700">${PR.chrono}</summary><ul style="font-size:13px;line-height:1.6;padding-left:18px">${PROC.annul.inc.map(x=>`<li>${new Date(x.t).toLocaleTimeString(SIM.lang==='en'?'en-GB':'fr-FR')} — ${esc(PR.types[x.type]||x.type)}${x.detail?' · '+esc(x.detail):''}</li>`).join('')}</ul></details>
+    <div class="actions" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="procAccueil">${PR.accueil}</button><button class="btn" id="procRapport">${PR.rapportB}</button></div>`);
+  document.getElementById('procAccueil').onclick=()=>{procFermerEcran();setView('home');};document.getElementById('procRapport').onclick=()=>simRapportAnnulation(PROC.annul);}
+function procArreter(){PROC.on=false;clearInterval(PROC.boucle);clearInterval(PROC.retour);PROC.retour=null;procBandeau(null);procCamStop();document.getElementById('procCam')?.remove();procFermerEcran();
+  try{if(document.fullscreenElement)document.exitFullscreen();}catch(_){}}
+// 4. Branchement : examens blancs surveillés, fin normale, abandon volontaire
+(function(){const _start=startSession;startSession=function(mode,opts={}){if(mode==='exam'&&!opts._proc){if(!navigator.mediaDevices?.getUserMedia||!document.documentElement.requestFullscreen){modal(PR.titre,PR.camRefus,'OK',()=>{});return;}
+    return procPreparer(()=>_start(mode,{...opts,_proc:true}));}return _start(mode,opts);};
+  const _fin=finish;finish=async function(){const surv=PROC.on;if(surv){PROC.on=false;procLog('fin','');}const r=await _fin.apply(this,arguments);
+    if(surv){procArreter();const id=session?.result?.id;if(id)try{await sbSim.rpc('sim_tentative_surveillance',{p_id:id,p_incidents:PROC.inc,p_code:SIM.code||null,p_simulateur:SIM.sim||'pmo'});}catch(_){}}return r;};
+  const _quit=confirmQuit;confirmQuit=function(cb){if(PROC.on){modal(PR.titre,PR.motifs.abandon+' ?','OK',()=>{procLog('abandon','');procAnnuler(PR.motifs.abandon);});return;}return _quit(cb);};
+  setTimeout(()=>procRenvoyerEnAttente().catch(()=>{}),2500);})();
+
+simDemarrer();
+</script>
+</body>
+</html>
