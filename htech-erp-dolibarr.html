@@ -9511,6 +9511,8 @@ async function clicNotif(id, lien, lienId){
     else if(lien==='agenda') showPage('agenda');
     else if(lien==='finance') showPage('finance');
     else if(lien==='rdv') { showPage('agenda'); setTimeout(()=>switchTab('agenda','rdv'), 300); }
+    else if(lien==='simulateurs') { if(typeof SIMP!=='undefined')SIMP.onglet='suppressions'; showPage('simulateur-pmo'); }
+    else if(lien==='validations') { if(typeof VAL!=='undefined')VAL.onglet='attente'; showPage('validations'); }
   }
 }
 
@@ -11927,7 +11929,8 @@ async function markPaid(id){
 function encMaj(reste){const m=numIn(gv('encMontant')),z=document.getElementById('encApres');if(!z)return;
   z.innerHTML=!m?'':m>reste?`<span style="color:var(--red)">⚠️ Le montant dépasse le reste à payer (${fmtF(reste)} F).</span>`:m===reste?'✅ La facture sera <b>entièrement payée</b>.':`La facture passera en <b>Partiellement payée</b> · reste après ce paiement : <b>${fmtF(reste-m)} F</b>.`;}
 // Recalcule le montant payé, le statut et la date du dernier paiement d’une facture à partir de ses paiements
-async function facRecalculer(id){try{
+async function facRecalculer(id){return valHorsCircuit(()=>facRecalculer0(id));}
+async function facRecalculer0(id){try{
   const[{data:pa},{data:f}]=await Promise.all([sb.from('paiements').select('montant,date_paiement').eq('facture_id',id),sb.from('factures').select('total_ttc,statut').eq('id',id).maybeSingle()]);
   if(!f||['annulee','brouillon'].includes(f.statut))return;
   const paye=(pa||[]).reduce((s,x)=>s+numIn(x.montant),0),dern=(pa||[]).map(x=>x.date_paiement).filter(Boolean).sort().pop()||null;
@@ -19437,31 +19440,31 @@ const simJ=d=>Math.ceil((new Date(d)-new Date())/864e5);
 v4Def('simulateur-pmo',{titre:'Simulateurs',icone:'🎯',custom:async pg=>{
   const q=(t,s='*')=>sb.from(t).select(s).then(r=>{if(r.error)throw r.error;return r.data||[];});
   const q0=(t,o)=>{let x=sb.from(t).select('*');if(o)x=x.order(o,{ascending:false});return x.then(r=>r.error?[]:(r.data||[]),()=>[]);};
-  let A,F,T,P,D,C,S;try{[A,F,T,P]=await Promise.all([q('sim_acces'),q('sim_formations'),sb.from('sim_tentatives').select('*').order('created_at',{ascending:false}).limit(500).then(r=>{if(r.error)throw r.error;return r.data||[];}),q('profiles','id,prenom,nom,email,role')]);
-    [D,C,S]=await Promise.all([q0('sim_demandes','created_at'),q0('sim_codes','created_at'),q0('sim_simulateurs')]);}
+  let A,F,T,P,D,C,S,SX;try{[A,F,T,P]=await Promise.all([q('sim_acces'),q('sim_formations'),sb.from('sim_tentatives').select('*').order('created_at',{ascending:false}).limit(500).then(r=>{if(r.error)throw r.error;return r.data||[];}),q('profiles','id,prenom,nom,email,role')]);
+    [D,C,S,SX]=await Promise.all([q0('sim_demandes','created_at'),q0('sim_codes','created_at'),q0('sim_simulateurs'),q0('sim_suppressions','created_at')]);}
   catch(e){pg.innerHTML=`<div class="card">⚠️ ${/does not exist|PGRST205|42P01|schema cache|Could not find/i.test((e.code||'')+' '+(e.message||''))?'Exécutez les fichiers « simulateur-1 » à « simulateur-6 » dans le SQL Editor du projet de l’ERP, puis rechargez la page.':esc(e.message)}</div>`;return;}
-  SIMP.P=P;SIMP.D=D;SIMP.C=C;SIMP.S=S;SIMP._T=T;SIMP._A=A;await partenairesListe();
+  SIMP.P=P;SIMP.D=D;SIMP.C=C;SIMP.S=S;SIMP._T=T;SIMP._A=A;SIMP.SX=SX;const sxAtt=SX.filter(x=>x.statut==='en_attente'),sb2=(o,id,lib)=>simBtnSuppr(o,id,sxAtt,lib);await partenairesListe();
   const partSel=(table,id,val)=>`<select onchange="simPartenaire('${table}','${id}',this.value)" style="font-size:11.5px;max-width:170px">${partOptions(val)}</select>`;const pp=id=>P.find(p=>p.id===id),now=new Date(),actifs=A.filter(a=>new Date(a.debut)<=now&&new Date(a.fin)>=now);
   const codesActifs=C.filter(c=>!c.revoque&&new Date(c.debut)<=now&&new Date(c.fin)>=now),attente=D.filter(d=>d.statut==='nouvelle'),preins=D.filter(d=>d.statut==='preinscription');
   const m0=new Date(now.getFullYear(),now.getMonth(),1),ventes=D.filter(d=>d.statut==='validee'&&new Date(d.traite_le||d.created_at)>=m0),achats=A.filter(a=>a.origine==='achat'&&new Date(a.created_at)>=m0);
   const t30=T.filter(t=>new Date(t.created_at)>=new Date(Date.now()-30*864e5)),ex=t30.filter(t=>t.mode==='exam');
   const nomSim=c=>(S.find(x=>x.code===c)||{}).nom||c,nomT=t=>t.user_id?simNom(pp(t.user_id)):(()=>{const c=C.find(x=>x.id===t.code_id);return c?(c.prenom+' '+c.nom+' (code)'):'—';})();
   if(!SIMP.init){SIMP.init=1;if(attente.length)SIMP.onglet='demandes';}
-  const ong=[['demandes',`📨 Demandes${attente.length?' ('+attente.length+')':''}`],['codes','🔐 Codes d’accès'],['acces','🔑 Accès des apprenants'],['resultats','📊 Résultats'],['catalogue','📚 Catalogue'],['formations','🎓 Formations liées']];
+  const ong=[['demandes',`📨 Demandes${attente.length?' ('+attente.length+')':''}`],['codes','🔐 Codes d’accès'],['acces','🔑 Accès des apprenants'],['resultats','📊 Résultats'],['catalogue','📚 Catalogue'],['formations','🎓 Formations liées'],['suppressions',`🗑 Suppressions${sxAtt.length?' ('+sxAtt.length+')':''}`]];
   const st={nouvelle:['À traiter','#FEF3E2','#B45309'],preinscription:['Préinscription','#E5EFFB','#1565C0'],validee:['Validée','#EDF6E8','#3F8A1E'],refusee:['Refusée','#F1F3F7','#7A90A8']};
   let corps='';
   if(SIMP.onglet==='demandes'){const L=[...attente,...preins,...D.filter(d=>!['nouvelle','preinscription'].includes(d.statut))];
     corps=`<div class="card"><p class="cell-sub" style="margin-top:0">Demandes envoyées depuis l’onglet « Simulateurs » du site de l’Academy. Après le règlement, validez : le code d’accès est généré et vous l’envoyez par le canal choisi par le demandeur.</p>
      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Référence</th><th>Simulateur</th><th>Demandeur</th><th>Code à envoyer par</th><th>Montant</th><th>Statut</th><th></th></tr></thead><tbody>
-     ${L.map(d=>{const x=st[d.statut]||st.nouvelle;return `<tr><td style="font-size:12px">${new Date(d.created_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</td><td><code style="font-size:11px">${esc(d.reference||'')}</code></td><td>${esc(nomSim(d.simulateur))}</td>
+     ${L.map(d=>{const x=st[d.statut]||st.nouvelle;return `<tr data-objet="sim_demandes:${d.id}"><td style="font-size:12px">${new Date(d.created_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</td><td><code style="font-size:11px">${esc(d.reference||'')}</code></td><td>${esc(nomSim(d.simulateur))}</td>
       <td><b>${esc(d.prenom+' '+d.nom)}</b><div class="cell-sub">${esc(d.email)} · ${esc(d.telephone)}</div>${d.message?`<div class="cell-sub">« ${esc(d.message)} »</div>`:''}</td><td>${d.canal==='email'?'📧 E-mail':'💬 WhatsApp'}</td><td style="font-size:12px">${d.montant?fmtF(d.montant)+' FCFA':'—'}</td>
       <td><span class="badge" style="background:${x[1]};color:${x[2]}">${x[0]}</span>${d.motif_refus?`<div class="cell-sub">${esc(d.motif_refus)}</div>`:''}</td>
-      <td style="white-space:nowrap">${d.statut==='nouvelle'?`<button class="btn btn-primary btn-sm" onclick="simValider('${d.id}')">Valider et générer le code</button> <button class="btn btn-outline btn-sm" onclick="simRefuser('${d.id}')">Refuser</button>`:d.statut==='preinscription'?`<button class="btn btn-outline btn-sm" onclick="simContacter('${d.id}')">Contacter</button> <button class="btn btn-outline btn-sm" onclick="simRefuser('${d.id}')">Classer</button>`:d.code_id?`<button class="btn btn-outline btn-sm" onclick="simRenvoyer('${d.code_id}')">Renvoyer le code</button>`:''}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucune demande.</td></tr>'}</tbody></table></div></div>`;}
+      <td style="white-space:nowrap">${d.statut==='nouvelle'?`<button class="btn btn-primary btn-sm" onclick="simValider('${d.id}')">Valider et générer le code</button> <button class="btn btn-outline btn-sm" onclick="simRefuser('${d.id}')">Refuser</button>`:d.statut==='preinscription'?`<button class="btn btn-outline btn-sm" onclick="simContacter('${d.id}')">Contacter</button> <button class="btn btn-outline btn-sm" onclick="simRefuser('${d.id}')">Classer</button>`:d.code_id?`<button class="btn btn-outline btn-sm" onclick="simRenvoyer('${d.code_id}')">Renvoyer le code</button>`:''}${d.statut==='nouvelle'?'':' '+sb2('demande',d.id)}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucune demande.</td></tr>'}</tbody></table></div></div>`;}
   else if(SIMP.onglet==='codes'){
     corps=`<div class="card"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Titulaire</th><th>Simulateur</th><th>Validité</th><th>État</th><th>Sessions</th><th>Partenaire du rapport</th><th></th></tr></thead><tbody>
-     ${C.map(c=>{const act=!c.revoque&&new Date(c.debut)<=now&&new Date(c.fin)>=now,n=T.filter(t=>t.code_id===c.id).length;return `<tr><td><code>${esc(c.code)}</code></td><td><b>${esc((c.prenom||'')+' '+(c.nom||''))}</b><div class="cell-sub">${esc(c.email||'')} · ${esc(c.telephone||'')}</div></td><td>${esc(nomSim(c.simulateur))}</td>
+     ${C.map(c=>{const act=!c.revoque&&new Date(c.debut)<=now&&new Date(c.fin)>=now,n=T.filter(t=>t.code_id===c.id).length;return `<tr data-objet="sim_codes:${c.id}"><td><code>${esc(c.code)}</code></td><td><b>${esc((c.prenom||'')+' '+(c.nom||''))}</b><div class="cell-sub">${esc(c.email||'')} · ${esc(c.telephone||'')}</div></td><td>${esc(nomSim(c.simulateur))}</td>
       <td style="font-size:12px">${fmtD(c.debut)} → ${fmtD(c.fin)}</td><td>${c.revoque?'<span class="badge">révoqué</span>':act?`<span class="badge badge-green">actif · ${simJ(c.fin)} j</span>`:'<span class="badge">expiré</span>'}</td><td>${n}</td><td>${partSel('sim_codes',c.id,c.partenaire_id)}</td>
-      <td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="simRenvoyer('${c.id}')">Renvoyer</button> <button class="btn btn-outline btn-sm" onclick="simProlonger('${c.id}')">+30 jours</button>${c.revoque?'':` <button class="btn btn-outline btn-sm" onclick="simRevoquer('${c.id}')">Révoquer</button>`}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucun code généré.</td></tr>'}</tbody></table></div></div>`;}
+      <td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="simRenvoyer('${c.id}')">Renvoyer</button> <button class="btn btn-outline btn-sm" onclick="simProlonger('${c.id}')">+30 jours</button>${c.revoque?'':` <button class="btn btn-outline btn-sm" onclick="simRevoquer('${c.id}')">Révoquer</button>`} ${sb2('code',c.id)}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucun code généré.</td></tr>'}</tbody></table></div></div>`;}
   else if(SIMP.onglet==='catalogue'){
     corps=`<div class="card"><p class="cell-sub" style="margin-top:0">Ce catalogue alimente l’onglet « Simulateurs » du site de l’Academy. Passez un simulateur en « Disponible » quand sa banque de questions est chargée.</p>
      ${S.map(x=>`<div style="border:1px solid var(--g100);border-radius:10px;padding:12px;margin-bottom:10px"><div class="form-grid">
@@ -19474,25 +19477,27 @@ v4Def('simulateur-pmo',{titre:'Simulateurs',icone:'🎯',custom:async pg=>{
   else if(SIMP.onglet==='resultats'){const cle=t=>t.user_id||('c:'+t.code_id),L=T.filter(t=>!SIMP.apprenant||cle(t)===SIMP.apprenant),ids=[...new Set(T.map(cle))];
     corps=`<div class="card"><div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><select onchange="SIMP.apprenant=this.value;v4Render('simulateur-pmo')"><option value="">Tous les utilisateurs</option>${ids.map(i=>{const t=T.find(x=>cle(x)===i);return `<option value="${i}" ${SIMP.apprenant===i?'selected':''}>${esc(nomT(t))}</option>`;}).join('')}</select><span class="cell-sub">Scores calculés par le serveur ; personne ne peut les modifier.</span></div>
      ${SIMP.apprenant?simSynthese(L):''}
-     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Utilisateur</th><th>Session</th><th>Langue</th><th>Score</th><th>Par domaine</th><th>Durée</th><th></th></tr></thead><tbody>
-     ${L.map(t=>`<tr><td style="font-size:12px">${new Date(t.created_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</td><td>${esc(nomT(t))}</td><td>${esc(t.libelle||'')}<div class="cell-sub">${t.mode==='exam'?'examen blanc':'entraînement'} · ${esc(nomSim(t.simulateur||'pmo'))}</div></td><td>${(t.langue||'fr').toUpperCase()}</td>
+     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Utilisateur</th><th>Session</th><th>Langue</th><th>Score</th><th>Par domaine</th><th>Durée</th><th style="min-width:130px"></th></tr></thead><tbody>
+     ${L.map(t=>`<tr data-objet="sim_tentatives:${t.id}"><td style="font-size:12px">${new Date(t.created_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</td><td>${esc(nomT(t))}</td><td>${esc(t.libelle||'')}<div class="cell-sub">${t.mode==='exam'?'examen blanc':'entraînement'} · ${esc(nomSim(t.simulateur||'pmo'))}</div></td><td>${(t.langue||'fr').toUpperCase()}</td>
       <td>${t.statut==='annule'?`<span class="badge" style="background:#FDECEC;color:#B42318" title="${esc(t.motif_annulation||'')}">Annulé</span><div class="cell-sub" style="color:#B42318">${esc((t.motif_annulation||'').slice(0,60))}</div>`:`<b style="color:${t.pct>=80?'#3F8A1E':t.pct>=65?'#1565C0':t.pct>=50?'#B45309':'#B42318'}">${t.pct} %</b><div class="cell-sub">${t.ok}/${t.nb}</div>`}${t.surveillee?`<div class="cell-sub" title="Examen surveillé · ${(t.incidents||[]).length} événement(s)">🛡️ surveillé</div>`:''}</td>
       <td>${[1,2,3,4,5,6].map(d=>{const v=(t.par_domaine||{})[d];if(!v)return '';const p=Math.round(100*v[0]/v[1]);return `<span title="${simDomNoms(t.simulateur||'pmo')[d-1]} : ${v[0]}/${v[1]}" style="display:inline-block;width:22px;margin-right:2px;text-align:center;font-size:10.5px;border-radius:4px;padding:1px 0;background:${p>=80?'#EDF6E8':p>=50?'#FEF3E2':'#FDECEC'}">${['I','II','III','IV','V','VI'][d-1]}</span>`;}).join('')}</td>
-      <td style="font-size:12px">${Math.round((t.duree_s||0)/60)} min</td><td><button class="btn btn-outline btn-sm" onclick="erpSimRapport('${t.id}')" title="Réimprimer le rapport de préparation signé">📄 Rapport</button></td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucune session enregistrée.</td></tr>'}</tbody></table></div></div>`;}
+      <td style="font-size:12px">${Math.round((t.duree_s||0)/60)} min</td><td><button class="btn btn-outline btn-sm" onclick="erpSimRapport('${t.id}')" title="Réimprimer le rapport de préparation signé">📄 Rapport</button> ${sb2('tentative',t.id)}</td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucune session enregistrée.</td></tr>'}</tbody></table></div></div>`;}
+  else if(SIMP.onglet==='suppressions'){corps=simOngletSuppressions(SX,P);}
   else if(SIMP.onglet==='formations'){
     corps=`<div class="card"><p class="cell-sub">Une inscription à l’une de ces formations ouvre automatiquement l’accès au simulateur pendant la durée indiquée, à compter du début de la formation.</p>
      <div class="table-wrap"><table><thead><tr><th>Référence de la formation</th><th>Durée d’accès</th><th></th></tr></thead><tbody>${F.map(f=>`<tr><td><code>${esc(f.formation_ref)}</code></td><td>${f.jours} jours</td><td><button class="btn btn-outline btn-sm" onclick="simFormSuppr('${jsq(f.formation_ref)}')">Retirer</button></td></tr>`).join('')||'<tr><td colspan="3" class="cell-sub" style="padding:14px">Aucune formation liée.</td></tr>'}</tbody></table></div>
      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><input id="sfRef" placeholder="Référence (ex. PMO-01)" style="min-width:180px"><input id="sfJ" type="number" value="90" min="1" style="width:110px" title="jours"><button class="btn btn-primary btn-sm" onclick="simFormAjout()">Ajouter</button></div></div>`;}
   else{const L=[...A].sort((x,y)=>String(y.fin).localeCompare(String(x.fin)));
     corps=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 class="v4-h3">Accès des apprenants (comptes)</h3><button class="btn btn-primary btn-sm" onclick="simAccorder()">+ Ouvrir un accès à un apprenant</button></div>
-     <div class="table-wrap"><table><thead><tr><th>Apprenant</th><th>Origine</th><th>Début</th><th>Fin</th><th>État</th><th>Référence</th><th>Partenaire du rapport</th></tr></thead><tbody>
-     ${L.map(a=>{const j=simJ(a.fin),act=new Date(a.debut)<=now&&new Date(a.fin)>=now;return `<tr><td><b>${esc(simNom(pp(a.user_id)))}</b><div class="cell-sub">${esc(pp(a.user_id)?.email||'')}</div></td><td>${{formation:'Formation',achat:'Achat',offert:'Offert'}[a.origine]||a.origine}${a.montant?`<div class="cell-sub">${fmtF(a.montant)} FCFA</div>`:''}</td>
-      <td style="font-size:12px">${fmtD(a.debut)}</td><td style="font-size:12px">${fmtD(a.fin)}</td><td>${act?`<span class="badge badge-green">actif · ${j} j</span>`:new Date(a.debut)>now?'<span class="badge">à venir</span>':'<span class="badge">expiré</span>'}</td><td style="font-size:12px">${esc(a.reference||'')}</td><td>${partSel('sim_acces',a.id,a.partenaire_id)}</td></tr>`;}).join('')||'<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--g400)">Aucun accès.</td></tr>'}</tbody></table></div></div>`;}
+     <div class="table-wrap"><table><thead><tr><th>Apprenant</th><th>Origine</th><th>Début</th><th>Fin</th><th>État</th><th>Référence</th><th>Partenaire du rapport</th><th></th></tr></thead><tbody>
+     ${L.map(a=>{const j=simJ(a.fin),act=new Date(a.debut)<=now&&new Date(a.fin)>=now;return `<tr data-objet="sim_acces:${a.id}"><td><b>${esc(simNom(pp(a.user_id)))}</b><div class="cell-sub">${esc(pp(a.user_id)?.email||'')}</div></td><td>${{formation:'Formation',achat:'Achat',offert:'Offert'}[a.origine]||a.origine}${a.montant?`<div class="cell-sub">${fmtF(a.montant)} FCFA</div>`:''}</td>
+      <td style="font-size:12px">${fmtD(a.debut)}</td><td style="font-size:12px">${fmtD(a.fin)}</td><td>${act?`<span class="badge badge-green">actif · ${j} j</span>`:new Date(a.debut)>now?'<span class="badge">à venir</span>':'<span class="badge">expiré</span>'}</td><td style="font-size:12px">${esc(a.reference||'')}</td><td>${partSel('sim_acces',a.id,a.partenaire_id)}</td><td style="white-space:nowrap">${sb2('acces',a.id,'Accès')} ${sb2('compte',a.user_id,'Compte')}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucun accès.</td></tr>'}</tbody></table></div></div>`;}
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🎯 Simulateurs H TECH ACADEMY</h1><div class="page-sub">Demandes, codes d’accès, apprenants, résultats et catalogue</div></div><div class="v4-tools"><a class="btn btn-outline btn-sm" href="https://www.htechinnov.com/academy/#/simulateurs" target="_blank" rel="noopener">Voir l’onglet sur le site</a></div></div>
    <div class="grid-4" style="margin-bottom:.9rem"><div class="kpi"><div class="kpi-icon amber">📨</div><div class="kpi-label">Demandes à traiter</div><div class="kpi-value" style="${attente.length?'color:#B45309':''}">${attente.length}</div><div class="cell-sub">${preins.length} préinscription(s)</div></div>
     <div class="kpi"><div class="kpi-icon green">🔑</div><div class="kpi-label">Accès actifs</div><div class="kpi-value">${actifs.length+codesActifs.length}</div><div class="cell-sub">${actifs.length} apprenant(s) · ${codesActifs.length} code(s)</div></div>
     <div class="kpi"><div class="kpi-icon blue">💳</div><div class="kpi-label">Ventes ce mois</div><div class="kpi-value">${ventes.length+achats.length}</div><div class="cell-sub">${fmtF(ventes.reduce((s,d)=>s+numIn(d.montant),0)+achats.reduce((s,a)=>s+numIn(a.montant),0))} FCFA</div></div>
     <div class="kpi"><div class="kpi-icon red">🎯</div><div class="kpi-label">Score moyen aux examens (30 j)</div><div class="kpi-value">${ex.length?Math.round(ex.reduce((s,t)=>s+t.pct,0)/ex.length)+' %':'—'}</div></div></div>
+   ${sxAtt.length&&CP?.role==='superadmin'&&SIMP.onglet!=='suppressions'?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:10px;font-size:13px">⏳ <b>${sxAtt.length} demande(s) de suppression à valider</b> — <a href="#" onclick="SIMP.onglet='suppressions';v4Render('simulateur-pmo');return false">ouvrir</a></div>`:''}
    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${ong.map(([k,l])=>`<button class="btn ${SIMP.onglet===k?'btn-primary':'btn-outline'} btn-sm" onclick="SIMP.onglet='${k}';v4Render('simulateur-pmo')">${l}</button>`).join('')}</div>${corps}`;
 }});
 // ── Demandes et codes d’accès ──
@@ -19522,6 +19527,67 @@ function simContacter(id){const d=(SIMP.D||[]).find(x=>x.id===id);if(!d)return;c
 async function simProlonger(id){const c=(SIMP.C||[]).find(x=>x.id===id);if(!c||!confirm('Prolonger ce code de 30 jours ?'))return;const base=new Date(Math.max(Date.now(),new Date(c.fin).getTime()));
   const{error}=await sb.from('sim_codes').update({fin:new Date(base.getTime()+30*864e5).toISOString(),revoque:false}).eq('id',id);if(error){toast('❌ '+error.message);return;}toast('✅ Code prolongé de 30 jours');v4Render('simulateur-pmo');}
 async function simRevoquer(id){if(!confirm('Révoquer ce code ? Il ne permettra plus d’accéder au simulateur.'))return;const{error}=await sb.from('sim_codes').update({revoque:true}).eq('id',id);if(error){toast('❌ '+error.message);return;}toast('Code révoqué');v4Render('simulateur-pmo');}
+// ── Suppressions : directes pour le super administrateur, sur demande validée pour les autres profils ──
+const SIM_OBJ={tentative:'le rapport',code:'le code d’accès',acces:'l’accès',compte:'le compte simulateur',demande:'la demande'};
+function simBtnSuppr(objet,id,att,lib){if(!id)return '';const en=(att||[]).find(x=>x.objet===objet&&x.objet_id===id);
+  if(en)return `<span class="badge" style="background:#FEF3E2;color:#B45309;${CP?.role==='superadmin'?'cursor:pointer':''}" ${CP?.role==='superadmin'?`onclick="SIMP.onglet='suppressions';v4Render('simulateur-pmo')"`:''} title="Demandée par ${esc(en.demandeur_nom||'')} : ${esc(en.motif||'')}">⏳ suppression demandée</span>`;
+  const t=objet==='compte'?'Supprimer le compte de cet apprenant dans le simulateur':'Supprimer '+SIM_OBJ[objet];
+  return `<button class="btn btn-outline btn-sm" style="color:#B42318" onclick="simSuppr('${objet}','${id}')" title="${t}" aria-label="${t}">🗑${lib?' '+lib:''}</button>`;}
+function simLibelle(objet,id){const S=SIMP,P=S.P||[],pp=i=>P.find(p=>p.id===i),C=S.C||[],dt=d=>d?new Date(d).toLocaleDateString('fr-FR'):'';
+  if(objet==='tentative'){const t=(S._T||[]).find(x=>x.id===id);if(!t)return 'un rapport';const c=C.find(x=>x.id===t.code_id);
+    return `le rapport du ${dt(t.created_at)} de ${t.user_id?simNom(pp(t.user_id)):c?(c.prenom+' '+c.nom):'—'} (${t.statut==='annule'?'annulé':t.pct+' %'}, ${t.libelle||t.mode})`;}
+  if(objet==='code'){const c=C.find(x=>x.id===id);return c?`le code ${c.code} de ${(c.prenom||'')+' '+(c.nom||'')}`.trim():'un code d’accès';}
+  if(objet==='acces'){const a=(S._A||[]).find(x=>x.id===id);return a?`l’accès de ${simNom(pp(a.user_id))} (${dt(a.debut)} → ${dt(a.fin)})`:'un accès';}
+  if(objet==='compte'){return `le compte simulateur de ${simNom(pp(id))}${pp(id)?.email?' ('+pp(id).email+')':''}`;}
+  if(objet==='demande'){const d=(S.D||[]).find(x=>x.id===id);return d?`la demande ${d.reference||''} de ${d.prenom} ${d.nom}`:'une demande';}
+  return objet;}
+function simSuppr(objet,id){const sup=CP?.role==='superadmin',lib=simLibelle(objet,id),P=SIMP.P||[],pr=objet==='compte'?P.find(p=>p.id===id):null;
+  const detail={tentative:'Le rapport et les réponses de cette session sont effacés ; il ne pourra plus être réimprimé ni vérifié.',
+    code:'Le code, ses sessions et ses rapports sont effacés ; la demande d’origine est conservée sans code.',
+    acces:'Seule cette période d’accès est retirée ; les résultats de l’apprenant sont conservés.',
+    compte:'Tous ses accès, sessions, rapports et réponses aux simulateurs sont effacés.',
+    demande:'La demande est retirée de la liste ; un code déjà généré reste valable.'}[objet];
+  document.getElementById('modalBox').style.width='min(560px,96vw)';
+  document.getElementById('modalTitle').textContent=sup?'🗑 Suppression définitive':'🗑 Demande de suppression';
+  document.getElementById('modalBody').innerHTML=`<p style="margin-top:0">Vous allez ${sup?'supprimer':'demander la suppression de'} <b>${esc(lib)}</b>.</p><p class="cell-sub">${detail} Action irréversible, tracée dans le journal d’audit.</p>
+    ${pr&&pr.role==='apprenant'?`<label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px"><input type="checkbox" id="ssCnx" style="margin-top:3px"> <span>Supprimer aussi son identifiant de connexion (compte H TECH ACADEMY / ERP). Sinon, la personne garde son compte mais n’a plus rien dans les simulateurs.</span></label>`:''}
+    <div class="form-field full"><label for="ssMotif">Motif ${sup?'(conseillé)':'(obligatoire)'}</label><textarea id="ssMotif" rows="3" placeholder="Ex. : session de test, doublon, code créé par erreur…"></textarea></div>
+    ${sup?'':'<p class="cell-sub">Votre demande est envoyée au super administrateur, qui la valide ou la refuse. Vous recevrez une notification.</p>'}`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" style="background:#B42318;border-color:#B42318" id="ssBtn" onclick="simSupprValider('${objet}','${id}')">${sup?'🗑 Supprimer définitivement':'📨 Envoyer la demande'}</button>`;
+  document.getElementById('modalOverlay').classList.add('open');window._SS={lib};}
+function simErrSuppr(e){const m=(e&&e.message)||String(e);return /sim_suppr|does not exist|schema cache|Could not find/i.test(m)?'Exécutez « simulateur-12-suppressions.sql » dans le SQL Editor de Supabase':/duplicate|une_en_attente/i.test(m)?'Une demande de suppression est déjà en attente pour cet élément':m;}
+async function simSupprValider(objet,id){const sup=CP?.role==='superadmin',motif=(document.getElementById('ssMotif')?.value||'').trim(),cnx=!!document.getElementById('ssCnx')?.checked,lib=window._SS?.lib||objet;
+  if(!sup&&motif.length<5){toast('Indiquez le motif de la suppression (5 caractères au moins)');return;}
+  const b=document.getElementById('ssBtn');if(b)b.disabled=true;
+  try{if(sup){const{data,error}=await sb.rpc('sim_supprimer',{p_objet:objet,p_id:id});if(error)throw error;
+      if(cnx){try{await erpUtil({action:'supprimer',user_id:id});}catch(e){toast('⚠️ Données du simulateur supprimées, mais pas l’identifiant de connexion : '+e.message,10000);}}
+      try{logAudit('suppression','sim_'+objet,id,{libelle:lib,motif,connexion:cnx,resultat:data});}catch(_){}
+      toast('🗑 Supprimé : '+lib);}
+    else{const{error}=await sb.from('sim_suppressions').insert({objet,objet_id:id,libelle:lib,motif,supprimer_connexion:cnx,demandeur:CU?.id,demandeur_nom:[CP?.prenom,CP?.nom].filter(Boolean).join(' ')||CP?.email||null});if(error)throw error;
+      try{logAudit('demande_suppression','sim_'+objet,id,{libelle:lib,motif});}catch(_){}
+      toast('📨 Demande envoyée au super administrateur pour validation',6000);}
+    closeModal();v4Render('simulateur-pmo');}
+  catch(e){if(b)b.disabled=false;toast('❌ '+simErrSuppr(e),9000);}}
+function simOngletSuppressions(SX,P){const sup=CP?.role==='superadmin',pp=i=>P.find(p=>p.id===i);
+  const st={en_attente:['En attente','#FEF3E2','#B45309'],validee:['Supprimé','#EDF6E8','#3F8A1E'],refusee:['Refusée','#F1F3F7','#7A90A8'],annulee:['Retirée','#F1F3F7','#7A90A8']};
+  const L=[...SX.filter(x=>x.statut==='en_attente'),...SX.filter(x=>x.statut!=='en_attente')];
+  return `<div class="card"><p class="cell-sub" style="margin-top:0">${sup?'Les membres de l’équipe ne suppriment rien directement : leurs demandes arrivent ici. Validez pour supprimer, ou refusez en indiquant pourquoi.':'Vos demandes de suppression sont examinées par le super administrateur. Vous êtes notifié de sa décision.'}</p>
+   <div class="table-wrap"><table><thead><tr><th>Date</th><th>Élément</th><th>Motif</th><th>Demandé par</th><th>Statut</th><th></th></tr></thead><tbody>
+   ${L.map(x=>{const s=st[x.statut]||st.en_attente;return `<tr><td style="font-size:12px">${new Date(x.created_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</td><td>${esc(x.libelle||x.objet)}${x.supprimer_connexion?'<div class="cell-sub">+ identifiant de connexion</div>':''}</td>
+    <td style="font-size:12.5px">${esc(x.motif||'')}</td><td>${esc(x.demandeur_nom||simNom(pp(x.demandeur)))}</td>
+    <td><span class="badge" style="background:${s[1]};color:${s[2]}">${s[0]}</span>${x.traite_le?`<div class="cell-sub">${fmtD(x.traite_le)}${x.traite_par?' · '+esc(simNom(pp(x.traite_par))):''}</div>`:''}${x.motif_refus?`<div class="cell-sub">${esc(x.motif_refus)}</div>`:''}</td>
+    <td style="white-space:nowrap">${x.statut!=='en_attente'?'':sup?`<button class="btn btn-primary btn-sm" style="background:#B42318;border-color:#B42318" onclick="simSupprTraiter('${x.id}',true)">✅ Valider la suppression</button> <button class="btn btn-outline btn-sm" onclick="simSupprTraiter('${x.id}',false)">Refuser</button>`:x.demandeur===CU?.id?`<button class="btn btn-outline btn-sm" onclick="simSupprRetirer('${x.id}')">Retirer ma demande</button>`:''}</td></tr>`;}).join('')||'<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--g400)">Aucune demande de suppression.</td></tr>'}</tbody></table></div></div>`;}
+async function simSupprTraiter(id,valider){if(CP?.role!=='superadmin'){toast('Réservé au super administrateur');return;}
+  const x=(SIMP.SX||[]).find(y=>y.id===id);if(!x)return;let motif=null;
+  if(valider){if(!confirm(`Supprimer définitivement ${x.libelle||x.objet} ?\nMotif du demandeur : ${x.motif}\n\nAction irréversible.`))return;}
+  else{motif=prompt('Motif du refus (transmis au demandeur) :','');if(motif===null)return;}
+  try{const{data,error}=await sb.rpc('sim_suppression_traiter',{p_id:id,p_valider:valider,p_motif:motif});if(error)throw error;
+    if(valider&&x.objet==='compte'&&x.supprimer_connexion){try{await erpUtil({action:'supprimer',user_id:x.objet_id});}catch(e){toast('⚠️ Données du simulateur supprimées, mais pas l’identifiant de connexion : '+e.message,10000);}}
+    try{logAudit(valider?'suppression':'refus_suppression','sim_'+x.objet,x.objet_id,{libelle:x.libelle,motif_demande:x.motif,demandeur:x.demandeur_nom,motif_refus:motif,resultat:data});}catch(_){}
+    toast(valider?'🗑 Suppression effectuée':'Demande refusée : l’élément est conservé');v4Render('simulateur-pmo');}
+  catch(e){toast('❌ '+simErrSuppr(e),9000);}}
+async function simSupprRetirer(id){if(!confirm('Retirer votre demande de suppression ?'))return;
+  const{error}=await sb.from('sim_suppressions').update({statut:'annulee'}).eq('id',id);if(error){toast('❌ '+simErrSuppr(error));return;}toast('Demande retirée');v4Render('simulateur-pmo');}
 async function simPartenaire(table,id,val){const{error}=await sb.from(table).update({partenaire_id:val||null}).eq('id',id);
   if(error){toast('❌ '+(/partenaire_id/.test(error.message)?'Exécutez migration-partenaires-certificats-rapports.sql dans Supabase':error.message),7000);return;}
   try{logAudit('partenaire_rapport',table,id,{partenaire_id:val||null});}catch(e){}toast(val?'✅ Partenaire associé aux rapports de cet apprenant':'Partenaire retiré');}
@@ -19565,10 +19631,10 @@ async function facLiens(f){
   return{pa,av,ec};}
 async function facSupprimer(id){
   const{data:f,error}=await sb.from('factures').select('*').eq('id',id).maybeSingle();if(error||!f){toast('❌ Facture introuvable');return;}
-  const{pa,av,ec}=await facLiens(f),dem=f.suppression_demande,val=facValideur();
+  const{pa,av,ec}=await facLiens(f),dem=f.suppression_demande,sup=facValideur(),val=true;
   const st={brouillon:'Brouillon',envoyee:'Envoyée',emise:'Émise',payee:'Payée',partielle:'Partiellement payée',annulee:'Annulée',retard:'En retard'}[f.statut]||f.statut;
   document.getElementById('modalBox').style.width='min(600px,96vw)';
-  document.getElementById('modalTitle').textContent=(val?'🗑 Supprimer':'📨 Demander la suppression de')+' la facture '+(f.reference||'');
+  document.getElementById('modalTitle').textContent=(sup?'🗑 Supprimer':'📨 Demander la suppression de')+' la facture '+(f.reference||'');
   document.getElementById('modalBody').innerHTML=`<div class="card" style="font-size:13px;line-height:1.7"><b>${esc(f.reference||'')}</b> · ${esc(f.client_nom||'—')}<br>${esc(f.titre||'')}<br>
      Montant TTC : <b>${fmtF(f.total_ttc||0)} FCFA</b> · Statut : <b>${esc(st)}</b>
      ${pa.length?`<br>💳 ${pa.length} paiement(s) enregistré(s) : ${fmtF(pa.reduce((s,x)=>s+numIn(x.montant),0))} FCFA`:''}${ec.length?`<br>📒 ${ec.length} ligne(s) d’écriture comptable liée(s)`:''}</div>
@@ -19577,10 +19643,10 @@ async function facSupprimer(id){
    ${dem?`<div class="card" style="font-size:13px;border-left:4px solid #D97706">Demande de <b>${esc(dem.nom||'')}</b> le ${fmtD(dem.le)} : « ${esc(dem.motif||'')} »</div>`:''}
    <div class="form-grid"><div class="form-field full"><label for="fsMotif">Motif de la suppression *</label><textarea id="fsMotif" rows="2">${esc(dem?.motif||'')}</textarea></div>
    ${val?`${pa.length||ec.length?`<div class="form-field full"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="fsLiens" checked> Supprimer aussi ${[pa.length?pa.length+' paiement(s)':'',ec.length?ec.length+' ligne(s) d’écriture':''].filter(Boolean).join(' et ')}</label></div>`:''}
-     <div class="form-field full"><label for="fsRef">Pour valider, retapez la référence <b>${esc(f.reference||'')}</b> *</label><input id="fsRef" autocomplete="off"></div>`
+     <div class="form-field full"><label for="fsRef">Pour valider, retapez la référence <b>${esc(f.reference||'')}</b> *</label><input id="fsRef" autocomplete="off"></div>${sup?'':'<p class="cell-sub full">La suppression sera soumise au super administrateur : elle ne prendra effet qu’après sa validation.</p>'}`
      :'<p class="cell-sub full">Votre demande sera soumise à la validation du super administrateur.</p>'}</div>`;
-  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button>${val&&dem?`<button class="btn btn-outline" onclick="facRefuserSuppr('${f.id}')">Refuser la demande</button>`:''}
-   ${av.length?'':val?`<button class="btn btn-danger" style="background:var(--red);color:#fff" onclick="facValiderSuppr('${f.id}')">Valider et supprimer</button>`:`<button class="btn btn-primary" onclick="facDemanderSuppr('${f.id}')">${dem?'Mettre à jour la demande':'Envoyer la demande'}</button>`}`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button>${sup&&dem?`<button class="btn btn-outline" onclick="facRefuserSuppr('${f.id}')">Refuser la demande</button>`:''}
+   ${av.length?'':val?`<button class="btn btn-danger" style="background:var(--red);color:#fff" onclick="facValiderSuppr('${f.id}')">${sup?'Valider et supprimer':'Demander la suppression'}</button>`:`<button class="btn btn-primary" onclick="facDemanderSuppr('${f.id}')">${dem?'Mettre à jour la demande':'Envoyer la demande'}</button>`}`;
   document.getElementById('modalOverlay').classList.add('open');
 }
 async function facDemanderSuppr(id){const m=g('fsMotif');if(!m){toast('❌ Indiquez le motif');return;}
@@ -19591,9 +19657,9 @@ async function facDemanderSuppr(id){const m=g('fsMotif');if(!m){toast('❌ Indiq
 async function facRefuserSuppr(id){if(!facValideur())return;const{error}=await sb.from('factures').update({suppression_demande:null}).eq('id',id);if(error){toast('❌ '+error.message);return;}
   try{logAudit('refus_suppression','factures',id,{motif_refus:g('fsMotif')});}catch(x){}closeModal();toast('Demande refusée : la facture est conservée');loadFinance();}
 async function facValiderSuppr(id){
-  if(!facValideur()){toast('🔒 Réservé au super administrateur');return;}
   const{data:f}=await sb.from('factures').select('*').eq('id',id).maybeSingle();if(!f){toast('❌ Facture introuvable');return;}
   const motif=g('fsMotif');if(!motif){toast('❌ Indiquez le motif');return;}
+  if(!facValideur())valPreremplir('Suppression de la facture '+(f.reference||'')+' : '+motif);
   if(g('fsRef').toUpperCase()!==String(f.reference||'').toUpperCase()){toast('❌ La référence saisie ne correspond pas');return;}
   const{pa,av,ec}=await facLiens(f);if(av.length){toast('❌ Supprimez d’abord l’avoir lié');return;}
   if(document.getElementById('fsLiens')?.checked){
@@ -20842,10 +20908,11 @@ function expEquiper(){
 // ══════════════════════════════════════════════════════════════════════
 // ACTIONS SUR CHAQUE ÉLÉMENT — modifier, supprimer, pièces jointes, exporter (menu « ⋯ » de chaque ligne)
 // ══════════════════════════════════════════════════════════════════════
-const ACT_MAP={"abeEnvoyer": "attestations_be", "abePdfLigne": "attestations_be", "abeSupprimer": "attestations_be", "academyDevis": "academy_demandes", "academyInscrire": "academy_sessions", "academySuivi": "academy_inscriptions", "annulerFacture": "factures", "annulerPieceCaisse": "pieces_caisse", "appliquerAvoir": "avoirs", "approuver": "conges", "attAnnuler": "hta_attestations", "attForm": "hta_attestations", "bonInterventionPDF": "interventions", "changerStatutDevis": "caisses", "clicNotif": "notifications", "commandePDF": "fournisseurs", "confirmerTransfert": "conversations", "convertirDevisEnFacture": "devis", "creerAvoir": "factures", "csActivite": "crm_interlocuteurs", "csAttribuer": "clients", "csConfirmer": "crm_activites", "csLire": "crm_notifications", "csReporter": "crm_activites", "csStatut": "crm_activites", "delCert": "certificats", "delClient": "clients", "delCollab": "collaborateurs", "delCommande": "bons_commande", "delConge": "conges", "delCyber": "cyber_operations", "delDevis": "devis", "delDoc": "documents", "delFormation": "formations", "delFournisseur": "fournisseurs", "delImmo": "immobilisations", "delOpportunite": "opportunites", "delProjet": "projets", "delRecrut": "recrutements", "delStockProduit": "stock_produits", "delTicket": "tickets", "devisPDF": "devis", "dpDupliquer": "demandes_prix", "dpEnvoyer": "demandes_prix", "dpForm": "demandes_prix", "dpPdf": "demandes_prix", "dpRetenir": "demandes_prix", "dpSupprimer": "demandes_prix", "dpWord": "reservations", "ecrireAuMembre": "conversations", "editCommande": "bons_commande", "erpSimRapport": "sim_reponses", "facDemanderSuppr": "factures", "facRefuserSuppr": "factures", "facSupprimer": "factures", "facValiderSuppr": "factures", "facturePDF": "factures", "fournisseurPDF": "fournisseurs", "glEditer": "compta_ecritures", "glSupprimer": "compta_ecritures", "htaModifier": "hta_certificats", "htaPdf": "hta_certificats", "htaSignRetirer": "hta_signataires", "htaSupprimer": "hta_certificats", "imprimerCertificat": "certificats", "inscrire": "inscriptions_formation", "lireArticle": "tickets", "markPaid": "factures", "meHeures": "esp_apprentissages", "meRegler": "esp_transactions", "meReporter": "esp_taches", "modifierPieceCaisse": "pieces_caisse", "omDupliquer": "ordres_mission", "omEnvoyer": "ordres_mission", "omFrais": "ordres_mission", "omPdf": "ordres_mission", "omSupprimer": "ordres_mission", "openConv": "profiles", "ouvrirEmail": "emails", "ouvrirMouvementSp": "stock_produits", "ouvrirSignatureDevis": "devis", "partFacturer": "modeles_contrat", "partFiche": "partenaires", "partGenerer": "partenaires", "partSupprimer": "partenaires", "ptgEditer": "pointages", "rattacherClient": "profiles", "refuser": "conges", "refuserRdv": "rdv_demandes", "relancer": "factures", "renotifierParticipants": "evenements", "repondreEmail": "emails", "resAnnuler": "reservations", "resDetail": "reservations", "resEspForm": "espaces", "resPhotoSuppr": "espaces", "resolveTicket": "tickets", "rhOuvrir": "rh_contrats", "simContacter": "sim_codes", "simProlonger": "sim_codes", "simRefuser": "sim_codes", "simRenvoyer": "sim_codes", "simRevoquer": "sim_codes", "simValider": "sim_codes", "statutFrais": "tickets", "supprimerBulletin": "bulletins_paie", "supprimerDepenseProjet": "depenses_projet", "supprimerEmail": "emails", "supprimerEvenement": "evenements", "supprimerPieceCaisse": "pieces_caisse", "telechargerPjEmail": "emails", "ticketFil": "ticket_messages", "toggleFavoriEmail": "emails", "toggleTache": "taches", "uploadFichierCaisse": "documents", "validerBC": "audit_logs", "validerPointage": "pointages", "voirEvaluation": "evaluations", "voirEvenement": "profiles", "voirOpportunite": "opportunites"};
+const ACT_MAP={"abeEnvoyer": "attestations_be", "abePdfLigne": "attestations_be", "abeSupprimer": "attestations_be", "academyDevis": "academy_demandes", "academyInscrire": "academy_sessions", "academySuivi": "academy_inscriptions", "annulerFacture": "factures", "annulerPieceCaisse": "pieces_caisse", "appliquerAvoir": "avoirs", "approuver": "conges", "attAnnuler": "hta_attestations", "attForm": "hta_attestations", "bonInterventionPDF": "interventions", "changerStatutDevis": "caisses", "clicNotif": "notifications", "commandePDF": "fournisseurs", "confirmerTransfert": "conversations", "convertirDevisEnFacture": "devis", "creerAvoir": "factures", "csActivite": "crm_interlocuteurs", "csAttribuer": "clients", "csConfirmer": "crm_activites", "csLire": "crm_notifications", "csReporter": "crm_activites", "csStatut": "crm_activites", "delCert": "certificats", "delClient": "clients", "delCollab": "collaborateurs", "delCommande": "bons_commande", "delConge": "conges", "delCyber": "cyber_operations", "delDevis": "devis", "delDoc": "documents", "delFormation": "formations", "delFournisseur": "fournisseurs", "delImmo": "immobilisations", "delOpportunite": "opportunites", "delProjet": "projets", "delRecrut": "recrutements", "delStockProduit": "stock_produits", "delTicket": "tickets", "devisPDF": "devis", "dpDupliquer": "demandes_prix", "dpEnvoyer": "demandes_prix", "dpForm": "demandes_prix", "dpPdf": "demandes_prix", "dpRetenir": "demandes_prix", "dpSupprimer": "demandes_prix", "dpWord": "reservations", "ecrireAuMembre": "conversations", "editCommande": "bons_commande", "erpSimRapport": "sim_tentatives", "facDemanderSuppr": "factures", "facRefuserSuppr": "factures", "facSupprimer": "factures", "facValiderSuppr": "factures", "facturePDF": "factures", "fournisseurPDF": "fournisseurs", "glEditer": "compta_ecritures", "glSupprimer": "compta_ecritures", "htaModifier": "hta_certificats", "htaPdf": "hta_certificats", "htaSignRetirer": "hta_signataires", "htaSupprimer": "hta_certificats", "imprimerCertificat": "certificats", "inscrire": "inscriptions_formation", "lireArticle": "tickets", "markPaid": "factures", "meHeures": "esp_apprentissages", "meRegler": "esp_transactions", "meReporter": "esp_taches", "modifierPieceCaisse": "pieces_caisse", "omDupliquer": "ordres_mission", "omEnvoyer": "ordres_mission", "omFrais": "ordres_mission", "omPdf": "ordres_mission", "omSupprimer": "ordres_mission", "openConv": "profiles", "ouvrirEmail": "emails", "ouvrirMouvementSp": "stock_produits", "ouvrirSignatureDevis": "devis", "partFacturer": "modeles_contrat", "partFiche": "partenaires", "partGenerer": "partenaires", "partSupprimer": "partenaires", "ptgEditer": "pointages", "rattacherClient": "profiles", "refuser": "conges", "refuserRdv": "rdv_demandes", "relancer": "factures", "renotifierParticipants": "evenements", "repondreEmail": "emails", "resAnnuler": "reservations", "resDetail": "reservations", "resEspForm": "espaces", "resPhotoSuppr": "espaces", "resolveTicket": "tickets", "rhOuvrir": "rh_contrats", "simContacter": "sim_codes", "simProlonger": "sim_codes", "simRefuser": "sim_codes", "simRenvoyer": "sim_codes", "simRevoquer": "sim_codes", "simValider": "sim_codes", "statutFrais": "tickets", "supprimerBulletin": "bulletins_paie", "supprimerDepenseProjet": "depenses_projet", "supprimerEmail": "emails", "supprimerEvenement": "evenements", "supprimerPieceCaisse": "pieces_caisse", "telechargerPjEmail": "emails", "ticketFil": "ticket_messages", "toggleFavoriEmail": "emails", "toggleTache": "taches", "uploadFichierCaisse": "documents", "validerBC": "audit_logs", "validerPointage": "pointages", "voirEvaluation": "evaluations", "voirEvenement": "profiles", "voirOpportunite": "opportunites"};
 const ACT_IGNORER=new Set(['id','created_at','updated_at','created_by','updated_by','modifie_le']);
 // Circuits de suppression déjà sécurisés par leur module
-const ACT_SUPPR_SPECIAL={factures:id=>facSupprimer(id),emails:id=>supprimerEmail(id),compta_ecritures:id=>glSupprimer(id)};
+const ACT_SUPPR_SPECIAL={factures:id=>facSupprimer(id),emails:id=>supprimerEmail(id),compta_ecritures:id=>glSupprimer(id),
+  sim_tentatives:id=>simSuppr('tentative',id),sim_codes:id=>simSuppr('code',id),sim_acces:id=>simSuppr('acces',id),sim_demandes:id=>simSuppr('demande',id)};
 // Documents numérotés ou signés : on annule plutôt que de supprimer
 const ACT_PROTEGE={
   rh_contrats:r=>['brouillon','annule'].includes(r.statut)||'Ce document n’est plus un brouillon : annulez-le depuis sa fiche plutôt que de le supprimer (traçabilité légale).',
@@ -20878,7 +20945,7 @@ async function actSupprimer(tr){
   if(e1||!r){toast('❌ Élément introuvable ou accès refusé',6000);return;}
   const p=ACT_PROTEGE[o.table]?.(r);if(typeof p==='string'){if(CP?.role==='superadmin')return actSuppressionForcee(o,r,p);toast('🔒 '+p+' Seul le super administrateur peut le supprimer définitivement.',9000);return;}
   const lib=r.reference||r.numero||r.nom_complet||r.titre||r.nom||r.libelle||r.sujet||r.objet||'cet élément';
-  if(!confirm(`Supprimer définitivement « ${lib} » ?\nCette action est irréversible et sera tracée dans le journal d’audit.`))return;
+  if(!confirm(typeof valSoumis==='function'&&valSoumis(o.table)?`Demander la suppression de « ${lib} » ?\nElle sera soumise au super administrateur et ne prendra effet qu’après sa validation.`:`Supprimer définitivement « ${lib} » ?\nCette action est irréversible et sera tracée dans le journal d’audit.`))return;
   const{error}=await sb.from(o.table).delete().eq('id',o.id);
   if(error){toast('❌ '+(/foreign key|violates/i.test(error.message)?'Cet élément est utilisé ailleurs dans l’ERP (factures, paiements, contrats…) : supprimez ou modifiez d’abord les éléments liés.':/permission|policy|row-level/i.test(error.message)?'Vous n’avez pas les droits pour supprimer cet élément.':error.message),9000);return;}
   try{const{data:pj}=await sb.from('erp_pieces_jointes').select('id,chemin').eq('objet_table',o.table).eq('objet_id',o.id);
@@ -21629,6 +21696,192 @@ async function gpmPdf(ids,langs){const L=ids.map(id=>GPM_ROWS.find(x=>x.id===id)
   const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-atp-gpm')){const d=document.createElement('div');d.className='page';d.id='page-atp-gpm';ref.parentNode.appendChild(d);}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();})();
 
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// VALIDATIONS — toute modification ou suppression faite par un membre de l’équipe (hors super administrateur)
+// est mise en attente : l’ERP regroupe les changements d’une même action, demande un commentaire et/ou une pièce
+// jointe, puis envoie la demande au super administrateur. Validée : le changement s’applique et le demandeur est
+// notifié. Refusée : rien ne change et le demandeur est notifié du refus. Les créations restent libres.
+// Garde-fou serveur : migration-validations.sql (toute écriture directe d’une table soumise y est refusée).
+// ══════════════════════════════════════════════════════════════════════
+var VAL={tables:new Set(),libelles:{},charge:false,uid:null,lot:null,silence:0,pref:'',onglet:'attente'};
+const VAL_LIBRES=['superadmin','client','apprenant','formateur'];
+const _valFrom=sb.from.bind(sb),_valStFrom=sb.storage.from.bind(sb.storage),_valToast=toast;
+function valConcerne(){return !!(CP&&CP.role&&!VAL_LIBRES.includes(CP.role));}
+function valSoumis(t){return VAL.charge&&!VAL.silence&&valConcerne()&&VAL.tables.has(t);}
+async function valChargerRegles(){try{const{data,error}=await _valFrom('erp_validation_regles').select('table_name,soumis,libelle');if(error)return;
+  VAL.tables=new Set((data||[]).filter(r=>r.soumis).map(r=>r.table_name));VAL.libelles=Object.fromEntries((data||[]).map(r=>[r.table_name,r.libelle||r.table_name]));VAL.regles=data||[];VAL.charge=true;}catch(_){}}
+// Écritures dérivées (recalculs automatiques) : jamais soumises, le serveur les recalcule lui-même
+async function valHorsCircuit(fn){VAL.silence++;try{return await fn();}finally{VAL.silence--;}}
+function valPreremplir(t){VAL.pref=String(t||'');}
+const valLib=t=>VAL.libelles[t]||String(t).replace(/_/g,' ').replace(/^./,c=>c.toUpperCase());
+const valIdent=r=>r?String(r.reference||r.numero||r.nom_complet||r.titre||r.nom||r.libelle||r.designation||r.code||r.email||r.cle||(r.id?String(r.id).slice(0,8):'')).slice(0,60):'';
+
+// ── Interception des écritures ──
+sb.from=function(t){const qb=_valFrom(t);if(!valSoumis(t))return qb;
+  return new Proxy(qb,{get(o,k){
+    if(k==='update'||k==='delete'||k==='upsert')return (...a)=>valConstruire(t,k,a);
+    if(k==='insert')return (...a)=>VAL.lot&&!VAL.lot.envoye?valConstruire(t,'insert',a):o.insert(...a);
+    const v=o[k];return typeof v==='function'?v.bind(o):v;}});};
+sb.storage.from=function(b){const api=_valStFrom(b);if(!(VAL.charge&&!VAL.silence&&valConcerne()))return api;
+  const rm=api.remove.bind(api);api.remove=async ch=>{const l=valLot();l.ops.push({op:'storage',table:'storage',bucket:b,chemins:ch||[]});valPlanifier();return{data:[],error:null};};
+  return api;};
+function valConstruire(t,op,args){const C={t,op,args,f:[],sel:false,single:false};
+  const fl=(o,c,v)=>{C.f.push({c,o,v});return P;};
+  const P={eq:(c,v)=>fl('eq',c,v),neq:(c,v)=>fl('neq',c,v),gt:(c,v)=>fl('gt',c,v),gte:(c,v)=>fl('gte',c,v),lt:(c,v)=>fl('lt',c,v),lte:(c,v)=>fl('lte',c,v),
+    in:(c,v)=>fl('in',c,v),is:(c,v)=>fl('is',c,v),match:o=>{Object.entries(o||{}).forEach(([c,v])=>C.f.push({c,o:'eq',v}));return P;},
+    not:(c,o,v)=>{if(o==='is')C.f.push({c,o:'not_is',v});else if(o==='eq')C.f.push({c,o:'neq',v});return P;},
+    filter:(c,o,v)=>fl(o,c,v),select(){C.sel=true;return P;},single(){C.single=true;C.sel=true;return P;},maybeSingle(){C.single=true;C.sel=true;return P;},
+    order(){return P;},limit(){return P;},range(){return P;},returns(){return P;},throwOnError(){return P;},abortSignal(){return P;},
+    then(res,rej){return valEnregistrer(C).then(res,rej);},catch(rej){return valEnregistrer(C).catch(rej);},finally(f){return valEnregistrer(C).finally(f);}};
+  return P;}
+function valLot(){if(!VAL.lot||VAL.lot.envoye)VAL.lot={ops:[],avant:[],toasts:[],ouvert:false,envoye:false,page:(document.querySelector('.page.active')?.id||'').replace(/^page-/,'')};return VAL.lot;}
+function valPlanifier(){const l=VAL.lot;if(!l||l.ouvert)return;clearTimeout(l.timer);l.timer=setTimeout(valDialogue,900);}
+async function valEnregistrer(C){
+  try{const o={op:C.op,table:C.t};
+    if(C.op==='insert'||C.op==='upsert'){const v=C.args[0],arr=(Array.isArray(v)?v:[v]).map(x=>({...x}));
+      if(C.op==='insert')arr.forEach(r=>{if(r.id==null)r.id=(crypto.randomUUID?crypto.randomUUID():String(Date.now()));});
+      o.valeurs=Array.isArray(v)?arr:arr[0];if(C.op==='upsert'&&C.args[1]?.onConflict)o.conflit=C.args[1].onConflict;
+      let av=[];if(C.op==='upsert'){const cf=(o.conflit||'id').split(',').map(s=>s.trim());try{for(const r of arr){if(cf.some(c=>r[c]==null))continue;let q=_valFrom(C.t).select('*');cf.forEach(c=>q=q.eq(c,r[c]));const{data}=await q;av.push(...(data||[]));}}catch(_){}}
+      const l=valLot();l.ops.push(o);av.forEach(r=>l.avant.push({table:C.t,ligne:r}));valPlanifier();
+      return{data:C.sel?(C.single?arr[0]:arr):null,error:null,status:201};}
+    // update / delete : on lit l’état actuel des éléments visés
+    let q=_valFrom(C.t).select('*');
+    C.f.forEach(x=>{q=x.o==='not_is'?q.not(x.c,'is',x.v):typeof q[x.o]==='function'?q[x.o](x.c,x.v):q;});
+    const{data:av,error}=C.f.length?await q:{data:[],error:null};
+    if(error)return{data:null,error};
+    if(!(av||[]).length)return{data:C.single?null:[],error:null,count:0,status:204};   // rien à changer
+    o.filtres=C.f;if(C.op==='update')o.valeurs=C.args[0];
+    const l=valLot();l.ops.push(o);av.forEach(r=>l.avant.push({table:C.t,ligne:r}));valPlanifier();
+    const res=C.op==='update'?av.map(r=>({...r,...C.args[0]})):av;
+    return{data:C.sel?(C.single?res[0]:res):null,error:null,count:av.length,status:200};}
+  catch(e){return{data:null,error:{message:e.message||String(e)}};}}
+// Pendant la préparation de la demande, les messages « enregistré / supprimé » des écrans ne s’affichent pas
+toast=function(m,d){if(VAL.lot&&!VAL.lot.envoye&&!/^❌|^⚠/.test(String(m||''))){VAL.lot.toasts.push(m);return;}return _valToast(m,d);};
+
+// ── Résumé lisible d’un lot d’opérations ──
+function valResume(ops,avant){const gr={};
+  ops.forEach(o=>{if(o.op==='storage'){const k='storage';gr[k]=gr[k]||{v:'Suppression de fichier(s)',t:'',ids:new Set(),champs:new Set(),n:0};gr[k].n+=(o.chemins||[]).length;return;}
+    const v={update:'Modification',upsert:'Modification',delete:'Suppression',insert:'Ajout'}[o.op],k=v+'|'+o.table;gr[k]=gr[k]||{v,t:o.table,ids:new Set(),champs:new Set(),n:0};
+    if(o.op==='insert'){gr[k].n+=Array.isArray(o.valeurs)?o.valeurs.length:1;return;}
+    const lignes=avant.filter(a=>a.table===o.table&&valCorrespond(a.ligne,o)).map(a=>a.ligne);
+    lignes.forEach(r=>gr[k].ids.add(valIdent(r)));gr[k].n+=lignes.length||1;
+    if(o.valeurs&&o.op!=='delete')Object.keys(Array.isArray(o.valeurs)?(o.valeurs[0]||{}):o.valeurs).forEach(c=>{if(lignes.some(r=>JSON.stringify(r[c])!==JSON.stringify((o.valeurs||{})[c])))gr[k].champs.add(c);});});
+  return Object.values(gr).map(g=>{const ids=[...g.ids].filter(Boolean);
+    return g.t?`${g.v} — ${valLib(g.t)} : ${ids.length?ids.slice(0,4).join(', ')+(ids.length>4?` (+${ids.length-4})`:''):g.n+' élément(s)'}${g.champs.size?` [${[...g.champs].slice(0,6).join(', ')}]`:''}`:`${g.v} : ${g.n}`;});}
+function valCorrespond(r,o){if(!r)return false;if(o.op==='upsert'){const cf=(o.conflit||'id').split(',').map(s=>s.trim()),v=Array.isArray(o.valeurs)?o.valeurs:[o.valeurs];return v.some(x=>cf.every(c=>String(x[c])===String(r[c])));}
+  return (o.filtres||[]).every(f=>{const x=r[f.c];switch(f.o){case 'eq':return String(x)===String(f.v);case 'neq':return String(x)!==String(f.v);case 'in':return (f.v||[]).map(String).includes(String(x));
+    case 'is':return f.v===null?x==null:x===f.v;case 'not_is':return f.v===null?x!=null:x!==f.v;default:return true;}});}
+
+// ── Fenêtre de demande (commentaire et/ou pièce jointe) ──
+function valDialogue(){const l=VAL.lot;if(!l||l.ouvert||!l.ops.length)return;l.ouvert=true;
+  const lignes=valResume(l.ops,l.avant),sup=l.ops.every(o=>o.op==='delete'||o.op==='storage');
+  let ov=document.getElementById('valOverlay');if(ov)ov.remove();ov=document.createElement('div');ov.id='valOverlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(10,30,60,.45);z-index:10050;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML=`<div role="dialog" aria-modal="true" aria-labelledby="valTitre" style="background:#fff;border-radius:14px;max-width:600px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25);padding:20px 22px">
+    <h3 id="valTitre" style="margin:0 0 6px;font-size:18px;color:#0A2A66">📨 ${sup?'Suppression':'Modification'} soumise à validation</h3>
+    <p style="margin:0 0 10px;font-size:13px;color:#4A5B78">Rien n’est encore changé. Votre demande part chez le super administrateur : s’il la valide, le changement s’applique aussitôt ; sinon il est annulé. Vous êtes notifié dans les deux cas.</p>
+    <div style="background:#F5F8FC;border:1px solid #DBE3EF;border-radius:10px;padding:8px 12px;font-size:12.5px;margin-bottom:12px">${lignes.map(x=>`<div style="padding:2px 0">• ${esc(x)}</div>`).join('')}</div>
+    <label for="valCom" style="font-size:12.5px;font-weight:600">Commentaire — pourquoi ce changement ?</label>
+    <textarea id="valCom" rows="3" style="width:100%;margin:4px 0 10px;box-sizing:border-box" placeholder="Ex. : erreur de saisie sur le montant, doublon, demande du client…">${esc(VAL.pref||'')}</textarea>
+    <label for="valPj" style="font-size:12.5px;font-weight:600">Pièce(s) justificative(s)</label>
+    <input type="file" id="valPj" multiple style="width:100%;margin:4px 0 4px">
+    <div style="font-size:11.5px;color:#7A90A8;margin-bottom:14px">Un commentaire, une pièce jointe, ou les deux (20 Mo maximum par fichier).</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn btn-outline" id="valAnnuler">Abandonner le changement</button><button class="btn btn-primary" id="valEnvoyer">📨 Envoyer pour validation</button></div></div>`;
+  document.body.appendChild(ov);VAL.pref='';
+  ov.querySelector('#valAnnuler').onclick=()=>{VAL.lot.envoye=true;VAL.lot=null;ov.remove();_valToast('Changement abandonné : rien n’a été modifié');try{closeModal();}catch(_){}valRafraichir();};
+  ov.querySelector('#valEnvoyer').onclick=()=>valEnvoyer(ov);
+  setTimeout(()=>ov.querySelector('#valCom')?.focus(),50);}
+async function valEnvoyer(ov){const l=VAL.lot;if(!l)return;const com=ov.querySelector('#valCom').value.trim(),fichiers=[...(ov.querySelector('#valPj').files||[])];
+  if(!com&&!fichiers.length){_valToast('Ajoutez un commentaire ou une pièce jointe');return;}
+  const b=ov.querySelector('#valEnvoyer');b.disabled=true;b.textContent='Envoi…';
+  const id=crypto.randomUUID?crypto.randomUUID():null,pieces=[];
+  for(const f of fichiers){if(f.size>20*1024*1024){_valToast('❌ '+f.name+' dépasse 20 Mo',6000);continue;}
+    const chemin=`validations/${id||Date.now()}/${Date.now()}-${f.name.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9._-]+/g,'_')}`;
+    const{error}=await _valStFrom('erp-pj').upload(chemin,f,{contentType:f.type||undefined});if(error){_valToast('❌ '+f.name+' : '+error.message,7000);continue;}
+    pieces.push({nom:f.name,chemin,taille:f.size,type:f.type||null});}
+  if(!com&&!pieces.length){b.disabled=false;b.textContent='📨 Envoyer pour validation';return;}
+  const ops=l.ops,sansDel=ops.every(o=>o.op!=='delete'&&o.op!=='storage'),tousDel=ops.every(o=>o.op==='delete'||o.op==='storage');
+  const resume=valResume(ops,l.avant).join(' ; ');
+  const ligne={...(id?{id}:{}),nature:tousDel?'suppression':sansDel?'modification':'mixte',resume:resume.slice(0,1000),page:PAGE_LABELS?.[l.page]||l.page||null,ops,avant:l.avant,commentaire:com||null,pieces,demandeur:CU?.id,
+    demandeur_nom:[CP?.prenom,CP?.nom].filter(Boolean).join(' ')||CP?.email||null};
+  const{data,error}=await _valFrom('erp_validations').insert(ligne).select('reference').maybeSingle();
+  if(error){b.disabled=false;b.textContent='📨 Envoyer pour validation';_valToast('❌ '+(/erp_validations|does not exist|schema cache/i.test(error.message)?'Exécutez migration-validations.sql dans Supabase':error.message),9000);return;}
+  try{logAudit('demande_validation','erp_validations',id,{resume,pieces:pieces.length});}catch(_){}
+  l.envoye=true;VAL.lot=null;ov.remove();try{closeModal();}catch(_){}
+  _valToast('📨 Demande '+(data?.reference||'')+' envoyée au super administrateur. Vous serez notifié de sa décision.',7000);valRafraichir();}
+function valRafraichir(){try{erpRafraichir();}catch(_){}valBadge();}
+
+// ── Page « Validations » ──
+v4Def('validations',{titre:'Validations',icone:'✅',custom:async pg=>{
+  const sup=CP?.role==='superadmin';await valChargerRegles();
+  let q=_valFrom('erp_validations').select('*').order('created_at',{ascending:false}).limit(300);if(!sup)q=q.eq('demandeur',CU?.id);
+  const{data:L0,error}=await q;
+  if(error){pg.innerHTML=`<div class="card">⚠️ ${/does not exist|schema cache|Could not find/i.test(error.message)?'Exécutez <b>migration-validations.sql</b> dans le SQL Editor de Supabase, puis rechargez la page.':esc(error.message)}</div>`;return;}
+  const L=L0||[],att=L.filter(v=>v.statut==='en_attente');
+  let simAtt=0;if(sup){try{const r=await _valFrom('sim_suppressions').select('id',{count:'exact',head:true}).eq('statut','en_attente');simAtt=r.count||0;}catch(_){}}
+  if(!sup&&VAL.onglet==='reglages')VAL.onglet='attente';
+  const ong=sup?[['attente',`⏳ En attente${att.length?' ('+att.length+')':''}`],['traitees','📁 Traitées'],['reglages','⚙️ Réglages']]:[['attente',`⏳ En attente${att.length?' ('+att.length+')':''}`],['traitees','📁 Historique']];
+  let corps='';
+  if(VAL.onglet==='reglages'){const R=(VAL.regles||[]).slice().sort((a,b)=>String(a.libelle||a.table_name).localeCompare(String(b.libelle||b.table_name)));
+    corps=`<div class="card"><p class="cell-sub" style="margin-top:0">Éléments dont la modification ou la suppression exige votre validation. Décochez un élément pour laisser l’équipe le modifier librement (ex. tâches, agenda). Les créations restent toujours libres ; la messagerie, les notifications, les e-mails, le profil personnel, « Mon espace » et le pointage ne sont jamais soumis.</p>
+     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px">${R.map(r=>`<label style="display:flex;gap:8px;align-items:center;font-size:13px;padding:6px 8px;border:1px solid var(--g100);border-radius:8px"><input type="checkbox" ${r.soumis?'checked':''} onchange="valRegle('${r.table_name}',this.checked)"> ${esc(r.libelle||r.table_name)}</label>`).join('')}</div></div>`;}
+  else{const V=VAL.onglet==='attente'?att:L.filter(v=>v.statut!=='en_attente');
+    corps=V.map(v=>valCarte(v,sup)).join('')||`<div class="card" style="text-align:center;color:var(--g400);padding:28px">${VAL.onglet==='attente'?'Aucune demande en attente.':'Aucune demande traitée.'}</div>`;}
+  pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">✅ ${sup?'Validations':'Mes demandes de validation'}</h1><div class="page-sub">${sup?'Modifications et suppressions demandées par l’équipe : vous validez ou refusez':'Vos modifications et suppressions soumises au super administrateur'}</div></div></div>
+   ${simAtt?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:10px;font-size:13px">🎯 ${simAtt} demande(s) de suppression dans les simulateurs — <a href="#" onclick="SIMP.onglet='suppressions';showPage('simulateur-pmo');return false">ouvrir</a></div>`:''}
+   <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${ong.map(([k,l])=>`<button class="btn ${VAL.onglet===k?'btn-primary':'btn-outline'} btn-sm" onclick="VAL.onglet='${k}';v4Render('validations')">${l}</button>`).join('')}</div>${corps}`;
+  window._VAL_L=L;valBadge();}});
+function valCarte(v,sup){const st={en_attente:['En attente','#FEF3E2','#B45309'],validee:['Validée — appliquée','#EDF6E8','#3F8A1E'],refusee:['Refusée','#FDECEC','#B42318'],annulee:['Retirée','#F1F3F7','#7A90A8']}[v.statut]||['?','#eee','#333'];
+  const nat={modification:'✏️ Modification',suppression:'🗑 Suppression',mixte:'✏️🗑 Modification et suppression'}[v.nature]||v.nature;
+  return `<div class="card" style="margin-bottom:10px;border-left:4px solid ${st[2]}">
+   <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><code style="font-size:12px">${esc(v.reference||'')}</code> · <b>${nat}</b>${v.page?` · <span class="cell-sub">${esc(v.page)}</span>`:''}
+     <div class="cell-sub">${esc(v.demandeur_nom||'')} · ${new Date(v.created_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</div></div>
+     <span class="badge" style="background:${st[1]};color:${st[2]}">${st[0]}</span></div>
+   <div style="font-size:13px;margin:8px 0">${valResume(v.ops||[],v.avant||[]).map(x=>`<div>• ${esc(x)}</div>`).join('')}</div>
+   ${v.commentaire?`<div style="font-size:13px;background:#F5F8FC;border-radius:8px;padding:7px 10px;margin-bottom:6px">💬 ${esc(v.commentaire)}</div>`:''}
+   ${(v.pieces||[]).length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${v.pieces.map((p,i)=>`<button class="btn btn-outline btn-sm" onclick="valPiece('${v.id}',${i})">📎 ${esc(p.nom)}</button>`).join('')}</div>`:''}
+   <details style="font-size:12.5px;margin:4px 0"><summary style="cursor:pointer;color:#1565C0">Voir le détail (avant → après)</summary>${valDetail(v)}</details>
+   ${v.motif_refus?`<div style="font-size:12.5px;color:#B42318">Motif du refus : ${esc(v.motif_refus)}</div>`:''}
+   ${v.traite_le?`<div class="cell-sub">Décision du ${fmtD(v.traite_le)}</div>`:''}
+   ${v.statut==='en_attente'?`<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">${sup?`<button class="btn btn-outline btn-sm" onclick="valTraiter('${v.id}',false)">⛔ Refuser</button><button class="btn btn-primary btn-sm" style="background:#3F8A1E;border-color:#3F8A1E" onclick="valTraiter('${v.id}',true)">✅ Valider et appliquer</button>`:`<button class="btn btn-outline btn-sm" onclick="valRetirer('${v.id}')">Retirer ma demande</button>`}</div>`:''}</div>`;}
+function valDetail(v){const fmt=x=>x==null||x===''?'<i style="color:#9AA9BF">vide</i>':esc(typeof x==='object'?JSON.stringify(x).slice(0,160):String(x).slice(0,160));
+  return (v.ops||[]).map(o=>{if(o.op==='storage')return `<div style="margin-top:6px"><b>Fichiers retirés</b> : ${(o.chemins||[]).map(c=>esc(String(c).split('/').pop())).join(', ')}</div>`;
+    const lignes=(v.avant||[]).filter(a=>a.table===o.table&&valCorrespond(a.ligne,o)).map(a=>a.ligne),titre={update:'Modification',upsert:'Modification',delete:'Suppression',insert:'Ajout'}[o.op]+' — '+esc(valLib(o.table));
+    if(o.op==='insert'){const a=Array.isArray(o.valeurs)?o.valeurs:[o.valeurs];return `<div style="margin-top:6px"><b>${titre}</b> : ${a.length} élément(s) ${a.slice(0,5).map(x=>esc(valIdent(x))).filter(Boolean).join(', ')}</div>`;}
+    if(o.op==='delete')return `<div style="margin-top:6px"><b>${titre}</b> : ${lignes.map(r=>esc(valIdent(r))).join(', ')||'—'}</div>`;
+    const val=Array.isArray(o.valeurs)?(o.valeurs[0]||{}):o.valeurs||{};
+    return `<div style="margin-top:6px"><b>${titre}</b>${lignes.map(r=>{const ch=Object.keys(val).filter(c=>JSON.stringify(r[c])!==JSON.stringify(val[c])&&!['updated_at','modifie_le'].includes(c));
+      return `<div style="margin:3px 0 0 8px">${esc(valIdent(r))}${ch.length?`<table style="font-size:12px;margin-top:2px"><tbody>${ch.map(c=>`<tr><td style="padding:1px 8px 1px 0;color:#4A5B78">${esc(c)}</td><td style="padding:1px 6px;text-decoration:line-through;color:#B42318">${fmt(r[c])}</td><td style="padding:1px 6px">→</td><td style="padding:1px 6px;color:#3F8A1E">${fmt(val[c])}</td></tr>`).join('')}</tbody></table>`:' <span class="cell-sub">(aucun champ réellement modifié)</span>'}</div>`;}).join('')||(o.op==='upsert'?`<div class="cell-sub" style="margin-left:8px">Nouvel élément : ${esc(valIdent(val))}</div>`:'')}</div>`;}).join('');}
+async function valPiece(id,i){const v=(window._VAL_L||[]).find(x=>x.id===id),p=v?.pieces?.[i];if(!p)return;
+  const{data,error}=await _valStFrom('erp-pj').createSignedUrl(p.chemin,300);if(error){_valToast('❌ '+error.message);return;}window.open(data.signedUrl,'_blank','noopener');}
+async function valTraiter(id,ok){if(CP?.role!=='superadmin'){_valToast('Réservé au super administrateur');return;}
+  const v=(window._VAL_L||[]).find(x=>x.id===id);if(!v)return;let motif=null;
+  if(ok){if(!confirm(`Valider ${v.reference} ?\n\n${valResume(v.ops||[],v.avant||[]).join('\n')}\n\nLe changement s’applique immédiatement.`))return;}
+  else{motif=prompt(`Motif du refus de ${v.reference} (transmis au demandeur) :`,'');if(motif===null)return;}
+  const{data,error}=await sb.rpc('erp_validation_traiter',{p_id:id,p_valider:ok,p_motif:motif});
+  if(error){_valToast('❌ '+error.message,10000);return;}
+  if(ok){for(const o of (v.ops||[]).filter(o=>o.op==='storage')){try{await _valStFrom(o.bucket).remove(o.chemins||[]);}catch(_){}}}
+  try{logAudit(ok?'validation':'refus_validation','erp_validations',id,{reference:v.reference,resume:v.resume,demandeur:v.demandeur_nom,motif_refus:motif,resultat:data});}catch(_){}
+  _valToast(ok?'✅ '+v.reference+' validée : le changement est appliqué':'⛔ '+v.reference+' refusée : rien n’a été modifié',5000);v4Render('validations');}
+async function valRetirer(id){if(!confirm('Retirer cette demande ? Rien ne sera modifié.'))return;
+  const{error}=await _valFrom('erp_validations').update({statut:'annulee'}).eq('id',id);if(error){_valToast('❌ '+error.message);return;}_valToast('Demande retirée');v4Render('validations');}
+async function valRegle(t,soumis){const{error}=await sb.rpc('erp_validation_regle',{p_table:t,p_soumis:soumis});if(error){_valToast('❌ '+error.message,8000);v4Render('validations');return;}
+  try{logAudit('regle_validation','erp_validation_regles',null,{table:t,soumis});}catch(_){}await valChargerRegles();_valToast(soumis?'🔒 '+valLib(t)+' : modifications soumises à validation':'🔓 '+valLib(t)+' : modifications libres');}
+// Pastille du menu : demandes en attente (super administrateur) ou mes demandes en attente
+async function valBadge(){const el=document.getElementById('badgeValidations');if(!el||!CP||VAL_LIBRES.includes(CP.role)&&CP.role!=='superadmin')return;
+  try{let q=_valFrom('erp_validations').select('id',{count:'exact',head:true}).eq('statut','en_attente');if(CP.role!=='superadmin')q=q.eq('demandeur',CU?.id);
+    const{count,error}=await q;if(error)return;el.textContent=count||0;el.style.display=count?'inline-block':'none';}catch(_){}}
+// Menu, page et démarrage
+(function(){try{if(typeof BADGE_MODULES==='object')BADGE_MODULES['validations']={id:'badgeValidations',color:'#D97706'};
+  Object.entries(NAV).forEach(([ro,nav])=>{if(!nav||['client','apprenant','formateur'].includes(ro)||nav.some(x=>x.id==='validations'))return;
+    let k=nav.findIndex(x=>x.id==='mon-espace');if(k<0)k=nav.findIndex(x=>x.id==='dashboard');nav.splice(k<0?1:k+1,0,{id:'validations',i:'✅',l:ro==='superadmin'?'Validations':'Mes demandes'});});
+  PAGE_LABELS['validations']='Validations';}catch(e){logErr(e);}
+  const creer=()=>{const ref=document.getElementById('page-dashboard');if(ref&&!document.getElementById('page-validations')){const d=document.createElement('div');d.className='page';d.id='page-validations';ref.parentNode.appendChild(d);}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
+  setInterval(()=>{const u=CU?.id||null;if(u&&CP&&VAL.uid!==u){VAL.uid=u;VAL.charge=false;valChargerRegles().then(valBadge);}},1500);
+  setInterval(()=>{if(CU?.id)valBadge();},60000);})();
 </script>
 </body>
 </html>
