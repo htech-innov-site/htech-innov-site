@@ -1080,7 +1080,7 @@ label.grille-sel select{font:inherit;font-size:12px;border:1px solid var(--g200)
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.6rem">
     <div><div class="page-title">👥 Ressources Humaines</div><div class="page-sub">Équipe, congés et recrutements</div></div>
     <div style="display:flex;gap:6px">
-      <button class="btn btn-outline btn-sm" onclick="openModal('conge')">🏖️ Congé</button>
+      <button class="btn btn-outline btn-sm" onclick="switchTab('rh','conges');cgForm('conge')">🏖️ Congé</button><button class="btn btn-outline btn-sm" onclick="switchTab('rh','conges');cgForm('absence')">🕒 Absence</button>
       <button class="btn btn-outline btn-sm" onclick="openModal('recrutement')">👤 Recrutement</button>
       <button class="btn btn-outline btn-sm" onclick="openDocs('rh',null,'RH')">📎 Documents</button>
       <button class="btn btn-primary btn-sm" onclick="openModal('collaborateur')">+ Collaborateur</button>
@@ -2217,7 +2217,7 @@ label.grille-sel select{font:inherit;font-size:12px;border:1px solid var(--g200)
       <div id="collabProjets"><div style="color:var(--g400);font-size:12px;text-align:center;padding:14px">Chargement...</div></div>
     </div>
     <div class="card">
-      <div class="card-title">🏖️ Mes congés <button class="btn btn-primary btn-sm" onclick="openModal('conge')">+ Demande</button></div>
+      <div class="card-title">🏖️ Mes congés et absences</div>
       <div id="mesConges"><div style="color:var(--g400);font-size:12px;text-align:center;padding:14px">Chargement...</div></div>
     </div>
   </div>
@@ -3331,20 +3331,8 @@ async function inscrire(id){const{error}=await sb.from('inscriptions_formation')
 
 // ═══ RH ═══
 async function loadRH(){
-  // ══ Congés ══
-  const{data}=await sb.from('conges').select('*').order('created_at',{ascending:false});
-  setText('rhConges',(data||[]).filter(c=>c.statut==='en_attente').length);
-  setText('rhApprouves',(data||[]).filter(c=>c.statut==='approuve').length);
-  const tb=document.getElementById('congesTable');
-  if(tb){
-    if(!data?.length)tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--g400);padding:18px">Aucune demande de congé.</td></tr>';
-    else tb.innerHTML=data.map(c=>`<tr>
-      <td>—</td><td>${esc(c.type)}</td><td>${c.date_debut}</td><td>${c.date_fin}</td>
-      <td>${c.nb_jours||'—'}</td><td>${esc(c.motif||'—')}</td>
-      <td><span class="badge ${esc(c.statut==='approuve'?'badge-green':c.statut==='refuse'?'badge-red':'badge-amber')}">${esc(c.statut)}</span></td>
-      <td><div style="display:flex;gap:4px">${c.statut==='en_attente'?`<button class="btn btn-accent btn-sm" onclick="approuver('${c.id}')">✓</button><button class="btn btn-outline btn-sm" onclick="refuser('${c.id}')">✗</button>`:''}<button class="btn btn-outline btn-sm" onclick="delConge('${c.id}')">🗑</button></div></td>
-    </tr>`).join('');
-  }
+  // ══ Congés et absences (circuit RH → salarié → direction) ══
+  try{await cgCharger();}catch(e){logErr(e);}
   // ══ Recrutements ══
   try{
     const{data:rec}=await sb.from('recrutements').select('*').order('created_at',{ascending:false});
@@ -4285,7 +4273,7 @@ async function loadCollabPortal(){
     const el=document.getElementById('collabProjets');
     if(el)el.innerHTML=prj?.length?prj.map(p=>`<div style="padding:9px;border:1px solid var(--g200);border-radius:var(--r-md);margin-bottom:7px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:12px;font-weight:600">${esc(p.nom)}</span><span class="badge ${sB(p.statut)}">${sL(p.statut)}</span></div><div class="progress"><div class="progress-fill blue" style="width:${p.avancement||0}%"></div></div></div>`).join(''):'<div style="color:var(--g400);font-size:12px;text-align:center;padding:14px">Aucun projet</div>';
     const mc=document.getElementById('mesConges');
-    if(mc)mc.innerHTML='<div style="color:var(--g400);font-size:12px;text-align:center;padding:14px">Aucune demande. <button class="btn btn-primary btn-sm" onclick="openModal(\'conge\')">+ Demande</button></div>';
+    if(mc)cgMesDemandes('mesConges');
     ['col-taches','col-done','col-form'].forEach(id=>setText(id,'—'));
   }catch(e){logErr(e)}
 }
@@ -9512,6 +9500,8 @@ async function clicNotif(id, lien, lienId){
     else if(lien==='finance') showPage('finance');
     else if(lien==='rdv') { showPage('agenda'); setTimeout(()=>switchTab('agenda','rdv'), 300); }
     else if(lien==='simulateurs') { if(typeof SIMP!=='undefined')SIMP.onglet='suppressions'; showPage('simulateur-pmo'); }
+    else if(lien==='conges') { showPage('rh'); setTimeout(()=>{switchTab('rh','conges');cgCharger();},300); }
+    else if(lien==='mes-conges') { showPage('mon-pointage'); }
     else if(lien==='validations') { if(typeof VAL!=='undefined')VAL.onglet='attente'; showPage('validations'); }
   }
 }
@@ -12889,19 +12879,19 @@ v4Def('sla',{titre:'Engagements de service',icone:'🎯',custom:async pg=>{
 v4Def('validations',{titre:'Validations',icone:'✅',custom:async pg=>{
   if(!estAdmin()){pg.innerHTML='<div class="card empty-cell">Réservé aux administrateurs.</div>';return;}
   await v4Src('profiles');
-  const[{data:cg},{data:nf},{data:bc}]=await Promise.all([sb.from('conges').select('*').eq('statut','en_attente'),sb.from('notes_frais').select('*').eq('statut','soumise'),sb.from('bons_commande').select('*').eq('statut','brouillon')]);
+  const[{data:cg},{data:nf},{data:bc}]=await Promise.all([sb.from('conges').select('*').in('statut',['en_attente','en_approbation']),sb.from('notes_frais').select('*').eq('statut','soumise'),sb.from('bons_commande').select('*').eq('statut','brouillon')]);
   const bloc=(titre,rows,cols,act)=>`<div class="card"><h3 class="v4-h3">${titre} <span class="badge ${rows.length?'badge-amber':'badge-gray'}">${rows.length}</span></h3>${rows.length?`<div class="table-wrap"><table><tbody>${rows.map(r=>`<tr>${cols(r)}<td><div class="row-actions">${act(r)}</div></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-cell">Rien à valider.</div>'}</div>`;
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">✅ Validations</h1><div class="page-sub">Toutes les demandes en attente de décision, au même endroit</div></div></div>
   <div class="v4-grid">
-  ${bloc('Congés',cg||[],r=>`<td><div class="cell-main">${esc(r.employe_nom||srcLabel('profiles',r.created_by)||'Collaborateur')}</div><div class="cell-sub">${esc(r.type||'')} · du ${esc(fmtD(r.date_debut))} au ${esc(fmtD(r.date_fin))}</div></td>`,
-    r=>`<button class="btn btn-accent btn-sm" onclick="validerConge('${r.id}','approuve')">Approuver</button><button class="btn btn-outline btn-sm" onclick="validerConge('${r.id}','refuse')">Refuser</button>`)}
+  ${bloc('Congés',cg||[],r=>`<td><div class="cell-main">${esc(r.employe_nom||srcLabel('profiles',r.created_by)||'Collaborateur')}</div><div class="cell-sub">${esc(r.reference||'')} ${esc(typeof cgTypeLib==='function'?cgTypeLib(r):r.type||'')} · du ${esc(fmtD(r.date_debut))} au ${esc(fmtD(r.date_fin))}${r.jours_ouvres?' · '+r.jours_ouvres+' j ouvrés':''}</div></td>`,
+    r=>`${r.fichier_signe?`<button class="btn btn-outline btn-sm" onclick="cgVoirChemin('${esc(r.fichier_signe)}')" title="Fiche signée">📎</button>`:''}<button class="btn btn-outline btn-sm" onclick="cgPdf('${r.id}')" title="Fiche">📄</button><button class="btn btn-accent btn-sm" onclick="validerConge('${r.id}','approuve')">Approuver</button><button class="btn btn-outline btn-sm" onclick="validerConge('${r.id}','refuse')">Refuser</button>`)}
   ${bloc('Notes de frais',nf||[],r=>`<td><div class="cell-main">${esc(r.collaborateur_nom||'')} — ${esc(money(r.montant))}</div><div class="cell-sub">${esc(r.categorie||'')} · ${esc(r.description||'')}${r.justificatif_url?'':' · sans justificatif'}</div></td>`,
     r=>`<button class="btn btn-accent btn-sm" onclick="statutFrais('${r.id}','validee')">Valider</button><button class="btn btn-outline btn-sm" onclick="statutFrais('${r.id}','rejetee')">Rejeter</button>`)}
   ${bloc('Bons de commande',bc||[],r=>`<td><div class="cell-main">${esc(r.reference||'')} — ${esc(r.fournisseur_nom||'')}</div><div class="cell-sub">${esc(r.titre||'')} · ${esc(money(r.montant_ttc))} TTC</div></td>`,
     r=>`<button class="btn btn-accent btn-sm" onclick="validerBC('${r.id}')">Approuver</button><button class="btn btn-outline btn-sm" onclick="commandePDF('${r.id}')">PDF</button>`)}
   </div>`;
 }});
-async function validerConge(id,st){if(await v4Maj('conges',id,{statut:st},st==='approuve'?'✅ Congé approuvé':'Congé refusé'))v4Render('validations');}
+async function validerConge(id,st){return cgDecider(id,st==='approuve');}
 async function validerBC(id){if(await v4Maj('bons_commande',id,{statut:'valide'},'✅ Bon de commande approuvé'))v4Render('validations');}
 
 // ═══ 11. JOURNAL D'AUDIT ═══
@@ -21762,12 +21752,177 @@ async function gpmPdf(ids,langs){const L=ids.map(id=>GPM_ROWS.find(x=>x.id===id)
 </script>
 <script>
 // ══════════════════════════════════════════════════════════════════════
+// CONGÉS ET ABSENCES — circuit : la RH remplit la fiche → le salarié la signe (motif manuscrit pour une absence)
+// → la RH dépose la fiche signée et l’envoie pour approbation → la direction approuve ou refuse
+// → approuvée, les jours ouvrés sont inscrits dans le pointage (migration-conges-absences.sql).
+// ══════════════════════════════════════════════════════════════════════
+var CG={rows:[],equipe:[],filtre:{statut:'',nature:'',emp:'',annee:String(new Date().getFullYear())}};
+const CG_TYPES={conge:{annuel:'Congé annuel payé',exceptionnel:'Congé exceptionnel (événement familial)',maladie:'Congé de maladie',maternite:'Congé de maternité',paternite:'Congé de paternité',sans_solde:'Congé sans solde',recuperation:'Récupération',autre:'Autre'},
+  absence:{autorisee:'Absence autorisée (payée)',non_payee:'Absence autorisée (non payée)',maladie:'Maladie / rendez-vous médical',familial:'Raison familiale',administratif:'Démarche administrative',autre:'Autre'}};
+const CG_ST={a_signer:['À signer par le salarié','#FEF3E2','#B45309'],signe:['Signée — à envoyer','#E8F0FB','#1565C0'],en_approbation:['En attente d’approbation','#F3E8FF','#7C3AED'],
+  approuve:['Approuvée','#EDF6E8','#3F8A1E'],refuse:['Refusée','#FDECEC','#B42318'],annule:['Annulée','#F1F3F7','#7A90A8'],en_attente:['Ancienne demande','#FEF3E2','#B45309']};
+const cgRH=()=>['superadmin','admin','directeur','administrateur','responsable'].includes(CP?.role);
+const cgApprob=()=>['superadmin','admin'].includes(CP?.role);
+const cgNat=c=>c.nature==='absence'?'absence':'conge';
+const cgTypeLib=c=>(CG_TYPES[cgNat(c)]||{})[c.type]||c.type||'—';
+const cgNomP=p=>p?((p.prenom||'')+' '+(p.nom||'')).trim():'';
+const cgNom=c=>cgNomP(CG.equipe.find(e=>e.id===c.employe_id))||c.employe_nom||'—';
+const cgD=d=>d?new Date(String(d).slice(0,10)+'T12:00:00').toLocaleDateString('fr-FR'):'—';
+function cgOuvres(a,b){if(!a||!b||b<a)return 0;let n=0;for(let d=new Date(a+'T12:00:00');d<=new Date(b+'T12:00:00');d.setDate(d.getDate()+1))if(d.getDay()%6)n++;return n;}
+function cgReprise(b){if(!b)return null;const d=new Date(b+'T12:00:00');do{d.setDate(d.getDate()+1);}while(!(d.getDay()%6));return d.toISOString().slice(0,10);}
+function cgErr(e){const m=e?.message||String(e);return /column|does not exist|schema cache|conges_statut_check|conges_nature/i.test(m)?'Exécutez « migration-conges-absences.sql » dans le SQL Editor de Supabase, puis rechargez':m;}
+async function cgEquipe(){if(CG.equipe.length)return;const{data}=await sb.from('profiles').select('id,prenom,nom,role,email,poste').order('prenom');
+  CG.equipe=(data||[]).filter(p=>!['client','apprenant'].includes(p.role));}
+
+// ── Liste RH › Congés ──
+async function cgCharger(){const pane=document.getElementById('rhPane-conges');if(!pane)return;
+  await cgEquipe().catch(()=>{});
+  const{data,error}=await sb.from('conges').select('*').order('created_at',{ascending:false});
+  if(error){pane.innerHTML=`<div style="padding:14px;color:var(--amber)">⚠️ ${esc(cgErr(error))}</div>`;return;}
+  CG.rows=data||[];setText('rhConges',CG.rows.filter(c=>['a_signer','signe','en_approbation','en_attente'].includes(c.statut)).length);setText('rhApprouves',CG.rows.filter(c=>c.statut==='approuve').length);
+  const F=CG.filtre,L=CG.rows.filter(c=>(!F.statut||c.statut===F.statut)&&(!F.nature||cgNat(c)===F.nature)&&(!F.emp||c.employe_id===F.emp)&&(!F.annee||String(c.date_debut||'').startsWith(F.annee)));
+  const nb=s=>CG.rows.filter(c=>c.statut===s).length,annees=[...new Set(CG.rows.map(c=>String(c.date_debut||'').slice(0,4)).filter(Boolean).concat(String(new Date().getFullYear())))].sort().reverse();
+  pane.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+     ${cgRH()?`<button class="btn btn-primary btn-sm" onclick="cgForm('conge')">🏖️ Demande de congé</button><button class="btn btn-primary btn-sm" onclick="cgForm('absence')">🕒 Demande d’absence</button>`:''}
+     <span style="flex:1"></span>
+     <select aria-label="Nature" onchange="CG.filtre.nature=this.value;cgCharger()"><option value="">Congés et absences</option><option value="conge" ${F.nature==='conge'?'selected':''}>Congés</option><option value="absence" ${F.nature==='absence'?'selected':''}>Absences</option></select>
+     <select aria-label="Employé" onchange="CG.filtre.emp=this.value;cgCharger()"><option value="">Tous les employés</option>${CG.equipe.map(e=>`<option value="${e.id}" ${F.emp===e.id?'selected':''}>${esc(cgNomP(e))}</option>`).join('')}</select>
+     <select aria-label="Statut" onchange="CG.filtre.statut=this.value;cgCharger()"><option value="">Tous les statuts</option>${Object.entries(CG_ST).map(([k,v])=>`<option value="${k}" ${F.statut===k?'selected':''}>${v[0]}</option>`).join('')}</select>
+     <select aria-label="Année" onchange="CG.filtre.annee=this.value;cgCharger()"><option value="">Toutes années</option>${annees.map(a=>`<option ${F.annee===a?'selected':''}>${a}</option>`).join('')}</select></div>
+   <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:12px;margin-bottom:10px;color:var(--g500)">
+     ${[['a_signer','1. Fiche remise au salarié'],['signe','2. Signée, déposée par la RH'],['en_approbation','3. Chez la direction'],['approuve','4. Approuvée → pointage']].map(([k,l])=>`<span style="padding:4px 9px;border-radius:20px;background:${CG_ST[k][1]};color:${CG_ST[k][2]}">${l} <b>${nb(k)}</b></span>`).join('')}</div>
+   <div class="table-wrap"><table><thead><tr><th>Réf.</th><th>Employé</th><th>Demande</th><th>Du</th><th>Au</th><th>Jours ouvrés</th><th>Statut</th><th></th></tr></thead><tbody>
+   ${L.map(c=>{const s=CG_ST[c.statut]||CG_ST.en_attente;return `<tr><td><code style="font-size:11.5px">${esc(c.reference||'—')}</code></td><td><b>${esc(cgNom(c))}</b></td>
+     <td>${cgNat(c)==='absence'?'🕒 Absence':'🏖️ Congé'}<div class="cell-sub">${esc(cgTypeLib(c))}</div></td><td>${cgD(c.date_debut)}${c.heure_debut?'<div class="cell-sub">'+String(c.heure_debut).slice(0,5)+'</div>':''}</td>
+     <td>${cgD(c.date_fin)}${c.heure_fin?'<div class="cell-sub">'+String(c.heure_fin).slice(0,5)+'</div>':''}</td><td>${c.jours_ouvres??c.nb_jours??'—'}</td>
+     <td><span class="badge" style="background:${s[1]};color:${s[2]}">${s[0]}</span>${c.motif_refus?`<div class="cell-sub">${esc(c.motif_refus)}</div>`:''}${c.decide_le?`<div class="cell-sub">${c.statut==='approuve'?'Approuvée':'Décision'} le ${fmtD(c.decide_le)}</div>`:''}</td>
+     <td style="white-space:nowrap">${cgActions(c)}</td></tr>`;}).join('')||'<tr><td colspan="8" style="text-align:center;padding:18px;color:var(--g400)">Aucune demande.</td></tr>'}</tbody></table></div>`;}
+function cgActions(c){const b=(f,l,t,p)=>`<button class="btn ${p?'btn-primary':'btn-outline'} btn-sm" onclick="${f}" title="${t||l}">${l}</button>`,rh=cgRH(),ap=cgApprob(),x=[];
+  x.push(b(`cgPdf('${c.id}')`,'📄','Fiche à imprimer'));
+  if(c.fichier_signe)x.push(b(`cgVoir('${c.id}')`,'📎','Fiche signée'));
+  if(c.statut==='a_signer'&&rh){x.push(b(`cgDeposer('${c.id}')`,'⬆️ Fiche signée','Déposer la fiche signée par le salarié',1),b(`cgForm('${cgNat(c)}','${c.id}')`,'✏️','Modifier'));}
+  if(c.statut==='signe'&&rh){x.push(b(`cgEnvoyer('${c.id}')`,'📨 Pour approbation','Envoyer à la direction',1),b(`cgDeposer('${c.id}')`,'⬆️','Remplacer la fiche signée'));}
+  if(['en_approbation','en_attente'].includes(c.statut)&&ap)x.push(b(`cgDecider('${c.id}',true)`,'✅ Approuver','',1),b(`cgDecider('${c.id}',false)`,'⛔ Refuser'));
+  if(['a_signer','signe','en_approbation','approuve'].includes(c.statut)&&(rh||ap))x.push(b(`cgAnnuler('${c.id}')`,'✕','Annuler la demande'));
+  return x.join(' ');}
+
+// ── Formulaire RH ──
+async function cgForm(nature,id){if(!cgRH()){toast('Réservé à la RH');return;}await cgEquipe();
+  const c=id?CG.rows.find(x=>x.id===id):{nature,type:nature==='absence'?'autorisee':'annuel',date_debut:isoJour(),date_fin:isoJour()};if(!c)return;
+  const T=CG_TYPES[nature];
+  document.getElementById('modalBox').style.width='min(640px,96vw)';
+  document.getElementById('modalTitle').textContent=(id?'Modifier la ':'Nouvelle ')+(nature==='absence'?'demande d’absence':'demande de congé');
+  document.getElementById('modalBody').innerHTML=`<div class="form-grid">
+    <div class="form-field full"><label for="cgE">Employé *</label><select id="cgE"><option value="">— Choisir dans la base —</option>${CG.equipe.map(e=>`<option value="${e.id}" ${e.id===c.employe_id?'selected':''}>${esc(cgNomP(e))}${e.poste?' — '+esc(e.poste):''}</option>`).join('')}</select></div>
+    <div class="form-field full"><label for="cgT">Type ${nature==='absence'?'d’absence':'de congé'} *</label><select id="cgT">${Object.entries(T).map(([k,v])=>`<option value="${k}" ${c.type===k?'selected':''}>${v}</option>`).join('')}</select></div>
+    <div class="form-field"><label for="cgDb">Du *</label><input type="date" id="cgDb" value="${c.date_debut||''}" oninput="cgCalc()"></div>
+    <div class="form-field"><label for="cgFn">Au *</label><input type="date" id="cgFn" value="${c.date_fin||''}" oninput="cgCalc()"></div>
+    ${nature==='absence'?`<div class="form-field"><label for="cgHd">De (heure, facultatif)</label><input type="time" id="cgHd" value="${c.heure_debut?String(c.heure_debut).slice(0,5):''}"></div>
+    <div class="form-field"><label for="cgHf">À (heure, facultatif)</label><input type="time" id="cgHf" value="${c.heure_fin?String(c.heure_fin).slice(0,5):''}"></div>`:''}
+    <div class="form-field"><label for="cgJ">Jours ouvrés</label><input type="number" step="0.5" min="0" id="cgJ" value="${c.jours_ouvres??''}"></div>
+    <div class="form-field"><label for="cgR">Date de reprise</label><input type="date" id="cgR" value="${c.date_reprise||''}"></div>
+    <div class="form-field full"><label for="cgI">Intérim assuré par</label><input id="cgI" value="${esc(c.interim||'')}" placeholder="Facultatif"></div>
+    <div class="form-field full"><label for="cgO">Observations de la RH</label><textarea id="cgO" rows="2">${esc(c.observations||'')}</textarea></div>
+    <p class="cell-sub full" style="margin:0">${nature==='absence'?'Le motif de l’absence est laissé en blanc sur la fiche : le salarié l’écrit à la main avant de signer.':'La fiche est générée pour signature du salarié.'} Elle se télécharge à l’enregistrement.</p></div>`;
+  document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-primary" id="cgBtn" onclick="cgSauver('${nature}','${id||''}')">${id?'💾 Enregistrer':'📄 Générer la fiche à signer'}</button>`;
+  document.getElementById('modalOverlay').classList.add('open');if(!id)cgCalc();}
+function cgCalc(){const a=gv('cgDb'),b=gv('cgFn');if(!a||!b)return;const j=document.getElementById('cgJ'),r=document.getElementById('cgR');if(j)j.value=cgOuvres(a,b);if(r)r.value=cgReprise(b)||'';}
+async function cgSauver(nature,id){const emp=gv('cgE'),a=gv('cgDb'),b=gv('cgFn');
+  if(!emp){toast('❌ Choisissez l’employé');return;}if(!a||!b){toast('❌ Indiquez les dates');return;}if(b<a){toast('❌ La date de fin précède la date de début');return;}
+  const e=CG.equipe.find(x=>x.id===emp),j=Number(gv('cgJ'));
+  const o={employe_id:emp,employe_nom:cgNomP(e),nature,type:gv('cgT'),date_debut:a,date_fin:b,heure_debut:gv('cgHd')||null,heure_fin:gv('cgHf')||null,
+    jours_ouvres:isNaN(j)?cgOuvres(a,b):j,nb_jours:isNaN(j)?cgOuvres(a,b):j,date_reprise:gv('cgR')||cgReprise(b),interim:g('cgI')||null,observations:g('cgO')||null};
+  document.getElementById('cgBtn').disabled=true;
+  const r=id?await sb.from('conges').update(o).eq('id',id).select().maybeSingle():await sb.from('conges').insert({...o,statut:'a_signer',envoye_le:new Date().toISOString(),created_by:CU?.id}).select().maybeSingle();
+  if(r.error){document.getElementById('cgBtn').disabled=false;toast('❌ '+cgErr(r.error),9000);return;}
+  try{logAudit(id?'modification':'creation','conges',r.data?.id,{reference:r.data?.reference,nature});}catch(_){}
+  closeModal();await cgCharger();if(r.data)await cgPdf(r.data.id);
+  toast(id?'✅ Demande mise à jour':'📄 Fiche '+(r.data?.reference||'')+' générée : remettez-la au salarié pour signature',7000);}
+
+// ── Étapes ──
+function cgDeposer(id){const inp=document.createElement('input');inp.type='file';inp.accept='.pdf,image/*';
+  inp.onchange=async()=>{const f=inp.files?.[0];if(!f)return;if(f.size>15*1024*1024){toast('❌ Fichier trop lourd (15 Mo maximum)');return;}
+    const c=CG.rows.find(x=>x.id===id),chemin=`conges/${id}/${Date.now()}-${f.name.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9._-]+/g,'_')}`;
+    const up=await sb.storage.from('erp-pj').upload(chemin,f,{contentType:f.type||undefined});if(up.error){toast('❌ '+up.error.message,8000);return;}
+    const{error}=await sb.from('conges').update({fichier_signe:chemin,fichier_nom:f.name,statut:c?.statut==='a_signer'?'signe':c?.statut}).eq('id',id);
+    if(error){toast('❌ '+cgErr(error),8000);return;}try{logAudit('depot_signe','conges',id,{fichier:f.name});}catch(_){}
+    toast('✅ Fiche signée déposée. Envoyez-la maintenant pour approbation.',6000);cgCharger();};
+  inp.click();}
+async function cgVoirChemin(ch){const{data,error}=await sb.storage.from('erp-pj').createSignedUrl(ch,300);if(error){toast('❌ '+error.message);return;}window.open(data.signedUrl,'_blank','noopener');}
+async function cgVoir(id){const c=CG.rows.find(x=>x.id===id)||(CG.mes||[]).find(x=>x.id===id);if(!c?.fichier_signe)return;
+  const{data,error}=await sb.storage.from('erp-pj').createSignedUrl(c.fichier_signe,300);if(error){toast('❌ '+error.message);return;}window.open(data.signedUrl,'_blank','noopener');}
+async function cgEnvoyer(id){const c=CG.rows.find(x=>x.id===id);if(!c)return;
+  if(!confirm(`Envoyer ${c.reference} à la direction pour approbation ?`))return;
+  const{error}=await sb.from('conges').update({statut:'en_approbation'}).eq('id',id);if(error){toast('❌ '+cgErr(error),8000);return;}
+  try{logAudit('envoi_approbation','conges',id,{reference:c.reference});}catch(_){}toast('📨 Demande envoyée à la direction');cgCharger();}
+async function cgDecider(id,ok){if(!cgApprob()){toast('Réservé à la direction');return;}
+  let c=CG.rows.find(x=>x.id===id);if(!c){const r=await sb.from('conges').select('*').eq('id',id).maybeSingle();c=r.data;}if(!c)return;
+  let motif=null;if(ok){if(!confirm(`Approuver ${c.reference||'la demande'} — ${cgNom(c)}, du ${cgD(c.date_debut)} au ${cgD(c.date_fin)} ?\nLes jours ouvrés seront inscrits dans le pointage.`))return;}
+  else{motif=prompt('Motif du refus (transmis au salarié et à la RH) :','');if(motif===null)return;}
+  const{error}=await sb.from('conges').update({statut:ok?'approuve':'refuse',motif_refus:motif}).eq('id',id);if(error){toast('❌ '+cgErr(error),8000);return;}
+  try{logAudit(ok?'approbation':'refus','conges',id,{reference:c.reference,motif});}catch(_){}
+  toast(ok?'✅ Demande approuvée et inscrite dans le pointage':'⛔ Demande refusée');
+  if(document.getElementById('page-validations')?.classList.contains('active'))v4Render('validations');else cgCharger();}
+async function cgAnnuler(id){const c=CG.rows.find(x=>x.id===id);if(!c)return;
+  if(!confirm(`Annuler ${c.reference} ?${c.statut==='approuve'?'\nLes jours inscrits dans le pointage seront retirés.':''}`))return;
+  const{error}=await sb.from('conges').update({statut:'annule'}).eq('id',id);if(error){toast('❌ '+cgErr(error),8000);return;}
+  try{logAudit('annulation','conges',id,{reference:c.reference});}catch(_){}toast('Demande annulée');cgCharger();}
+
+// ── Fiche PDF à signer ──
+async function cgPdf(id){let c=CG.rows.find(x=>x.id===id)||(CG.mes||[]).find(x=>x.id===id);
+  if(!c){const r=await sb.from('conges').select('*').eq('id',id).maybeSingle();c=r.data;}if(!c)return;
+  await ensurePdf();const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=doc.internal.pageSize.getWidth(),abs=cgNat(c)==='absence';
+  const e=CG.equipe.find(x=>x.id===c.employe_id)||(c.employe_id===CU?.id?CP:{})||{};
+  expEntetePdf(doc,abs?'DEMANDE D’AUTORISATION D’ABSENCE':'DEMANDE DE CONGÉ','Réf. '+(c.reference||'—')+' · établie le '+cgD(c.created_at));
+  let y=38;const titre=t=>{doc.setFillColor(10,42,102);doc.rect(14,y,W-28,6,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255);doc.text(t,17,y+4.2);y+=10;};
+  const lig=(l,v,x,w)=>{doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(100,110,130);doc.text(l,x,y);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(20,30,50);doc.text(doc.splitTextToSize(String(v||'—'),w)[0],x,y+5);};
+  titre('1. LE SALARIÉ');lig('Nom et prénoms',cgNom(c),17,85);lig('Fonction',e.poste||e.fonction||'',W/2+3,85);y+=13;
+  titre(abs?'2. NATURE DE L’ABSENCE':'2. NATURE DU CONGÉ');
+  const T=Object.entries(CG_TYPES[cgNat(c)]);doc.setFontSize(9);
+  T.forEach(([k,v],i)=>{const x=17+(i%2)*((W-34)/2),yy=y+Math.floor(i/2)*6.5;doc.setDrawColor(90,100,120);doc.setLineWidth(0.3);doc.rect(x,yy-3.2,3.6,3.6);
+    if(k===c.type){doc.setLineWidth(0.5);doc.line(x+0.6,yy-2.6,x+3,yy-0.2);doc.line(x+3,yy-2.6,x+0.6,yy-0.2);}
+    doc.setFont('helvetica',k===c.type?'bold':'normal');doc.setTextColor(20,30,50);doc.text(v,x+6,yy);});
+  y+=Math.ceil(T.length/2)*6.5+4;
+  titre('3. PÉRIODE DEMANDÉE');
+  lig('Du',cgD(c.date_debut)+(c.heure_debut?' à '+String(c.heure_debut).slice(0,5):''),17,50);lig('Au',cgD(c.date_fin)+(c.heure_fin?' à '+String(c.heure_fin).slice(0,5):''),17+58,50);
+  lig('Jours ouvrés',String(c.jours_ouvres??c.nb_jours??'—'),17+116,30);lig('Reprise le',cgD(c.date_reprise),17+148,30);y+=12;
+  lig('Intérim assuré par',c.interim||'',17,W-40);y+=12;
+  if(c.observations){doc.setFont('helvetica','italic');doc.setFontSize(8.5);doc.setTextColor(70,80,100);const t=doc.splitTextToSize('Observations de la RH : '+c.observations,W-34);doc.text(t,17,y);y+=t.length*4+3;}
+  if(abs){titre('4. MOTIF DE L’ABSENCE — à compléter à la main par le salarié');doc.setDrawColor(170,180,195);doc.setLineWidth(0.2);doc.setLineDashPattern([0.8,1.2],0);
+    for(let i=0;i<6;i++){y+=7;doc.line(17,y,W-17,y);}doc.setLineDashPattern([],0);y+=7;}
+  titre((abs?'5':'4')+'. VISAS');
+  const bw=(W-28-8)/3,vis=[['Le salarié','Lu et approuvé, date et signature'],['Le service RH','Date et signature'],['La Direction','Date, signature et cachet']];
+  vis.forEach(([t,s],i)=>{const x=14+i*(bw+4);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(10,42,102);doc.text(t,x+2,y);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(110,120,135);doc.text(s,x+2,y+4);
+    doc.setDrawColor(190,200,215);doc.setLineWidth(0.25);doc.rect(x,y+6,bw,30);
+    if(i===2){doc.setFontSize(8.5);doc.setTextColor(20,30,50);doc.rect(x+3,y+9,3,3);doc.text('Accord',x+8,y+11.5);doc.rect(x+26,y+9,3,3);doc.text('Refus',x+31,y+11.5);}});
+  y+=42;doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(100,110,130);
+  doc.text(doc.splitTextToSize('Fiche à remettre complétée et signée au service RH. La demande ne devient effective qu’après l’accord de la Direction ; les jours accordés sont alors reportés sur la fiche de pointage.',W-28),14,y);
+  expPiedPdf(doc);doc.save(expNomFichier((abs?'Demande-absence-':'Demande-conge-')+(c.reference||'')+'-'+cgNom(c))+'.pdf');}
+
+// ── Mes congés et absences (côté salarié, dans « Mon pointage ») ──
+async function cgMesDemandes(cible){const el=document.getElementById(cible||'cgMes');if(!el)return;
+  const{data,error}=await sb.from('conges').select('*').eq('employe_id',uid()).order('date_debut',{ascending:false}).limit(30);
+  if(error){el.innerHTML='';return;}CG.mes=data||[];
+  el.innerHTML=CG.mes.length?`<div class="table-wrap"><table><thead><tr><th>Réf.</th><th>Demande</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>${CG.mes.map(c=>{const s=CG_ST[c.statut]||CG_ST.en_attente;
+    return `<tr><td><code style="font-size:11.5px">${esc(c.reference||'—')}</code></td><td>${cgNat(c)==='absence'?'Absence':'Congé'} — ${esc(cgTypeLib(c))}</td><td>${cgD(c.date_debut)} → ${cgD(c.date_fin)}</td>
+      <td><span class="badge" style="background:${s[1]};color:${s[2]}">${s[0]}</span>${c.motif_refus?`<div class="cell-sub">${esc(c.motif_refus)}</div>`:''}</td>
+      <td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="cgPdf('${c.id}')" title="Imprimer la fiche">📄</button>${c.fichier_signe?` <button class="btn btn-outline btn-sm" onclick="cgVoir('${c.id}')" title="Fiche signée">📎</button>`:''}</td></tr>`;}).join('')}</tbody></table></div>
+    ${CG.mes.some(c=>c.statut==='a_signer')?'<p class="cell-sub" style="margin:8px 0 0">Une fiche vous attend : imprimez-la, complétez-la, signez-la et remettez-la à la RH.</p>':''}`
+   :'<div class="cell-sub" style="padding:8px 0">Aucune demande. Pour un congé ou une absence, adressez-vous à la RH : elle prépare la fiche que vous signerez.</div>';}
+
+// « Mon pointage » : ajout de la carte « Mes congés et absences »
+(function(){const d=V4['mon-pointage'];if(!d||!d.custom)return;const o=d.custom;
+  d.custom=async pg=>{await o(pg);pg.insertAdjacentHTML('beforeend','<div class="card" style="margin-top:14px"><h3 class="v4-h3">🏖️ Mes congés et absences</h3><div id="cgMes"><div class="cell-sub">Chargement…</div></div></div>');cgMesDemandes('cgMes');};})();
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════════════
 // VALIDATIONS — toute modification ou suppression faite par un membre de l’équipe (hors super administrateur)
 // est mise en attente : l’ERP regroupe les changements d’une même action, demande un commentaire et/ou une pièce
 // jointe, puis envoie la demande au super administrateur. Validée : le changement s’applique et le demandeur est
 // notifié. Refusée : rien ne change et le demandeur est notifié du refus. Les créations restent libres.
 // Garde-fou serveur : migration-validations.sql (toute écriture directe d’une table soumise y est refusée).
 // ══════════════════════════════════════════════════════════════════════
+const VAL_METIER=V4['validations'];
 var VAL={tables:new Set(),libelles:{},charge:false,uid:null,lot:null,silence:0,pref:'',onglet:'attente'};
 const VAL_LIBRES=['superadmin','client','apprenant','formateur'];
 const _valFrom=sb.from.bind(sb),_valStFrom=sb.storage.from.bind(sb.storage),_valToast=toast;
@@ -21884,10 +22039,12 @@ v4Def('validations',{titre:'Validations',icone:'✅',custom:async pg=>{
   if(error){pg.innerHTML=`<div class="card">⚠️ ${/does not exist|schema cache|Could not find/i.test(error.message)?'Exécutez <b>migration-validations.sql</b> dans le SQL Editor de Supabase, puis rechargez la page.':esc(error.message)}</div>`;return;}
   const L=L0||[],att=L.filter(v=>v.statut==='en_attente');
   let simAtt=0;if(sup){try{const r=await _valFrom('sim_suppressions').select('id',{count:'exact',head:true}).eq('statut','en_attente');simAtt=r.count||0;}catch(_){}}
-  if(!sup&&VAL.onglet==='reglages')VAL.onglet='attente';
+  if(!sup&&VAL.onglet==='reglages')VAL.onglet='attente';const metier=VAL_METIER&&typeof estAdmin==='function'&&estAdmin();
   const ong=sup?[['attente',`⏳ En attente${att.length?' ('+att.length+')':''}`],['traitees','📁 Traitées'],['reglages','⚙️ Réglages']]:[['attente',`⏳ En attente${att.length?' ('+att.length+')':''}`],['traitees','📁 Historique']];
+  if(metier)ong.splice(1,0,['metier','📋 Congés, frais, commandes']);
   let corps='';
-  if(VAL.onglet==='reglages'){const R=(VAL.regles||[]).slice().sort((a,b)=>String(a.libelle||a.table_name).localeCompare(String(b.libelle||b.table_name)));
+  if(VAL.onglet==='metier'&&metier){corps='<div id="valMetier"></div>';}
+  else if(VAL.onglet==='reglages'){const R=(VAL.regles||[]).slice().sort((a,b)=>String(a.libelle||a.table_name).localeCompare(String(b.libelle||b.table_name)));
     corps=`<div class="card"><p class="cell-sub" style="margin-top:0">Éléments dont la modification ou la suppression exige votre validation. Décochez un élément pour laisser l’équipe le modifier librement (ex. tâches, agenda). Les créations restent toujours libres ; la messagerie, les notifications, les e-mails, le profil personnel, « Mon espace » et le pointage ne sont jamais soumis.</p>
      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px">${R.map(r=>`<label style="display:flex;gap:8px;align-items:center;font-size:13px;padding:6px 8px;border:1px solid var(--g100);border-radius:8px"><input type="checkbox" ${r.soumis?'checked':''} onchange="valRegle('${r.table_name}',this.checked)"> ${esc(r.libelle||r.table_name)}</label>`).join('')}</div></div>`;}
   else{const V=VAL.onglet==='attente'?att:L.filter(v=>v.statut!=='en_attente');
@@ -21895,7 +22052,8 @@ v4Def('validations',{titre:'Validations',icone:'✅',custom:async pg=>{
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">✅ ${sup?'Validations':'Mes demandes de validation'}</h1><div class="page-sub">${sup?'Modifications et suppressions demandées par l’équipe : vous validez ou refusez':'Vos modifications et suppressions soumises au super administrateur'}</div></div></div>
    ${simAtt?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:10px;font-size:13px">🎯 ${simAtt} demande(s) de suppression dans les simulateurs — <a href="#" onclick="SIMP.onglet='suppressions';showPage('simulateur-pmo');return false">ouvrir</a></div>`:''}
    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${ong.map(([k,l])=>`<button class="btn ${VAL.onglet===k?'btn-primary':'btn-outline'} btn-sm" onclick="VAL.onglet='${k}';v4Render('validations')">${l}</button>`).join('')}</div>${corps}`;
-  window._VAL_L=L;valBadge();}});
+  window._VAL_L=L;valBadge();
+  if(VAL.onglet==='metier'&&metier){const m=document.getElementById('valMetier');try{await VAL_METIER.custom(m);m.querySelector('.v4-head')?.remove();}catch(e){m.innerHTML='<div class="card">'+esc(e.message)+'</div>';}}}});
 function valCarte(v,sup){const st={en_attente:['En attente','#FEF3E2','#B45309'],validee:['Validée — appliquée','#EDF6E8','#3F8A1E'],refusee:['Refusée','#FDECEC','#B42318'],annulee:['Retirée','#F1F3F7','#7A90A8']}[v.statut]||['?','#eee','#333'];
   const nat={modification:'✏️ Modification',suppression:'🗑 Suppression',mixte:'✏️🗑 Modification et suppression'}[v.nature]||v.nature;
   return `<div class="card" style="margin-bottom:10px;border-left:4px solid ${st[2]}">
