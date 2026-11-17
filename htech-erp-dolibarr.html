@@ -18309,10 +18309,73 @@ const ptgErreur=e=>/does not exist|PGRST205|42P01|schema cache|Could not find th
   ?'⚠️ La table « pointages » est introuvable dans ce projet Supabase : exécutez « migration-pointage.sql » dans le SQL Editor du projet de l’ERP, puis rechargez la page (Ctrl+F5).'
   :'⚠️ Lecture des pointages impossible : '+esc(e?.message||String(e));
 const ptgPos=(la,lo)=>la!=null?`<a href="https://www.google.com/maps?q=${la},${lo}" target="_blank" rel="noopener" title="Position au moment du pointage">📍</a>`:'';
-function ptgResume(L){const tr=L.filter(p=>p.heure_arrivee),mn=tr.map(ptgDuree).filter(x=>x!=null);
+function ptgResume(L){const tr=L.filter(p=>p.heure_arrivee),mn=tr.map(p=>ptgEffectif(p)).filter(x=>x!=null);
   return{jours:tr.length,heures:mn.reduce((a,b)=>a+b,0),retards:tr.filter(p=>ptgRetard(p)>0).length,absences:L.filter(p=>['absence','maladie'].includes(p.type_journee)).length,
     conges:L.filter(p=>p.type_journee==='conge').length,incomplets:L.filter(p=>p.heure_arrivee&&!p.heure_depart&&p.date_pointage<isoJour()).length};}
 async function ptgPosition(){if(!navigator.geolocation)return{};return await new Promise(ok=>{navigator.geolocation.getCurrentPosition(p=>ok({lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6)}),()=>ok({}),{enableHighAccuracy:true,timeout:8000,maximumAge:60000});});}
+// ── Fiche de pointage mensuelle (PDF avec en-tête) — une par employé ; 2 h de pause déduites par journée pointée ──
+PTG.pause=120;
+const ptgEffectif=p=>{const d=ptgDuree(p);return d==null?null:Math.max(0,d-PTG.pause);};
+const ptgPauseAppliquee=p=>{const d=ptgDuree(p);return d==null?null:Math.min(d,PTG.pause);};
+async function ptgFiche(empId,mois){
+  mois=mois||PTG.mois||isoJour().slice(0,7);
+  const ids=empId?[empId]:[...new Set((PTG.rows||[]).map(p=>p.employe_id))];
+  if(!ids.length){toast('Aucun pointage pour ce mois');return;}
+  await ensurePdf();const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'});
+  const{data:R,error}=await sb.from('pointages').select('*').in('employe_id',ids).gte('date_pointage',mois+'-01').lt('date_pointage',moisSuivant(mois)).order('date_pointage');
+  if(error){toast('❌ '+error.message);return;}
+  const emps=ids.map(i=>(PTG.equipe||[]).find(e=>e.id===i)||(i===CU?.id?{...CP,id:i}:{id:i})).sort((a,b)=>((a.prenom||'')+(a.nom||'')).localeCompare((b.prenom||'')+(b.nom||'')));
+  emps.forEach((e,k)=>{if(k)doc.addPage();ptgFichePage(doc,e,mois,(R||[]).filter(p=>p.employe_id===e.id));});
+  expPiedPdf(doc);
+  const nom=emps.length===1?((emps[0].prenom||'')+'-'+(emps[0].nom||'')):'equipe';
+  doc.save(expNomFichier('Fiche-pointage-'+nom+'-'+mois)+'.pdf');
+  try{logAudit('export','pointages',empId||null,{mois,employes:emps.length});}catch(_){}
+  toast('✅ Fiche de pointage téléchargée');}
+function ptgFichePage(doc,e,mois,L){
+  const W=doc.internal.pageSize.getWidth(),[a,m]=mois.split('-').map(Number),nbJ=new Date(a,m,0).getDate();
+  const libMois=new Date(a,m-1,15).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const nom=((e.prenom||'')+' '+(e.nom||'')).trim()||'—';
+  expEntetePdf(doc,'FICHE DE POINTAGE','Mois de '+libMois);
+  // Identification
+  doc.setFillColor(244,247,252);doc.setDrawColor(219,227,239);doc.roundedRect(14,35,W-28,20,2,2,'FD');
+  const champ=(l,v,x,y)=>{doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(100,110,130);doc.text(l,x,y);doc.setFont('helvetica','bold');doc.setFontSize(9.5);doc.setTextColor(20,30,50);doc.text(String(v||'—'),x,y+4.5);};
+  champ('Employé',nom,18,40.5);champ('Fonction',e.poste||e.fonction||(typeof ROLE_LABELS!=='undefined'&&ROLE_LABELS[e.role])||e.role||'—',W/2-6,40.5);
+  champ('Période','Du 01/'+String(m).padStart(2,'0')+'/'+a+' au '+nbJ+'/'+String(m).padStart(2,'0')+'/'+a,18,49.5);
+  champ('Règle appliquée','Pause de '+ptgHM(PTG.pause)+' déduite par jour · arrivée attendue '+PTG.heureRef,W/2-6,49.5);
+  // Une ligne par jour du mois
+  const corps=[],styl=[];
+  for(let j=1;j<=nbJ;j++){const iso=`${a}-${String(m).padStart(2,'0')}-${String(j).padStart(2,'0')}`,d=new Date(iso+'T12:00:00'),we=[0,6].includes(d.getDay()),p=L.find(x=>x.date_pointage===iso);
+    const jour=d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'}).replace('.','');
+    if(!p){corps.push([jour,we?'Week-end':(iso<isoJour()?'Non pointé':''),'','','','','','','','']);styl.push(we?'we':iso<isoJour()?'np':'');continue;}
+    const dur=ptgDuree(p),r=ptgRetard(p),inc=p.heure_arrivee&&!p.heure_depart;
+    corps.push([jour,PTG_TYPES[p.type_journee]||p.type_journee,p.heure_arrivee?String(p.heure_arrivee).slice(0,5):'',p.heure_depart?String(p.heure_depart).slice(0,5):(inc?'non pointé':''),
+      dur==null?'':ptgHM(dur),dur==null?'':'- '+ptgHM(ptgPauseAppliquee(p)),dur==null?'':ptgHM(ptgEffectif(p)),r?'+'+r+' min':'',(PTG_ST[p.statut]||PTG_ST.en_attente)[1],[p.motif_correction,p.notes].filter(Boolean).join(' · ')]);
+    styl.push(inc?'inc':'');}
+  doc.autoTable({startY:59,margin:{left:14,right:14,bottom:16},head:[['Jour','Type','Arrivée','Départ','Présence','Pause','Temps effectif','Retard','Statut','Observations']],body:corps,
+    styles:{fontSize:7,cellPadding:{top:0.85,bottom:0.85,left:1.2,right:1.2},overflow:'linebreak',lineColor:[226,232,240],lineWidth:0.1},headStyles:{fillColor:[10,42,102],textColor:255,fontStyle:'bold',fontSize:7.3},
+    columnStyles:{0:{cellWidth:19},1:{cellWidth:20},2:{cellWidth:13,halign:'center'},3:{cellWidth:15,halign:'center'},4:{cellWidth:15,halign:'right'},5:{cellWidth:14,halign:'right'},6:{cellWidth:18,halign:'right',fontStyle:'bold'},7:{cellWidth:14,halign:'right'},8:{cellWidth:16},9:{cellWidth:'auto'}},
+    didParseCell:c=>{if(c.section!=='body')return;const s=styl[c.row.index];
+      if(s==='we')c.cell.styles.fillColor=[241,243,247],c.cell.styles.textColor=[150,160,175];
+      if(s==='np'&&c.column.index===1)c.cell.styles.textColor=[180,35,24];
+      if(s==='inc'&&c.column.index===3)c.cell.styles.textColor=[180,83,9];
+      if(c.column.index===7&&c.cell.raw)c.cell.styles.textColor=[180,35,24];}});
+  // Récapitulatif
+  const tr=L.filter(p=>p.heure_arrivee),comp=tr.filter(p=>ptgDuree(p)!=null),pres=comp.reduce((s,p)=>s+ptgDuree(p),0),pau=comp.reduce((s,p)=>s+ptgPauseAppliquee(p),0),eff=comp.reduce((s,p)=>s+ptgEffectif(p),0);
+  const ret=tr.map(ptgRetard).filter(x=>x>0),R=ptgResume(L);
+  let y=doc.lastAutoTable.finalY+4;if(y>247){doc.addPage();expEntetePdf(doc,'FICHE DE POINTAGE','Mois de '+libMois+' · '+nom);y=38;}
+  doc.autoTable({startY:y,margin:{left:14,right:W-14-112},theme:'grid',head:[[{content:'Récapitulatif du mois',colSpan:4}]],body:[
+      ['Jours pointés',String(R.jours),'Retards',ret.length?ret.length+' (cumul '+ptgHM(ret.reduce((s,x)=>s+x,0))+')':'0'],
+      ['Temps de présence',ptgHM(pres),'Absences / maladie',String(R.absences)],
+      ['Pauses déduites ('+comp.length+' j)','- '+ptgHM(pau),'Congés',String(R.conges)],
+      ['TEMPS EFFECTIF',ptgHM(eff),'Départs non pointés',String(R.incomplets)]],
+    styles:{fontSize:7.3,cellPadding:1.3},headStyles:{fillColor:[10,42,102],textColor:255},columnStyles:{0:{cellWidth:36},1:{halign:'right',cellWidth:18},2:{cellWidth:32},3:{halign:'right',cellWidth:26}},
+    didParseCell:c=>{if(c.section==='body'&&c.row.index===3&&c.column.index<2){c.cell.styles.fontStyle='bold';c.cell.styles.fillColor=[237,246,232];c.cell.styles.textColor=[30,90,20];}}});
+  // Visas (signatures manuscrites)
+  const yS=y-1,xS=14+116;doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(10,42,102);
+  doc.text("L'employé",xS,yS+4);doc.text('Le responsable',xS+33,yS+4);
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(120,130,145);
+  doc.text('Lu et approuvé',xS,yS+8);doc.text('Signature et cachet',xS+33,yS+8);
+  doc.setDrawColor(190,200,215);doc.setLineWidth(0.2);doc.rect(xS,yS+10,30,22);doc.rect(xS+33,yS+10,30,22);}
 
 // ── Mon pointage (tout le personnel) ──
 v4Def('mon-pointage',{titre:'Mon pointage',icone:'⏱️',custom:async pg=>{
@@ -18324,20 +18387,20 @@ v4Def('mon-pointage',{titre:'Mon pointage',icone:'⏱️',custom:async pg=>{
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">⏱️ Mon pointage</h1><div class="page-sub">${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div></div></div>
    <div class="card" style="text-align:center;padding:26px 16px;margin-bottom:14px">
     <div id="ptgHorloge" style="font-family:Montserrat,sans-serif;font-size:44px;font-weight:800;color:var(--navy);letter-spacing:1px">--:--</div>
-    <div class="cell-sub" style="margin-bottom:16px">${etat==='arrivee'?'Vous n’avez pas encore pointé aujourd’hui.':etat==='depart'?'Arrivée pointée à <b>'+String(auj.heure_arrivee).slice(0,5)+'</b>'+(ptgRetard(auj)?' · <span style="color:#B42318">retard de '+ptgHM(ptgRetard(auj))+'</span>':''):'Journée terminée : '+String(auj.heure_arrivee).slice(0,5)+' → '+String(auj.heure_depart).slice(0,5)+' ('+ptgHM(ptgDuree(auj))+')'}</div>
+    <div class="cell-sub" style="margin-bottom:16px">${etat==='arrivee'?'Vous n’avez pas encore pointé aujourd’hui.':etat==='depart'?'Arrivée pointée à <b>'+String(auj.heure_arrivee).slice(0,5)+'</b>'+(ptgRetard(auj)?' · <span style="color:#B42318">retard de '+ptgHM(ptgRetard(auj))+'</span>':''):'Journée terminée : '+String(auj.heure_arrivee).slice(0,5)+' → '+String(auj.heure_depart).slice(0,5)+' ('+ptgHM(ptgEffectif(auj))+' effectives, pause de 2 h déduite)'}</div>
     ${etat==='arrivee'?`<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px">${['normal','teletravail','deplacement','mission','formation'].map(t=>`<label style="font-size:13px;display:flex;gap:5px;align-items:center"><input type="radio" name="ptgT" value="${t}" ${t==='normal'?'checked':''}> ${PTG_TYPES[t]}</label>`).join('')}</div>
       <button class="btn btn-primary" style="font-size:16px;padding:12px 34px" onclick="ptgPointer('arrivee',this)">✅ Pointer mon arrivée</button>`
      :etat==='depart'?`<button class="btn btn-accent" style="font-size:16px;padding:12px 34px" onclick="ptgPointer('depart',this)">🏁 Pointer mon départ</button>`:'<span class="badge badge-green" style="font-size:13px">✔ Pointage du jour complet</span>'}
     <p class="cell-sub" style="margin-top:12px">L’heure enregistrée est celle du serveur. Votre position est jointe si vous l’autorisez.</p></div>
    <div class="grid-4" style="margin-bottom:.9rem">
     <div class="kpi"><div class="kpi-label">Jours pointés</div><div class="kpi-value">${R.jours}</div></div>
-    <div class="kpi"><div class="kpi-label">Heures travaillées</div><div class="kpi-value" style="font-size:20px">${ptgHM(R.heures)}</div></div>
+    <div class="kpi"><div class="kpi-label">Heures effectives (pause déduite)</div><div class="kpi-value" style="font-size:20px">${ptgHM(R.heures)}</div></div>
     <div class="kpi"><div class="kpi-label">Retards</div><div class="kpi-value" style="${R.retards?'color:#B42318':''}">${R.retards}</div><div class="cell-sub">après ${PTG.heureRef} + ${PTG.tolerance} min</div></div>
     <div class="kpi"><div class="kpi-label">Départs non pointés</div><div class="kpi-value" style="${R.incomplets?'color:#B45309':''}">${R.incomplets}</div></div></div>
-   <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 class="v4-h3">Mon historique</h3><input type="month" value="${mois}" onchange="PTG.moisPerso=this.value;v4Render('mon-pointage')"></div>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Statut</th></tr></thead><tbody>
+   <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 class="v4-h3">Mon historique</h3><div style="display:flex;gap:6px;align-items:center"><button class="btn btn-outline btn-sm" onclick="ptgFiche(uid(),'${mois}')">📄 Ma fiche de pointage</button><input type="month" value="${mois}" onchange="PTG.moisPerso=this.value;v4Render('mon-pointage')"></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Arrivée</th><th>Départ</th><th title="Présence moins 2 h de pause">Temps effectif</th><th>Statut</th></tr></thead><tbody>
     ${L.map(p=>`<tr><td>${new Date(p.date_pointage+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})}</td><td>${PTG_TYPES[p.type_journee]||p.type_journee}</td>
-      <td>${p.heure_arrivee?String(p.heure_arrivee).slice(0,5):'—'}${ptgRetard(p)?' <span style="color:#B42318;font-size:11px">+'+ptgRetard(p)+' min</span>':''}</td><td>${p.heure_depart?String(p.heure_depart).slice(0,5):'—'}</td><td>${ptgHM(ptgDuree(p))}</td>
+      <td>${p.heure_arrivee?String(p.heure_arrivee).slice(0,5):'—'}${ptgRetard(p)?' <span style="color:#B42318;font-size:11px">+'+ptgRetard(p)+' min</span>':''}</td><td>${p.heure_depart?String(p.heure_depart).slice(0,5):'—'}</td><td>${ptgHM(ptgEffectif(p))}</td>
       <td><span class="badge ${(PTG_ST[p.statut]||PTG_ST.en_attente)[0]}">${(PTG_ST[p.statut]||PTG_ST.en_attente)[1]}</span>${p.motif_correction?`<div class="cell-sub">${esc(p.motif_correction)}</div>`:''}</td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--g400)">Aucun pointage ce mois-ci.</td></tr>'}
     </tbody></table></div></div>`;
   clearInterval(window._ptgH);const h=()=>{const e=document.getElementById('ptgHorloge');if(!e){clearInterval(window._ptgH);return;}e.textContent=new Date().toLocaleTimeString('fr-FR',{timeZone:'Africa/Abidjan',hour:'2-digit',minute:'2-digit',second:'2-digit'});};h();window._ptgH=setInterval(h,1000);
@@ -18360,9 +18423,9 @@ async function loadPointage(){
     pane.innerHTML=`<div class="card"><div id="ptgOutils" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
       <input type="month" id="pointage-mois" onchange="loadPointage()"><select id="pointage-employe" onchange="loadPointage()"><option value="">Tous les employés</option></select>
       <select id="pointage-statut" onchange="loadPointage()"><option value="">Tous les statuts</option>${Object.entries(PTG_ST).map(([k,v])=>`<option value="${k}">${v[1]}</option>`).join('')}</select>
-      <span style="flex:1"></span><button class="btn btn-outline btn-sm" onclick="ptgValiderTout()">✓ Valider les pointages complets</button><button class="btn btn-outline btn-sm" onclick="ptgExport()">📊 Export CSV</button><button class="btn btn-primary btn-sm" onclick="ptgEditer()">+ Saisir / absence</button></div>
+      <span style="flex:1"></span><button class="btn btn-outline btn-sm" onclick="ptgValiderTout()">✓ Valider les pointages complets</button><button class="btn btn-outline btn-sm" onclick="ptgFiche(document.getElementById('pointage-employe').value||null,document.getElementById('pointage-mois').value)" title="Fiche mensuelle PDF : l’employé choisi, ou une page par employé">📄 Fiche de pointage</button><button class="btn btn-outline btn-sm" onclick="ptgExport()">📊 Export CSV</button><button class="btn btn-primary btn-sm" onclick="ptgEditer()">+ Saisir / absence</button></div>
      <div id="pointage-resume" style="margin-bottom:12px"></div>
-     <div class="table-wrap"><table><thead><tr><th>Employé</th><th>Date</th><th>Type</th><th>Arrivée</th><th>Départ</th><th>Durée</th><th>Origine</th><th>Statut</th><th></th></tr></thead><tbody id="pointageTable"></tbody></table></div></div>`;
+     <div class="table-wrap"><table><thead><tr><th>Employé</th><th>Date</th><th>Type</th><th>Arrivée</th><th>Départ</th><th title="Présence moins 2 h de pause">Temps effectif</th><th>Origine</th><th>Statut</th><th></th></tr></thead><tbody id="pointageTable"></tbody></table></div></div>`;
     document.getElementById('pointage-mois').value=PTG.mois||isoJour().slice(0,7);
     const{data:E}=await sb.from('profiles').select('id,prenom,nom,role').order('prenom');PTG.equipe=(E||[]).filter(p=>!['client','apprenant'].includes(p.role));
     document.getElementById('pointage-employe').innerHTML+=PTG.equipe.map(e=>`<option value="${e.id}">${esc(((e.prenom||'')+' '+(e.nom||'')).trim())}</option>`).join('');
@@ -18377,11 +18440,11 @@ async function loadPointage(){
   const nom=ptgNomEmp;
   // Résumé par employé
   const par={};PTG.rows.forEach(p=>{(par[p.employe_id]=par[p.employe_id]||{n:nom(p),L:[]}).L.push(p);});
-  document.getElementById('pointage-resume').innerHTML=Object.keys(par).length?`<div class="table-wrap"><table><thead><tr><th>Résumé du mois</th><th>Jours</th><th>Heures</th><th>Retards</th><th>Absences / maladie</th><th>Congés</th><th>Départs non pointés</th></tr></thead><tbody>${Object.values(par).sort((a,b)=>a.n.localeCompare(b.n)).map(x=>{const r=ptgResume(x.L);
+  document.getElementById('pointage-resume').innerHTML=Object.keys(par).length?`<div class="table-wrap"><table><thead><tr><th>Résumé du mois</th><th>Jours</th><th>Heures effectives</th><th>Retards</th><th>Absences / maladie</th><th>Congés</th><th>Départs non pointés</th></tr></thead><tbody>${Object.values(par).sort((a,b)=>a.n.localeCompare(b.n)).map(x=>{const r=ptgResume(x.L);
     return `<tr><td><b>${esc(x.n)}</b></td><td>${r.jours}</td><td>${ptgHM(r.heures)}</td><td style="${r.retards?'color:#B42318;font-weight:600':''}">${r.retards}</td><td>${r.absences}</td><td>${r.conges}</td><td style="${r.incomplets?'color:#B45309;font-weight:600':''}">${r.incomplets}</td></tr>`;}).join('')}</tbody></table></div>`:'';
   T.innerHTML=L.map(p=>`<tr><td>${esc(nom(p))}</td><td>${new Date(p.date_pointage+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'})}</td><td>${PTG_TYPES[p.type_journee]||p.type_journee}</td>
     <td>${p.heure_arrivee?String(p.heure_arrivee).slice(0,5):'—'} ${ptgPos(p.lat_arrivee,p.lng_arrivee)}${ptgRetard(p)?' <span style="color:#B42318;font-size:11px">+'+ptgRetard(p)+' min</span>':''}</td>
-    <td>${p.heure_depart?String(p.heure_depart).slice(0,5):(p.heure_arrivee&&p.date_pointage<isoJour()?'<span style="color:#B45309">non pointé</span>':'—')} ${ptgPos(p.lat_depart,p.lng_depart)}</td><td>${ptgHM(ptgDuree(p))}</td>
+    <td>${p.heure_depart?String(p.heure_depart).slice(0,5):(p.heure_arrivee&&p.date_pointage<isoJour()?'<span style="color:#B45309">non pointé</span>':'—')} ${ptgPos(p.lat_depart,p.lng_depart)}</td><td>${ptgHM(ptgEffectif(p))}</td>
     <td style="font-size:12px">${p.source==='badge'?'Pointé par l’employé':'Saisi par un responsable'}</td>
     <td><span class="badge ${(PTG_ST[p.statut]||PTG_ST.en_attente)[0]}">${(PTG_ST[p.statut]||PTG_ST.en_attente)[1]}</span>${p.motif_correction?`<div class="cell-sub">${esc(p.motif_correction)}</div>`:''}${p.notes?`<div class="cell-sub">${esc(p.notes)}</div>`:''}</td>
     <td style="white-space:nowrap">${p.statut==='en_attente'?`<button class="btn btn-outline btn-sm" title="Valider" onclick="validerPointage('${p.id}')">✓</button>`:''}<button class="btn btn-outline btn-sm" title="Corriger" onclick="ptgEditer('${p.id}')">✏️</button></td></tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:18px;color:var(--g400)">Aucun pointage pour cette période.</td></tr>';
@@ -18410,7 +18473,7 @@ async function ptgSauver(){const{id,badge}=window._ptgE;const o={date_pointage:g
   toast('✅ Pointage enregistré');closeModal();await loadPointage();}
 function ptgExport(){const L=PTG.rows||[];if(!L.length){toast('Rien à exporter');return;}
   const nom=ptgNomEmp,q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const csv=['Employé;Date;Type;Arrivée;Départ;Durée (min);Retard (min);Origine;Statut;Motif;Notes',...L.map(p=>[nom(p),p.date_pointage,PTG_TYPES[p.type_journee]||p.type_journee,String(p.heure_arrivee||'').slice(0,5),String(p.heure_depart||'').slice(0,5),ptgDuree(p)??'',ptgRetard(p)||'',p.source==='badge'?'Employé':'Responsable',(PTG_ST[p.statut]||[])[1]||p.statut,p.motif_correction||'',p.notes||''].map(q).join(';'))].join('\n');
+  const csv=['Employé;Date;Type;Arrivée;Départ;Présence (min);Pause déduite (min);Temps effectif (min);Retard (min);Origine;Statut;Motif;Notes',...L.map(p=>[nom(p),p.date_pointage,PTG_TYPES[p.type_journee]||p.type_journee,String(p.heure_arrivee||'').slice(0,5),String(p.heure_depart||'').slice(0,5),ptgDuree(p)??'',ptgPauseAppliquee(p)??'',ptgEffectif(p)??'',ptgRetard(p)||'',p.source==='badge'?'Employé':'Responsable',(PTG_ST[p.statut]||[])[1]||p.statut,p.motif_correction||'',p.notes||''].map(q).join(';'))].join('\n');
   dpTelecharger(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}),'Pointages-'+PTG.mois+'.csv');}
 (function(){try{Object.entries(NAV).forEach(([ro,nav])=>{if(!nav||['client','apprenant'].includes(ro)||nav.some(x=>x.id==='mon-pointage'))return;
     const k=nav.findIndex(x=>x.id==='dashboard');nav.splice(k<0?1:k+1,0,{id:'mon-pointage',i:'⏱️',l:'Mon pointage'});});PAGE_LABELS['mon-pointage']='Mon pointage';}catch(e){logErr(e);}
