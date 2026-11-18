@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Elles Pilotent — H TECH ACADEMY</title>
+<meta name="description" content="Parcours gratuit pour monter son activité, protéger son argent et son téléphone, et trouver de l'aide. Aucune donnée enregistrée.">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700&display=swap">
+<style>
+:root{
+  --bg:#F6F7FB;--surface:#FFFFFF;--ink:#13203A;--muted:#55607A;--line:#DCE1EC;
+  --navy:#0F2547;--blue:#2F6FD6;--orange:#E8650E;--orange-soft:#FDEBDD;
+  --ok:#18865B;--ok-soft:#DDF3EA;--warn:#B4520A;
+  --display:"Sora",system-ui,sans-serif;--body:"Nunito Sans",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0B1426;--surface:#13203A;--ink:#EEF2FA;--muted:#A3AEC6;--line:#26365A;
+  --navy:#0A1630;--blue:#6FA1F2;--orange:#FF8A3D;--orange-soft:#3A2414;
+  --ok:#43C48E;--ok-soft:#12352A;--warn:#FFB074;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0B1426;--surface:#13203A;--ink:#EEF2FA;--muted:#A3AEC6;--line:#26365A;
+  --navy:#0A1630;--blue:#6FA1F2;--orange:#FF8A3D;--orange-soft:#3A2414;
+  --ok:#43C48E;--ok-soft:#12352A;--warn:#FFB074;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6}
+h1,h2,h3{font-family:var(--display);line-height:1.2;text-wrap:balance;margin:0}
+a{color:var(--blue)}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.exit{position:fixed;right:0;bottom:0;z-index:50;padding:0 calc(16px + env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) 0}
+.exit button{background:var(--orange);color:#fff;border:0;border-radius:999px;padding:12px 20px;font-weight:700;font-family:var(--display);box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer;min-height:48px}
+.exit small{display:block;font-family:var(--body);font-weight:600;font-size:11px;opacity:.9}
+header.top{background:var(--navy);color:#fff;padding-top:env(safe-area-inset-top,0px)}
+header.top .wrap{padding-block:26px 22px;display:grid;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#C9D6EE;font-weight:700}
+.brand a{color:inherit;text-decoration:none}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:#FF8A3D;flex:none}
+header.top h1{font-size:clamp(30px,6vw,44px);font-weight:800;color:#fff}
+header.top h1 span{color:#FF8A3D}
+header.top p{margin:0;color:#D8E1F2;max-width:60ch}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{font-size:13px;font-weight:700;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.18)}
+nav.tabs{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+nav.tabs .wrap{display:flex;gap:4px;overflow-x:auto}
+nav.tabs button{background:none;border:0;border-bottom:3px solid transparent;padding:14px 12px;font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap;min-height:48px}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--orange)}
+nav.tabs button.help{color:var(--orange)}
+main .wrap{padding-block:26px 120px;display:grid;gap:22px}
+.lead{color:var(--muted);margin:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;gap:14px;min-width:0}
+.example{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--orange-soft);border-radius:12px;padding:12px 16px;font-size:14px}
+.example strong{color:var(--warn)}
+.btn{border:0;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff;min-height:44px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.btn.sm{padding:6px 12px;font-size:14px;min-height:36px}
+.btn[disabled]{opacity:.45;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.steps button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:700;color:var(--muted);cursor:pointer}
+.steps button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.steps button.done{border-color:var(--ok);color:var(--ok)}
+.step h2{font-size:22px}
+.why{font-size:14px;color:var(--muted);margin:0}
+label{display:grid;gap:4px;font-weight:700;font-size:14px}
+input,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);font-size:16px}
+textarea{min-height:84px;resize:vertical}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.nav-steps{display:flex;justify-content:space-between;gap:10px}
+.figures{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.fig{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:2px}
+.fig b{font-family:var(--display);font-size:20px;font-variant-numeric:tabular-nums}
+.fig small{color:var(--muted);font-size:13px}
+.fig.good b{color:var(--ok)}.fig.bad b{color:var(--warn)}
+.verdict{border-radius:10px;padding:10px 14px;font-weight:600;font-size:15px}
+.verdict.good{background:var(--ok-soft);color:var(--ok)}.verdict.bad{background:var(--orange-soft);color:var(--warn)}
+.verdict ul{margin:6px 0 0;padding-left:20px;font-weight:600}
+.sheet{white-space:pre-wrap;font-size:14px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;max-height:360px;overflow:auto}
+.where{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.where div{border:1px solid var(--line);border-radius:10px;padding:10px;font-size:14px}
+.where b{display:block;font-family:var(--display);font-size:14px}
+.modules{display:grid;gap:14px}
+.mod{display:grid;gap:10px}
+.mod-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.mod h3{font-size:18px}
+.badge{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.badge.got{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.mod ul{margin:0;padding-left:20px;display:grid;gap:4px}
+.quiz{border-top:1px dashed var(--line);padding-top:12px;display:grid;gap:8px}
+.quiz p{margin:0;font-weight:700}
+.opts{display:grid;gap:6px}
+.opts button{text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;cursor:pointer;min-height:44px}
+.opts button.right{border-color:var(--ok);background:var(--ok-soft)}
+.opts button.wrong{border-color:var(--warn);background:var(--orange-soft)}
+.fb{font-size:14px;margin:0}
+.progress{display:flex;align-items:center;gap:12px;font-weight:700}
+.bar{flex:1;height:10px;border-radius:999px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);width:0;transition:width .4s}
+.numbers{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.num{border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:4px;background:var(--surface);color:var(--ink);text-decoration:none}
+.num.main{border:2px solid var(--orange);background:var(--orange-soft)}
+.num b{font-family:var(--display);font-size:30px;font-variant-numeric:tabular-nums}
+.num span{font-size:14px;color:var(--muted)}
+.num em{font-style:normal;font-size:13px;font-weight:700;color:var(--blue)}
+.safe ul{margin:0;padding-left:20px;display:grid;gap:6px}
+footer{border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+footer .wrap{padding-block:20px 100px;display:grid;gap:6px}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-weight:700;font-size:14px;z-index:60;max-width:calc(100% - 32px);text-align:center}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media print{.exit,nav.tabs,header.top,footer,.no-print{display:none!important}}
+</style>
+</head>
+<body>
+<div class="exit"><button id="quickExit" type="button" aria-label="Sortie rapide : quitter cette page immédiatement">Sortie rapide<small>ou touche Échap ×2</small></button></div>
+
+<header class="top"><div class="wrap">
+  <div class="brand"><span class="dot"></span><a href="../">H TECH ACADEMY</a></div>
+  <h1>Elles <span>Pilotent</span></h1>
+  <p>Un parcours numérique gratuit pour bâtir une activité qui vous rend autonome, protéger votre argent et votre téléphone, et trouver de l'aide en cas de violence.</p>
+  <div class="pills"><span class="pill">Aucune donnée enregistrée</span><span class="pill">Fait pour le téléphone</span><span class="pill">Gratuit</span></div>
+</div></header>
+
+<nav class="tabs" aria-label="Espaces"><div class="wrap" role="tablist">
+  <button role="tab" id="t-projet" aria-selected="true" aria-controls="p-projet" data-tab="projet">Mon projet</button>
+  <button role="tab" id="t-forma" aria-selected="false" aria-controls="p-forma" data-tab="forma">Micro-formations</button>
+  <button role="tab" id="t-aide" aria-selected="false" aria-controls="p-aide" data-tab="aide" class="help">Besoin d'aide ?</button>
+</div></nav>
+
+<main>
+<section class="wrap" id="p-projet" role="tabpanel" aria-labelledby="t-projet">
+  <p class="lead">La méthode de pilotage des grands projets, ramenée à 5 étapes simples pour une activité qui rapporte. À la fin, vous obtenez une fiche projet à présenter à une coopérative, une microfinance ou un fonds d'appui aux femmes.</p>
+  <div class="example" id="exampleBar"><span><strong>Exemple :</strong> un petit commerce d'attiéké. Remplacez-le par votre projet.</span><button class="btn sm" id="clearEx" type="button">Commencer mon projet</button></div>
+  <div class="steps" id="steps" aria-label="Étapes"></div>
+  <div class="card step" id="stepCard"></div>
+</section>
+
+<section class="wrap" id="p-forma" role="tabpanel" aria-labelledby="t-forma" hidden>
+  <p class="lead">Quatre modules de 3 minutes. Répondez à la question de chaque module pour obtenir son badge. Avec les 4 badges, vous pouvez télécharger votre attestation de parcours.</p>
+  <div class="progress"><span id="progTxt">0 / 4 badges</span><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" id="progRole"><i id="progBar"></i></div></div>
+  <div class="modules" id="modules"></div>
+  <div class="card" id="attCard" hidden>
+    <h3>Bravo, parcours terminé</h3>
+    <p class="why">Indiquez le nom à faire figurer sur votre attestation. Il n'est envoyé nulle part : le document est créé sur votre téléphone.</p>
+    <label for="attNom">Prénom et nom<input id="attNom" type="text" autocomplete="off"></label>
+    <div class="row"><button class="btn" type="button" id="attPdf">Télécharger mon attestation</button></div>
+  </div>
+</section>
+
+<section class="wrap" id="p-aide" role="tabpanel" aria-labelledby="t-aide" hidden>
+  <p class="lead">Vous n'êtes pas seule. Les violences physiques, psychologiques, sexuelles, mais aussi le contrôle de votre argent ou de votre téléphone, ne sont jamais normales.</p>
+  <div class="numbers">
+    <a class="num main" href="tel:1308"><b>1308</b><strong>Numéro vert VBG</strong><span>Gratuit, 24 h/24, 7 j/7. Pour signaler une violence, être écoutée et orientée vers une prise en charge.</span><em>Appeler</em></a>
+    <a class="num" href="tel:116"><b>116</b><strong>Allô Enfant en détresse</strong><span>Enfants victimes de violences, d'abus ou d'exploitation. Gratuit.</span><em>Appeler</em></a>
+    <a class="num" href="tel:110"><b>110 · 111 · 170</b><strong>Police secours</strong><span>Danger immédiat.</span><em>Appeler le 110</em></a>
+    <a class="num" href="tel:185"><b>185</b><strong>SAMU</strong><span>Blessure, urgence médicale.</span><em>Appeler</em></a>
+    <a class="num" href="tel:180"><b>180</b><strong>Sapeurs-pompiers</strong><span>Secours d'urgence.</span><em>Appeler</em></a>
+  </div>
+  <div class="card safe">
+    <h3>Garder une trace en sécurité</h3>
+    <ul>
+      <li>Conservez les preuves (messages, captures d'écran, certificats médicaux) dans un endroit que l'auteur ne peut pas consulter, ou confiez-les à une personne de confiance.</li>
+      <li>Une plateforme de lutte contre les VBG ou un bureau d'accueil genre dans un commissariat peut vous orienter vers une aide médicale, psychologique et juridique.</li>
+      <li>Si quelqu'un surveille votre téléphone, appelez depuis le téléphone d'une personne de confiance et effacez l'historique de navigation après votre visite.</li>
+    </ul>
+  </div>
+  <div class="card safe">
+    <h3>Ce que fait cet outil pour votre sécurité</h3>
+    <ul>
+      <li>Rien n'est enregistré : fermer la page efface tout ce que vous avez saisi. Aucun compte, aucun envoi de vos réponses.</li>
+      <li>Le bouton orange <strong>Sortie rapide</strong> (ou deux appuis sur Échap) remplace immédiatement la page par une recherche météo.</li>
+      <li>Le nom « Elles Pilotent » parle d'entrepreneuriat : la page n'attire pas l'attention.</li>
+    </ul>
+  </div>
+</section>
+</main>
+
+<footer><div class="wrap">
+  <div><strong>H TECH ACADEMY</strong>, centre de formation du Groupe H TECH INNOV, Riviera Cocody – Jules Verne, Abidjan · <a href="../">www.htechinnov.com/academy</a></div>
+  <div>Présenté à la Marketplace des solutions numériques des 16 jours d'activisme contre les violences basées sur le genre. Les exemples sont fictifs.</div>
+  <div>Vous représentez une plateforme VBG, une coopérative ou une ONG ? H TECH ACADEMY anime des sessions « Elles Pilotent » en présentiel.</div>
+</div></footer>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+function toast(t){const d=document.createElement('div');d.className='toast';d.setAttribute('role','status');d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200);}
+
+/* Sortie rapide : vide la page et la remplace dans l'historique */
+function quickExit(){try{document.querySelectorAll('input,textarea').forEach(e=>e.value='');document.body.innerHTML='';document.title='Météo';}catch(e){}
+  location.replace('https://www.google.com/search?q=m%C3%A9t%C3%A9o+abidjan');}
+$('#quickExit').addEventListener('click',quickExit);
+let lastEsc=0;document.addEventListener('keydown',e=>{if(e.key==='Escape'){const n=Date.now();if(n-lastEsc<800)quickExit();lastEsc=n;}});
+
+/* Onglets */
+const tabs=[...document.querySelectorAll('nav.tabs button')];
+function ouvrir(k){tabs.forEach(x=>x.setAttribute('aria-selected',x.dataset.tab===k));['projet','forma','aide'].forEach(t=>$('#p-'+t).hidden=(t!==k));window.scrollTo({top:0});}
+tabs.forEach(b=>b.addEventListener('click',()=>ouvrir(b.dataset.tab)));
+
+/* jsPDF n'est chargé qu'au moment de créer un document, et rien n'est envoyé */
+let pdfPret=null;
+function chargerPdf(){if(window.jspdf)return Promise.resolve();if(pdfPret)return pdfPret;
+  pdfPret=new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=ok;s.onerror=()=>{pdfPret=null;ko(new Error('Connexion nécessaire pour créer le PDF'));};document.head.appendChild(s);});return pdfPret;}
+const pdfTxt=t=>String(t??'').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,'-').replace(/…/g,'...').replace(/[  ]/g,' ').replace(/œ/g,'oe').replace(/Œ/g,'OE').replace(/[^\x20-\x7E -ÿ\n]/g,'');
+
+/* ── Mon projet ── */
+const EX={idee:"Vendre de l'attiéké frais et du poisson braisé midi et soir devant le marché de mon quartier.",atout:"Je connais la recette familiale et j'ai déjà des clientes qui me commandent le week-end.",client:"Travailleurs du marché et habitants du quartier qui cherchent un repas à moins de 1 000 FCFA.",ressources:"Une table, une glacière, un réchaud, des bols ; ma sœur peut m'aider le samedi.",invest:150000,prix:800,cout:450,ventes:600,charges:60000,risques:"Pluie et baisse des ventes ; hausse du prix du poisson.",planb:"Proposer la livraison par téléphone les jours de pluie ; acheter le poisson en gros avec deux autres vendeuses.",a1:"Demander une place au responsable du marché",a2:"Acheter la glacière et le réchaud",a3:"Ouvrir un compte d'épargne mobile pour séparer l'argent de l'activité"};
+const EMPTY=Object.fromEntries(Object.keys(EX).map(k=>[k,'']));
+let P=Object.assign({},EX),cur=0;
+const STEPS=[
+ {t:"L'idée",why:"Un bon projet tient en une phrase : c'est la charte du projet.",f:[["idee","Mon activité en une phrase","textarea"],["atout","Ce qui me rend différente","textarea"]]},
+ {t:"Mes clients",why:"Savoir pour qui on travaille évite de produire ce que personne n'achète.",f:[["client","Qui va acheter, et pourquoi ?","textarea"]]},
+ {t:"Mes moyens et mon budget",why:"Les chiffres disent si l'activité peut vous faire vivre. Tout est en FCFA.",f:[["ressources","Ce que j'ai déjà (matériel, aide, savoir-faire)","textarea"],["invest","Investissement de départ","number"],["prix","Prix de vente d'une unité","number"],["cout","Coût de revient d'une unité","number"],["ventes","Unités vendues par mois","number"],["charges","Charges fixes par mois (loyer, transport…)","number"]],calc:true},
+ {t:"Risques et plan B",why:"Les chefs de projet listent ce qui peut mal tourner avant que ça arrive.",f:[["risques","Ce qui pourrait bloquer mon activité","textarea"],["planb","Ce que je ferai si ça arrive","textarea"]]},
+ {t:"Mes 3 premières actions",why:"Un projet avance par petites actions. Commencez cette semaine.",f:[["a1","Action 1","text"],["a2","Action 2","text"],["a3","Action 3","text"]],sheet:true}
+];
+const fmt=n=>isFinite(n)?Math.round(n).toLocaleString('fr-FR').replace(/[  ]/g,' ')+' FCFA':'—';
+const num=k=>{const v=parseFloat(String(P[k]).replace(/\s/g,'').replace(',','.'));return isNaN(v)||v<0?0:v;};
+function calc(){const m=num('prix')-num('cout'),ben=m*num('ventes')-num('charges'),pm=m>0?Math.ceil(num('charges')/m):Infinity,ret=ben>0?Math.ceil(num('invest')/ben):Infinity;
+  const prixMin=num('ventes')>0?num('cout')+num('charges')/num('ventes'):Infinity,coutMax=num('ventes')>0?num('prix')-num('charges')/num('ventes'):-Infinity;
+  return{m,ben,pm,ret,prixMin,coutMax};}
+const moisTxt=n=>isFinite(n)?(n<=1?'moins d’un mois':n+' mois'):'—';
+function figsHTML(){if(!num('prix'))return '<p class="why">Renseignez vos chiffres pour voir le résultat.</p>';const c=calc();
+  let v;
+  if(c.ben>0)v=`<div class="verdict good">Votre activité dégage un bénéfice de ${fmt(c.ben)} par mois. Vous récupérez votre investissement en ${moisTxt(c.ret)} environ.</div>`;
+  else{const p=[];
+    if(c.m<=0)p.push(`Chaque vente vous fait perdre de l'argent : votre prix (${fmt(num('prix'))}) doit dépasser votre coût de revient (${fmt(num('cout'))}).`);
+    else p.push(`Vendre au moins <b>${c.pm} unités</b> par mois, au lieu de ${num('ventes')}.`);
+    if(isFinite(c.prixMin))p.push(`Ou vendre à <b>${fmt(Math.ceil(c.prixMin))}</b> l'unité au minimum, si vos clients l'acceptent.`);
+    if(isFinite(c.coutMax)&&c.coutMax>0)p.push(`Ou faire baisser votre coût de revient à <b>${fmt(Math.floor(c.coutMax))}</b> (achats groupés, moins de pertes).`);
+    if(num('charges')>0)p.push('Ou réduire vos charges fixes (partager un emplacement, le transport).');
+    v=`<div class="verdict bad">Avec ces chiffres, l'activité perd ${fmt(-c.ben)} par mois. Pistes :<ul>${p.map(x=>'<li>'+x+'</li>').join('')}</ul></div>`;}
+  return `<div class="figures"><div class="fig ${c.m>0?'good':'bad'}"><small>Marge par unité</small><b>${fmt(c.m)}</b></div><div class="fig ${c.ben>0?'good':'bad'}"><small>Bénéfice par mois</small><b>${fmt(c.ben)}</b></div>
+   <div class="fig"><small>Ventes minimum par mois</small><b>${isFinite(c.pm)?c.pm+' unités':'—'}</b></div><div class="fig"><small>Récupérer ma mise</small><b>${moisTxt(c.ret)}</b></div></div>${v}`;}
+function lignesFiche(){const c=calc();return [
+  ['Mon activité',P.idee],['Ce qui me rend différente',P.atout],['Mes clients',P.client],['Mes moyens',P.ressources],
+  ['__','Budget'],['Investissement de départ',fmt(num('invest'))],['Prix de vente / coût de revient',fmt(num('prix'))+' / '+fmt(num('cout'))],['Ventes prévues',num('ventes')+' unités par mois'],
+  ['Charges fixes',fmt(num('charges'))+' par mois'],['Bénéfice estimé',fmt(c.ben)+' par mois'],['Ventes minimum pour ne pas perdre d’argent',isFinite(c.pm)?c.pm+' unités par mois':'—'],['Récupération de l’investissement',moisTxt(c.ret)],
+  ['__','Risques et plan B'],['Risques',P.risques],['Plan B',P.planb],
+  ['__','Mes 3 premières actions'],['1',P.a1],['2',P.a2],['3',P.a3]];}
+function sheet(){return 'FICHE PROJET — Elles Pilotent (H TECH ACADEMY)\n\n'+lignesFiche().map(([k,v])=>k==='__'?'\n'+v.toUpperCase():(/^\d$/.test(k)?k+'. ':k+' : ')+(String(v||'').trim()||'—')).join('\n');}
+const filled=i=>STEPS[i].f.every(([k])=>String(P[k]).trim()!=='');
+function renderSteps(){$('#steps').innerHTML=STEPS.map((s,i)=>`<button type="button" data-i="${i}" class="${i===cur?'on':''} ${filled(i)&&i!==cur?'done':''}" ${i===cur?'aria-current="step"':''}>${i+1}. ${s.t}</button>`).join('');
+  $('#steps').querySelectorAll('button').forEach(b=>b.onclick=()=>{cur=+b.dataset.i;render();});}
+function render(){const s=STEPS[cur];
+  let h=`<h2>${cur+1}. ${s.t}</h2><p class="why">${s.why}</p>`;
+  const nums=s.f.filter(f=>f[2]==='number'),others=s.f.filter(f=>f[2]!=='number');
+  h+=others.map(([k,l,t])=>`<label for="f-${k}">${l}${t==='textarea'?`<textarea id="f-${k}" data-k="${k}"></textarea>`:`<input id="f-${k}" data-k="${k}" type="text" autocomplete="off">`}</label>`).join('');
+  if(nums.length)h+=`<div class="grid2">${nums.map(([k,l])=>`<label for="f-${k}">${l}<input id="f-${k}" data-k="${k}" type="number" inputmode="numeric" min="0" step="any"></label>`).join('')}</div>`;
+  if(s.calc)h+=`<div id="figs" aria-live="polite"></div>`;
+  if(s.sheet)h+=`<h3>Ma fiche projet</h3><div class="sheet" id="sheet"></div>
+    <div class="row"><button class="btn" type="button" id="pdfSheet">Télécharger ma fiche (PDF)</button><button class="btn ghost" type="button" id="copySheet">Copier le texte</button></div>
+    <div><p class="why" style="margin-bottom:8px">À qui présenter votre fiche :</p><div class="where">
+      <div><b>Une coopérative</b>Pour acheter en commun et vendre plus.</div><div><b>Une microfinance</b>Pour un petit crédit de démarrage ou une épargne.</div>
+      <div><b>Fonds Femmes et Développement</b>Fonds public d'appui aux activités des femmes.</div><div><b>FAFCI</b>Fonds d'appui aux femmes de Côte d'Ivoire, pour les activités génératrices de revenus.</div></div></div>`;
+  h+=`<div class="nav-steps"><button class="btn ghost" type="button" id="prev" ${cur===0?'disabled':''}>Précédent</button>${cur<STEPS.length-1?'<button class="btn" type="button" id="next">Étape suivante</button>':''}</div>`;
+  $('#stepCard').innerHTML=h;
+  $('#stepCard').querySelectorAll('[data-k]').forEach(el=>{el.value=P[el.dataset.k];el.addEventListener('input',()=>{P[el.dataset.k]=el.value;update();});});
+  const pv=$('#prev'),nx=$('#next');if(pv)pv.onclick=()=>{cur--;render();window.scrollTo({top:0});};if(nx)nx.onclick=()=>{cur++;render();window.scrollTo({top:0});};
+  const cp=$('#copySheet');if(cp)cp.onclick=()=>{const t=sheet();if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>toast('Fiche copiée')).catch(selectSheet);else selectSheet();};
+  const pd=$('#pdfSheet');if(pd)pd.onclick=fichePdf;
+  update();}
+function selectSheet(){const r=document.createRange();r.selectNodeContents($('#sheet'));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Texte sélectionné : copiez-le');}
+function update(){if($('#figs'))$('#figs').innerHTML=figsHTML();if($('#sheet'))$('#sheet').textContent=sheet();renderSteps();}
+$('#clearEx').onclick=()=>{P=Object.assign({},EMPTY);cur=0;$('#exampleBar').hidden=true;render();$('#f-idee')?.focus();};
+
+/* PDF : en-tête Elles Pilotent, fiche lisible pour un financeur */
+function enTete(doc,titre,sous){const W=doc.internal.pageSize.getWidth();
+  doc.setFillColor(15,37,71);doc.rect(0,0,W,30,'F');doc.setFillColor(232,101,14);doc.circle(18,12,2.2,'F');
+  doc.setTextColor(201,214,238);doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.text('H TECH ACADEMY',23,13.2);
+  doc.setTextColor(255,255,255);doc.setFontSize(18);doc.text(pdfTxt(titre),14,24);
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(216,225,242);doc.text(pdfTxt(sous),W-14,24,{align:'right'});}
+function pied(doc){const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();doc.setDrawColor(220,225,236);doc.line(14,H-14,W-14,H-14);
+  doc.setFontSize(7.5);doc.setTextColor(120,128,145);doc.text('Elles Pilotent - H TECH ACADEMY, Groupe H TECH INNOV - Riviera Cocody Jules Verne, Abidjan - www.htechinnov.com/academy',14,H-9);}
+async function fichePdf(){try{await chargerPdf();}catch(e){toast(e.message);return;}
+  const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),c=calc();
+  enTete(doc,'Fiche projet','Établie le '+new Date().toLocaleDateString('fr-FR'));
+  let y=40;const saut=h=>{if(y+h>H-20){pied(doc);doc.addPage();enTete(doc,'Fiche projet (suite)','');y=40;}};
+  // Chiffres clés
+  const cles=[['Bénéfice par mois',fmt(c.ben),c.ben>0],['Marge par unité',fmt(c.m),c.m>0],['Ventes minimum / mois',isFinite(c.pm)?c.pm+' unités':'-',null],['Récupérer ma mise',moisTxt(c.ret),null]];
+  const bw=(W-28-9)/4;cles.forEach(([l,v,g],i)=>{const x=14+i*(bw+3);doc.setDrawColor(220,225,236);doc.setFillColor(246,247,251);doc.roundedRect(x,y,bw,18,2,2,'FD');
+    doc.setFontSize(7.5);doc.setTextColor(85,96,122);doc.setFont('helvetica','normal');doc.text(pdfTxt(l),x+3,y+6);
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(g===true?24:g===false?180:19,g===true?134:g===false?82:32,g===true?91:g===false?10:58);doc.text(pdfTxt(v),x+3,y+13.5);});
+  y+=26;
+  lignesFiche().forEach(([k,v])=>{if(k==='__'){saut(14);doc.setFillColor(15,37,71);doc.rect(14,y,W-28,6.5,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(9.5);doc.text(pdfTxt(v.toUpperCase()),17,y+4.6);y+=10;return;}
+    const lib=/^\d$/.test(k)?'Action '+k:k,txt=doc.splitTextToSize(pdfTxt(String(v||'').trim()||'-'),W-28-58);saut(txt.length*4.6+4);
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(85,96,122);doc.text(doc.splitTextToSize(pdfTxt(lib),54),14,y+3.5);
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(19,32,58);doc.text(txt,72,y+3.5);y+=Math.max(txt.length*4.6,6)+3;});
+  saut(14);y+=4;doc.setFont('helvetica','italic');doc.setFontSize(8.5);doc.setTextColor(85,96,122);
+  doc.text(doc.splitTextToSize(pdfTxt('Fiche réalisée avec Elles Pilotent, parcours gratuit de H TECH ACADEMY. Les montants sont des estimations de la porteuse de projet. À présenter à une coopérative, une microfinance, au Fonds Femmes et Développement ou au FAFCI.'),W-28),14,y);
+  pied(doc);doc.save('Fiche-projet-Elles-Pilotent.pdf');toast('Fiche téléchargée');}
+render();
+
+/* ── Micro-formations ── */
+const MODS=[
+ {t:"Séparer l'argent de l'activité",pts:["Gardez deux poches : l'argent du ménage et l'argent de l'activité. Les mélanger empêche de savoir si l'on gagne vraiment.","Notez chaque soir ce qui est entré et sorti, même sur un cahier.","Mettez de côté une petite somme fixe chaque semaine, avant les dépenses."],q:"Vous vendez pour 10 000 FCFA aujourd'hui. Vos achats du jour ont coûté 7 000 FCFA. Combien avez-vous gagné ?",o:["10 000 FCFA","3 000 FCFA","17 000 FCFA"],a:1,e:"Le bénéfice, c'est ce qui reste après avoir payé ce que l'on a acheté pour vendre : 10 000 − 7 000 = 3 000 FCFA."},
+ {t:"Mobile money en sécurité",pts:["Votre code secret ne se partage avec personne : ni un proche, ni un agent, ni un « service client » au téléphone.","Un message qui annonce un gain ou une erreur de transfert et demande de renvoyer de l'argent est le plus souvent une arnaque.","Changez votre code si quelqu'un l'a vu, et gardez votre téléphone verrouillé."],q:"Quelqu'un vous appelle : « Je me suis trompé, je vous ai envoyé 20 000 FCFA, renvoyez-les. » Que faites-vous ?",o:["Je renvoie tout de suite","Je vérifie mon solde moi-même et je contacte mon opérateur","Je donne mon code pour qu'il annule"],a:1,e:"Ne vous fiez jamais au message ou à l'appel : vérifiez votre solde vous-même et passez par le service officiel de votre opérateur."},
+ {t:"Protéger son téléphone et sa vie en ligne",pts:["Un code de verrouillage que vous seule connaissez, différent de votre date de naissance.","Vérifiez régulièrement le partage de position et les applications que vous n'avez pas installées.","Face au harcèlement en ligne : ne répondez pas, faites des captures d'écran, bloquez et signalez le compte."],q:"Vous recevez des messages insultants et menaçants sur un réseau social. Quelle est la première chose utile à faire ?",o:["Effacer les messages pour ne plus les voir","Faire des captures d'écran, puis bloquer et signaler","Répondre pour se défendre"],a:1,e:"Les captures d'écran sont des preuves. Elles serviront si vous décidez de signaler les faits."},
+ {t:"Connaître ses droits",pts:["Empêcher une femme de travailler, lui prendre son argent ou ses papiers est une forme de violence : on parle de violence économique.","Les violences basées sur le genre peuvent être signalées gratuitement au 1308, à toute heure.","Des structures publiques et associatives peuvent vous orienter vers une aide médicale, psychologique et juridique."],q:"Un conjoint confisque chaque mois tout l'argent que gagne sa femme. Est-ce une violence ?",o:["Non, c'est une affaire de famille","Oui, c'est une violence économique","Seulement s'il y a des coups"],a:1,e:"Contrôler l'argent de quelqu'un pour le rendre dépendant est une violence économique. Le 1308 peut écouter et orienter."}
+];
+const got=new Set();
+function renderMods(){$('#modules').innerHTML=MODS.map((m,i)=>`<div class="card mod"><div class="mod-head"><h3>${i+1}. ${m.t}</h3><span class="badge" id="bd-${i}">3 min</span></div><ul>${m.pts.map(p=>`<li>${p}</li>`).join('')}</ul>
+  <div class="quiz"><p id="q-${i}">${m.q}</p><div class="opts" role="group" aria-labelledby="q-${i}">${m.o.map((o,j)=>`<button type="button" data-m="${i}" data-j="${j}">${o}</button>`).join('')}</div><p class="fb" id="fb-${i}" aria-live="polite"></p></div></div>`).join('');
+  $('#modules').querySelectorAll('.opts button').forEach(b=>b.onclick=()=>{const i=+b.dataset.m,j=+b.dataset.j,m=MODS[i];
+    b.parentNode.querySelectorAll('button').forEach(x=>x.classList.remove('right','wrong'));
+    if(j===m.a){b.classList.add('right');got.add(i);$('#fb-'+i).textContent='Bonne réponse. '+m.e;const bd=$('#bd-'+i);bd.textContent='Badge obtenu';bd.classList.add('got');prog();}
+    else{b.classList.add('wrong');$('#fb-'+i).textContent='Pas tout à fait. Relisez les points ci-dessus et réessayez.';}});}
+function prog(){$('#progTxt').textContent=got.size+' / 4 badges';$('#progBar').style.width=(got.size*25)+'%';$('#progRole').setAttribute('aria-valuenow',got.size);
+  if(got.size===4){$('#attCard').hidden=false;toast('Parcours terminé : 4 badges sur 4');}}
+renderMods();prog();
+$('#attPdf').onclick=async()=>{const nom=$('#attNom').value.trim();if(!nom){toast('Indiquez votre nom');$('#attNom').focus();return;}
+  try{await chargerPdf();}catch(e){toast(e.message);return;}
+  const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape'}),W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+  doc.setFillColor(15,37,71);doc.rect(0,0,W,H,'F');doc.setFillColor(255,255,255);doc.roundedRect(12,12,W-24,H-24,4,4,'F');
+  doc.setFillColor(232,101,14);doc.rect(12,12,W-24,4,'F');
+  doc.setFont('helvetica','bold');doc.setTextColor(85,96,122);doc.setFontSize(10);doc.text('H TECH ACADEMY',W/2,34,{align:'center'});
+  doc.setTextColor(15,37,71);doc.setFontSize(30);doc.text('Attestation de parcours',W/2,52,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(12);doc.setTextColor(85,96,122);doc.text('décernée à',W/2,66,{align:'center'});
+  doc.setFont('helvetica','bold');doc.setFontSize(26);doc.setTextColor(232,101,14);doc.text(pdfTxt(nom),W/2,82,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(12);doc.setTextColor(19,32,58);
+  doc.text(pdfTxt('pour avoir suivi le parcours Elles Pilotent et obtenu les 4 badges :'),W/2,96,{align:'center'});
+  doc.setFontSize(11);MODS.forEach((m,i)=>doc.text('- '+pdfTxt(m.t),W/2,108+i*7,{align:'center'}));
+  doc.setFontSize(10);doc.setTextColor(85,96,122);doc.text(pdfTxt('Le '+new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})+' - Abidjan'),W/2,H-34,{align:'center'});
+  doc.setFontSize(8);doc.text('Attestation de participation à un parcours d’auto-formation gratuit ; elle ne vaut pas certification.'.replace(/’/g,"'"),W/2,H-24,{align:'center'});
+  doc.save('Attestation-Elles-Pilotent.pdf');toast('Attestation téléchargée');};
+})();
+</script>
+</body>
+</html>
