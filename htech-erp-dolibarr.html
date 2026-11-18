@@ -12195,13 +12195,20 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
       try{doc.addImage(MARQUES_IMG[d.marque],'JPEG',M+31,10,20,20);}catch(e){logErr(e);}
       x=M+55;}
     doc.setFontSize(15);color(NAVY,'bold');doc.text(T(E.nom),x,16);
-    if(MQ){const wN=doc.getTextWidth(T(E.nom));doc.setFontSize(8.5);doc.setTextColor(...MQ.rgb);doc.setFont('helvetica','bold');doc.text(T('· '+MQ.nom),x+wN+2,16);}
+    // Nom de la marque à côté du nom, seulement s'il ne touche pas le titre (sinon le logo suffit)
+    doc.setFontSize(22);doc.setFont('helvetica','bold');const debTitre=W-M-doc.getTextWidth(T(labelTitre));
+    if(MQ){doc.setFontSize(15);const wN=doc.getTextWidth(T(E.nom));doc.setFontSize(8.5);const tag=T('· '+MQ.nom);
+      if(x+wN+2+doc.getTextWidth(tag)<debTitre-4){doc.setTextColor(...MQ.rgb);doc.text(tag,x+wN+2,16);}}
     doc.setFontSize(8);color(GREY,'normal');
     const l1=[E.forme,E.rccm?'RCCM '+E.rccm:'',E.dgi?'NCC '+E.dgi:''].filter(Boolean).join('  |  ');
     const l2=[E.adresse,E.ville].filter(Boolean).join(', ');
     const l3=[E.tel,E.tel2].filter(Boolean).join('  /  ');
     const l4=[E.email,E.web].filter(Boolean).join('  |  ');
-    [l1,l2,l3,l4].filter(Boolean).forEach((t,i)=>doc.text(T(t),x,21.5+i*4));
+    // Coordonnées : jamais sous le titre ni sous le cartouche (police réduite au besoin, puis coupée)
+    [l1,l2,l3,l4].filter(Boolean).forEach((t,i)=>{const yy=21.5+i*4,maxW=(yy<23?W-M-28:W-M-50)-3-x;
+      let fs=8;doc.setFontSize(fs);let tt=T(t);while(doc.getTextWidth(tt)>maxW&&fs>6.5){fs-=0.25;doc.setFontSize(fs);}
+      if(doc.getTextWidth(tt)>maxW)tt=doc.splitTextToSize(tt,maxW)[0];doc.text(tt,x,yy);});
+    doc.setFontSize(8);
     // Titre et cartouche
     doc.setFontSize(22);color(NAVY,'bold');doc.text(T(labelTitre),W-M,18,{align:'right'});
     doc.setDrawColor(...BLUE);doc.setLineWidth(0.8);doc.line(W-M-28,21,W-M,21);
@@ -12437,10 +12444,11 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
       try{doc.setGState(new doc.GState({opacity:1}));}catch(e){}
     }
     // Bandeau « Nos marques »
-    {const items=Object.entries(MARQUES),lw=5.2,gap=9;doc.setFontSize(7);doc.setFont('helvetica','bold');
-     const lib='Nos marques',larg=items.map(([k,m])=>lw+1.6+doc.getTextWidth(T(m.nom)));
-     let xm=(W-(larg.reduce((a,b)=>a+b,0)+gap*items.length+doc.getTextWidth(lib)))/2;
-     color(GREY,'normal');doc.text(lib,xm,277.9);xm+=doc.getTextWidth(lib)+gap;
+    // Page d'annexe : bandeau à gauche (sans libellé) pour laisser la place au paraphe à droite
+    {const items=Object.entries(MARQUES),ann=pagesAnnexes.includes(i),lw=5.2,gap=ann?5:9;doc.setFontSize(7);doc.setFont('helvetica','bold');
+     const lib=ann?'':'Nos marques',larg=items.map(([k,m])=>lw+1.6+doc.getTextWidth(T(m.nom)));
+     let xm=ann?M:(W-(larg.reduce((a,b)=>a+b,0)+gap*items.length+doc.getTextWidth(lib)))/2;
+     if(lib){color(GREY,'normal');doc.text(lib,xm,277.9);xm+=doc.getTextWidth(lib)+gap;}
      items.forEach(([k,m],i)=>{try{doc.addImage(MARQUES_IMG[k],'JPEG',xm,274.3,lw,lw);}catch(e){}
        doc.setFont('helvetica','bold');doc.setTextColor(...(k===d.marque?m.rgb:NAVY));doc.text(T(m.nom),xm+lw+1.6,277.9);xm+=larg[i]+gap;});}
     doc.setDrawColor(...BLUE);doc.setLineWidth(0.4);doc.line(M,282,W-M,282);
@@ -12449,7 +12457,7 @@ async function docPDF(d,labelTitre,prefixFichier,tiers){
     doc.text(contact,W/2,289.5,{align:'center'});
     if(E.mentions)doc.text(doc.splitTextToSize(T(E.mentions),W-2*M-20)[0],W/2,293,{align:'center'});
     doc.text(T('Page '+i+' / '+nb),W-M,289.5,{align:'right'});
-    if(pagesAnnexes.includes(i)){doc.setFontSize(7.5);color(NAVY,'bold');doc.text(T('Paraphe du '+(isDev?'client':'fournisseur')+' : ________'),W-M,279,{align:'right'});}
+    if(pagesAnnexes.includes(i)){doc.setFontSize(7.5);color(NAVY,'bold');doc.text(T('Paraphe du '+(isDev?'client':'fournisseur')+' : ________'),W-M,277.9,{align:'right'});}
   }
   const insBC=(isBC||isDev)&&Array.isArray(d._annexes)?d._annexes.filter(a=>a._src&&a._pages).map(a=>({bytes:a._src.bytes,pages:a._pages})):[];
   if(insBC.length){try{mdTelecharger(await mdIncruster(doc,insBC),T(prefixFichier+'-'+(d.reference||'document'))+'.pdf');}catch(e){logErr(e);toast('❌ Annexe PDF : '+e.message);return;}}
