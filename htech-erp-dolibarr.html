@@ -3472,13 +3472,13 @@ async function loadAchats(){
     const{data:cmds}=await sb.from('bons_commande').select('*').order('created_at',{ascending:false});
     setText('achFourn',fourn?.length||0);
     setText('achCmd',(cmds||[]).filter(x=>['confirme','envoye'].includes(x.statut)).length);
-    const dep=(cmds||[]).reduce((s,x)=>s+(x.montant_ttc||0),0);
-    setText('achDep',dep>0?(dep/1000).toFixed(0)+'K':'0');
+    const depD=sommeParDevise(cmds,x=>x.montant_ttc),dep=depD.XOF||0;
+    kpiDevises('achDep',depD,v=>v>0?(v/1000).toFixed(0)+'K':'0');
     setText('achRec',(cmds||[]).filter(x=>x.statut==='recu').length);
     const ft=document.getElementById('fournisseursTable');
     if(ft)ft.innerHTML=fourn?.length?fourn.map(x=>`<tr><td><strong>${editCell('fournisseurs',x.id,'nom',x.nom)}</strong></td><td>${editCell('fournisseurs',x.id,'categorie',x.categorie)}</td><td>${editCell('fournisseurs',x.id,'email',x.email)}</td><td>${editCell('fournisseurs',x.id,'telephone',x.telephone)}</td><td>${editSelect('fournisseurs',x.id,'statut',x.statut||'actif',['actif','inactif','bloque'])}</td><td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="fournisseurPDF('${x.id}')" title="Imprimer la fiche">📄</button><button class="btn btn-outline btn-sm" onclick="openDocs('achats','${x.id}','${jsq(x.nom||"")}')" title="Pièces jointes">📎</button><button class="btn btn-outline btn-sm" onclick="delFournisseur('${x.id}')">🗑</button></div></td></tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--g400);padding:14px">Aucun fournisseur. <button class="btn btn-primary btn-sm" onclick="openModal(\'fournisseur\')">+ Ajouter</button></td></tr>';
     const ct=document.getElementById('commandesTable');
-    if(ct)ct.innerHTML=cmds?.length?cmds.map(x=>`<tr><td><code style="font-size:10px">${esc(x.reference||'—')}</code>${bcTypeTag(x.type_commande)}</td><td>${esc(x.fournisseur_nom||'—')}</td><td>${(x.montant_ttc||0).toLocaleString('fr')} FCFA</td><td>${editSelect('bons_commande',x.id,'statut',x.statut||'brouillon',['brouillon','envoye','confirme','recu','annule'])}</td><td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="editCommande('${x.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="commandePDF('${x.id}')" title="Imprimer le bon de commande">📄</button><button class="btn btn-outline btn-sm" onclick="openDocs('achats','${x.id}','${jsq(x.reference||"")}')" title="Pièces jointes">📎</button><button class="btn btn-outline btn-sm" onclick="delCommande('${x.id}')">🗑</button></div></td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:14px">Aucune commande.</td></tr>';
+    if(ct)ct.innerHTML=cmds?.length?cmds.map(x=>`<tr><td><code style="font-size:10px">${esc(x.reference||'—')}</code>${bcTypeTag(x.type_commande)}</td><td>${esc(x.fournisseur_nom||'—')}</td><td>${esc(moneyDev(x.montant_ttc||x.total_ttc||0,x.devise))}</td><td>${editSelect('bons_commande',x.id,'statut',x.statut||'brouillon',['brouillon','envoye','confirme','recu','annule'])}</td><td><div style="display:flex;gap:4px"><button class="btn btn-outline btn-sm" onclick="editCommande('${x.id}')" title="Modifier">✏️</button><button class="btn btn-outline btn-sm" onclick="commandePDF('${x.id}')" title="Imprimer le bon de commande">📄</button><button class="btn btn-outline btn-sm" onclick="openDocs('achats','${x.id}','${jsq(x.reference||"")}')" title="Pièces jointes">📎</button><button class="btn btn-outline btn-sm" onclick="delCommande('${x.id}')">🗑</button></div></td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--g400);padding:14px">Aucune commande.</td></tr>';
   }catch(e){console.error('achats',e);}
 }
 async function loadStock(){
@@ -4894,7 +4894,7 @@ async function sauverCommande(){
     created_by:uid()
   });
   if(error){console.error('bons_commande',error);toast('❌ Erreur : '+error.message);return;}
-  toast('✅ Bon de commande créé — '+fmtF(d.total_ttc)+' FCFA TTC');closeModal();loadAchats();
+  toast('✅ Bon de commande créé — '+moneyDev(d.total_ttc,devCode())+' TTC');closeModal();loadAchats();
 }
 // Remplit la liste déroulante des fournisseurs dans le bon de commande
 async function chargerFournisseursSelect(selectedId){
@@ -10517,7 +10517,7 @@ async function saisirPaiementPartiel(factureId){
       <div style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:16px">💳 Saisir un paiement</div>
       <div style="background:var(--g50);border-radius:8px;padding:12px;margin-bottom:16px">
         <div style="font-size:12px;color:var(--g400)">Total facture</div>
-        <div style="font-size:18px;font-weight:700">${fmtF(fac.total_ttc||0)} FCFA</div>
+        <div style="font-size:18px;font-weight:700">${esc(moneyDev(fac.total_ttc||0,fac.devise))}</div>
         <div style="font-size:12px;color:var(--g400);margin-top:4px">Déjà payé : ${fmtF(fac.montant_paye||0)} FCFA</div>
         <div style="font-size:13px;font-weight:600;color:var(--red)">Reste à régler : ${fmtF(resteARegler)} FCFA</div>
       </div>
@@ -11349,6 +11349,10 @@ function fmtDev(n,code){const D=devOf(code);if(!D.dec)return fmtF(n);
   const v=Math.abs(Number(n)||0),p=10**D.dec,r=Math.round(v*p)/p,ent=Math.floor(r),dc=String(Math.round((r-ent)*p)).padStart(D.dec,'0');
   return ((Number(n)||0)<0?'-':'')+fmtF(ent)+','+dc;}
 function moneyDev(n,code){return fmtDev(n,code)+' '+devOf(code).sym;}
+// Totaux des compteurs : jamais d'addition entre devises. Le FCFA garde son affichage ; les autres devises s'ajoutent dessous.
+function sommeParDevise(rows,fn){const o={};(rows||[]).forEach(r=>{const k=r.devise||'XOF';o[k]=(o[k]||0)+(Number(fn(r))||0);});return o;}
+function kpiDevises(id,o,fmtXOF){const el=document.getElementById(id);if(!el)return;const autres=Object.entries(o).filter(([k,v])=>k!=='XOF'&&v);
+  el.innerHTML=esc(fmtXOF(o.XOF||0))+(autres.length?`<div style="font-size:13px;font-weight:700;margin-top:4px;opacity:.85">${autres.map(([k,v])=>'+ '+esc(moneyDev(v,k))).join('<br>')}</div>`:'');}
 function devCode(){return document.getElementById('docDevise')?.value||'XOF';}
 // N'envoie la colonne que si une autre devise que le franc CFA est choisie ou l'était (l'ERP fonctionne avant la migration)
 function deviseChamp(v,ancien){return ((v&&v!=='XOF')||(ancien&&ancien!=='XOF'))?{devise:v||'XOF'}:{};}
@@ -11820,7 +11824,7 @@ async function sauverDevis(){
   const{error}=await dbSave('devis',p);
   if(error){toast('❌ '+error.message);return;}
   await sauverChiffrage('devis',await idParReference('devis',p.reference),d.chiffrage);
-  toast('✅ Devis '+p.reference+' créé — '+money(d.total_ttc)+' TTC');closeModal();loadFinance();
+  toast('✅ Devis '+p.reference+' créé — '+moneyDev(d.total_ttc,devCode())+' TTC');closeModal();loadFinance();
 }
 async function sauverFacture(){
   const d=getDocData();if(!docValider(d,'facture'))return;
@@ -11830,7 +11834,7 @@ async function sauverFacture(){
   const{error}=await dbSave('factures',p);
   if(error){toast('❌ '+error.message);return;}
   await sauverChiffrage('facture',await idParReference('factures',p.reference),d.chiffrage);
-  toast('✅ Facture '+p.reference+' émise — '+money(d.total_ttc)+' TTC');closeModal();loadFinance();
+  toast('✅ Facture '+p.reference+' émise — '+moneyDev(d.total_ttc,devCode())+' TTC');closeModal();loadFinance();
 }
 async function editDocLignes(docType,id){
   EDIT_DOC_ID=id;
@@ -11876,7 +11880,7 @@ async function updateDocLignes(docType){
   const{error}=await dbSave(DOC_CONFIG[docType].table,p,EDIT_DOC_ID);
   if(error){toast('❌ '+error.message);return;}
   await sauverChiffrage(docType,EDIT_DOC_ID,d.chiffrage);
-  toast('✅ Modifications enregistrées — '+money(d.total_ttc)+' TTC');
+  toast('✅ Modifications enregistrées — '+moneyDev(d.total_ttc,devCode())+' TTC');
   closeModal();EDIT_DOC_ID=null;DOC_SRC=null;loadFinance();
 }
 // Aperçu PDF du document en cours d'édition (sans enregistrer)
@@ -11899,7 +11903,7 @@ async function tiersDuDoc(d){
 async function convertirDevisEnFacture(devisId){
   const{data:d}=await sb.from('devis').select('*').eq('id',devisId).single();
   if(!d){toast('❌ Devis introuvable');return;}
-  if(!confirm('Créer la facture à partir du devis '+d.reference+' ('+money(d.total_ttc)+' TTC) ?'))return;
+  if(!confirm('Créer la facture à partir du devis '+d.reference+' ('+moneyDev(d.total_ttc,d.devise)+' TTC) ?'))return;
   const E=getEntreprise();
   const p={titre:d.titre,client_nom:d.client_nom,client_id:d.client_id||null,lignes:d.lignes,exonere_tva:d.exonere_tva,
     sous_total:d.sous_total,tva_pct:d.tva_pct,tva_montant:d.tva_montant,total_ttc:d.total_ttc,
@@ -11935,7 +11939,7 @@ async function markPaid(id){
   if(reste<=0){toast('Cette facture est déjà entièrement payée');return;}
   document.getElementById('modalBox').style.width='min(560px,96vw)';document.getElementById('modalTitle').textContent='💰 Encaisser — '+(f.reference||'');
   document.getElementById('modalBody').innerHTML=`<div class="card" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;font-size:12px;margin-bottom:10px">
-      <div><div class="cell-sub">Total TTC</div><b style="font-size:15px">${fmtF(f.total_ttc)} F</b></div><div><div class="cell-sub">Déjà payé</div><b style="font-size:15px;color:var(--accent)">${fmtF(deja)} F</b></div><div><div class="cell-sub">Reste à payer</div><b style="font-size:15px;color:var(--red)">${fmtF(reste)} F</b></div></div>
+      <div><div class="cell-sub">Total TTC</div><b style="font-size:15px">${esc(moneyDev(f.total_ttc,f.devise))}</b></div><div><div class="cell-sub">Déjà payé</div><b style="font-size:15px;color:var(--accent)">${esc(moneyDev(deja,f.devise))}</b></div><div><div class="cell-sub">Reste à payer</div><b style="font-size:15px;color:var(--red)">${fmtF(reste)} F</b></div></div>
     ${(pa||[]).length?`<div class="cell-sub" style="margin-bottom:8px">Paiements déjà reçus : ${pa.map(x=>fmtD(x.date_paiement)+' — '+fmtF(x.montant)+' F'+(x.mode_paiement?' ('+esc(x.mode_paiement)+')':'')).join(' · ')}</div>`:''}
     <div class="form-grid">
       <div class="form-field"><label for="encMontant">Montant reçu (FCFA) *</label><input type="number" id="encMontant" min="1" max="${reste}" step="1" value="${reste}" oninput="encMaj(${reste})"></div>
@@ -12045,7 +12049,7 @@ async function loadFinance(){
   try{loadPaiementsFin();}catch(e){logErr(e);}
   const ca=F.reduce((s,f)=>s+facEncaisse(f),0),resteTotal=F.reduce((s,f)=>s+facReste(f),0);
   window._FIN_RESTE=resteTotal;
-  setText('finCA',ca>=1e6?(ca/1e6).toFixed(1).replace('.',',')+' M':fmtF(ca));
+  kpiDevises('finCA',sommeParDevise(F,facEncaisse),v=>v>=1e6?(v/1e6).toFixed(1).replace('.',',')+' M':fmtF(v));
   setText('finTotal',F.filter(f=>f.statut!=='annulee').length);
   setText('finAttente',F.filter(f=>f.type_document!=='avoir'&&['emise','partielle'].includes(finStatutFacture(f))).length);
   {const el=document.getElementById('finCA');if(el)el.title='Total réellement encaissé (paiements partiels compris) · reste à encaisser : '+fmtF(resteTotal)+' FCFA';}
@@ -12062,7 +12066,7 @@ async function loadFinance(){
       <td><code class="ref">${esc(f.reference||'—')}</code></td>
       <td><div class="cell-main">${esc(f.titre||'—')}</div><div class="cell-sub">${esc(f.client_nom||'')}</div></td>
       <td class="num">${esc(money(f.sous_total||0))}</td>
-      <td class="num"><strong>${av?'− ':''}${esc(money(f.total_ttc||0))}</strong>${!av&&numIn(f.montant_paye)>0&&f.statut==='partielle'?`<div class="cell-sub" style="color:var(--accent)">Payé ${esc(money(f.montant_paye))}</div><div class="cell-sub" style="color:var(--red);font-weight:600">Reste ${esc(money(facReste(f)))}</div>`:''}</td>
+      <td class="num"><strong>${av?'− ':''}${esc(moneyDev(f.total_ttc||0,f.devise))}</strong>${!av&&numIn(f.montant_paye)>0&&f.statut==='partielle'?`<div class="cell-sub" style="color:var(--accent)">Payé ${esc(moneyDev(f.montant_paye,f.devise))}</div><div class="cell-sub" style="color:var(--red);font-weight:600">Reste ${esc(money(facReste(f)))}</div>`:''}</td>
       <td class="${['en_retard','partielle_retard'].includes(st)&&!av?'txt-red':''}">${esc(fmtD(f.date_echeance))}${f.date_paiement?`<div class="cell-sub">${f.statut==='partielle'?'Dernier paiement le':'Payée le'} ${esc(fmtD(f.date_paiement))}</div>`:''}</td>
       <td><span class="badge ${sc}">${esc(sl)}</span></td>
       <td><div class="row-actions">
@@ -12087,7 +12091,7 @@ async function loadFinance(){
       return `<tr>
       <td><code class="ref">${esc(d.reference||'—')}</code>${devisTypeTag(d.type_devis)}</td>
       <td><div class="cell-main">${esc(d.titre||'—')}</div><div class="cell-sub">${esc(d.client_nom||'')}</div></td>
-      <td class="num"><strong>${esc(money(d.total_ttc||0))}</strong></td>
+      <td class="num"><strong>${esc(moneyDev(d.total_ttc||0,d.devise))}</strong></td>
       <td>${esc(fmtD(fin))}</td>
       <td><span class="badge ${sc}" style="cursor:pointer" onclick="changerStatutDevis('${d.id}','${esc(d.statut||'brouillon')}')" title="Changer le statut">${esc(sl)} ▾</span></td>
       <td><div class="row-actions">
@@ -12729,7 +12733,7 @@ async function relancer(fid,canal){
 // ═══ 3. AVOIRS ═══
 async function creerAvoir(fid){
   const{data:f}=await sb.from('factures').select('*').eq('id',fid).single();if(!f)return;
-  if(!confirm('Émettre un avoir total sur la facture '+f.reference+' ('+money(f.total_ttc)+' TTC) ? La facture sera annulée.'))return;
+  if(!confirm('Émettre un avoir total sur la facture '+f.reference+' ('+moneyDev(f.total_ttc,f.devise)+' TTC) ? La facture sera annulée.'))return;
   const p={...f};['id','created_at','updated_at','date_paiement'].forEach(k=>delete p[k]);
   Object.assign(p,{reference:await nextNumero('AV'),type_document:'avoir',facture_origine:f.reference,statut:'emise',date_document:isoJour(),
     titre:'Avoir sur facture '+f.reference+' — '+(f.titre||''),notes:'Annule et remplace la facture '+f.reference+'.',created_by:uid()});
@@ -13377,7 +13381,7 @@ function portailAfficher(){
   if(PORTAIL.onglet==='equipements')el.innerHTML=tbl([['Équipement',r=>`<div class="cell-main">${esc([r.categorie,r.marque,r.modele].filter(Boolean).join(' '))}</div><div class="cell-sub">${r.numero_serie?'SN '+esc(r.numero_serie):''}</div>`],
     ['Site',r=>esc(r.site||'')],['Garantie',r=>r.fin_garantie?esc(fmtD(r.fin_garantie)):'—'],['Prochaine maintenance',r=>r.prochaine_maintenance?esc(fmtD(r.prochaine_maintenance)):'—'],
     ['',r=>`<button class="btn btn-outline btn-sm" onclick="portailNouveauTicket('${r.id}')">Signaler un problème</button>`]],D.equipements,'Aucun équipement enregistré.');
-  if(PORTAIL.onglet==='factures')el.innerHTML=tbl([['Réf.',r=>`<code class="ref">${esc(r.reference||'')}</code>`],['Objet',r=>esc(r.titre||'')],['Montant TTC',r=>(r.type_document==='avoir'?'− ':'')+esc(money(r.total_ttc)),1],
+  if(PORTAIL.onglet==='factures')el.innerHTML=tbl([['Réf.',r=>`<code class="ref">${esc(r.reference||'')}</code>`],['Objet',r=>esc(r.titre||'')],['Montant TTC',r=>(r.type_document==='avoir'?'− ':'')+esc(moneyDev(r.total_ttc,r.devise)),1],
     ['Échéance',r=>esc(fmtD(r.date_echeance))],['État',r=>r.type_document==='avoir'?badge('Avoir','badge-purple'):r.statut==='payee'?badge('Payée','badge-green'):r.statut==='annulee'?badge('Annulée','badge-gray'):badge('À payer',finStatutFacture(r)==='en_retard'?'badge-red':'badge-amber')],
     ['',r=>`<button class="btn btn-outline btn-sm" onclick="facturePDF('${r.id}')">PDF</button>`]],D.factures,'Aucune facture.');
   if(PORTAIL.onglet==='aide')el.innerHTML=`<div class="card"><div class="v4-filters"><input type="search" placeholder="Rechercher une réponse…" oninput="document.querySelectorAll('.kb-pub').forEach(x=>x.style.display=x.textContent.toLowerCase().includes(this.value.toLowerCase())?'':'none')"/></div>
@@ -18097,7 +18101,7 @@ async function csFiche(cid){
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-top:14px">
     <div class="card"><h3 class="v4-h3">Opportunités</h3>${O.length?`<div class="table-wrap"><table><thead><tr><th>Titre</th><th>Montant</th><th>Proba.</th><th>Étape</th></tr></thead><tbody>${O.map(o=>`<tr><td>${esc(o.titre||'')}${o.motif_perte?`<div class="cell-sub">Perdue : ${esc(o.motif_perte)}</div>`:''}</td><td>${fmtF(o.montant_estime||0)}</td><td>${numIn(o.probabilite)} %</td>
       <td><select onchange="csEtape('${o.id}',this.value)" style="font-size:12px">${CS_ETAPES.map(([k,l])=>`<option value="${k}" ${o.etape===k?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>`:'<p class="cell-sub">Aucune opportunité.</p>'}</div>
-    <div class="card"><h3 class="v4-h3">Devis et factures</h3>${D.length+F.length?`<div class="table-wrap"><table><tbody>${[...D.map(d=>['Devis',d]),...F.map(f=>['Facture',f])].sort((a,b)=>String(b[1].created_at).localeCompare(String(a[1].created_at))).map(([t,x])=>`<tr><td>${t}</td><td><code style="font-size:11px">${esc(x.reference||'')}</code></td><td>${fmtF(x.total_ttc||0)}</td><td style="font-size:12px">${esc(x.statut||'')}</td><td class="cell-sub">${fmtD(x.created_at)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="cell-sub">Aucun devis ni facture.</p>'}</div></div>`;
+    <div class="card"><h3 class="v4-h3">Devis et factures</h3>${D.length+F.length?`<div class="table-wrap"><table><tbody>${[...D.map(d=>['Devis',d]),...F.map(f=>['Facture',f])].sort((a,b)=>String(b[1].created_at).localeCompare(String(a[1].created_at))).map(([t,x])=>`<tr><td>${t}</td><td><code style="font-size:11px">${esc(x.reference||'')}</code></td><td>${esc(moneyDev(x.total_ttc||0,x.devise))}</td><td style="font-size:12px">${esc(x.statut||'')}</td><td class="cell-sub">${fmtD(x.created_at)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="cell-sub">Aucun devis ni facture.</p>'}</div></div>`;
 }
 async function csQualifier(cid){const o={};['potentiel','niveau_interet','taille','source','decideur','delai_decision','besoins','concurrents','site_web','adresse'].forEach(k=>{o[k]=gv('q_'+k)||null;});
   ['ca_estime','budget'].forEach(k=>{o[k]=gv('q_'+k)===''?null:numIn(gv('q_'+k));});
@@ -19752,7 +19756,7 @@ async function facSupprimer(id){
   document.getElementById('modalBox').style.width='min(600px,96vw)';
   document.getElementById('modalTitle').textContent=(sup?'🗑 Supprimer':'📨 Demander la suppression de')+' la facture '+(f.reference||'');
   document.getElementById('modalBody').innerHTML=`<div class="card" style="font-size:13px;line-height:1.7"><b>${esc(f.reference||'')}</b> · ${esc(f.client_nom||'—')}<br>${esc(f.titre||'')}<br>
-     Montant TTC : <b>${fmtF(f.total_ttc||0)} FCFA</b> · Statut : <b>${esc(st)}</b>
+     Montant TTC : <b>${esc(moneyDev(f.total_ttc||0,f.devise))}</b> · Statut : <b>${esc(st)}</b>
      ${pa.length?`<br>💳 ${pa.length} paiement(s) enregistré(s) : ${fmtF(pa.reduce((s,x)=>s+numIn(x.montant),0))} FCFA`:''}${ec.length?`<br>📒 ${ec.length} ligne(s) d’écriture comptable liée(s)`:''}</div>
    ${av.length?`<div class="card" style="border-left:4px solid var(--red);font-size:13px">⛔ Cette facture a ${av.length} avoir(s) (${av.map(a=>esc(a.reference||'')).join(', ')}). Supprimez d’abord l’avoir.</div>`:''}
    ${f.statut!=='brouillon'?'<p class="cell-sub" style="color:#B45309">⚠ Facture émise : sa suppression crée un trou dans la numérotation. Pour une facture déjà transmise au client, l’avoir ou l’annulation est préférable pour la traçabilité fiscale.</p>':''}
@@ -21188,8 +21192,8 @@ function csReleveDonnees(cid,ym){
   return{mois,nom:csNom(cid),synthese,activites,depl,
     prospects:prospects.map(c=>[new Date(c.created_at).toLocaleDateString('fr-FR'),c.nom||'',c.societe||'',c.secteur||'',c.telephone||c.email||'']),
     opps:opps.map(o=>[new Date(o.created_at).toLocaleDateString('fr-FR'),client(o.client_id),o.titre||o.nom||o.objet||'',csLib(o.etape),fmtF(numIn(o.montant_estime))+' FCFA']),
-    docs:[...devis.map(x=>['Devis',x.reference||'',client(x.client_id),new Date(x.created_at).toLocaleDateString('fr-FR'),csLib(x.statut),fmtF(numIn(x.total_ttc))+' FCFA']),
-          ...fact.map(x=>['Facture',x.reference||'',client(x.client_id),new Date(x.created_at).toLocaleDateString('fr-FR'),csLib(x.statut),fmtF(numIn(x.total_ttc))+' FCFA'])]};
+    docs:[...devis.map(x=>['Devis',x.reference||'',client(x.client_id),new Date(x.created_at).toLocaleDateString('fr-FR'),csLib(x.statut),moneyDev(numIn(x.total_ttc),x.devise)]),
+          ...fact.map(x=>['Facture',x.reference||'',client(x.client_id),new Date(x.created_at).toLocaleDateString('fr-FR'),csLib(x.statut),moneyDev(numIn(x.total_ttc),x.devise)])]};
 }
 async function csReleveExporter(format){
   const cid=gv('crCom')||uid(),ym=gv('crMois');if(!ym){toast('Choisissez le mois');return;}
