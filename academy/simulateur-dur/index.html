@@ -303,7 +303,7 @@ function qDansModule(q,m){return m.sel.some(s=>s[0]===q.d&&(s.length===1||s[1]==
 function modCourant(){return MODULES.find(m=>m.code===eModule)||MODULES[0];}
 function modQuestions(m){return Q.filter(q=>qDansModule(q,m));}
 function modNom(m){return (m.n?MT.module+' '+m.n+' · ':'')+m.nom;}
-function modLabel(){return (MT.examen+' · '+modNom(modCourant())).slice(0,80);}
+function modLabel(){return ((MT.examen?MT.examen+' · ':'')+modNom(modCourant())).slice(0,80);}
 function modCarte(){return `<button class="opt-card" data-eformat="module" aria-pressed="${eFormat==="module"}"><strong>${MT.titre}</strong><span>${MT.desc}</span></button>`;}
 function modChoix(){if(eFormat!=="module")return "";
  return `<div class="panel"><strong>${MT.choisir}</strong><div class="mods">${MODULES.map(m=>{const n=Math.min(MODNB,modQuestions(m).length);
@@ -327,7 +327,7 @@ function certBloc(){const s=session;if(!s||!s.module||!s.result)return "";
  if(c.erreur)return `<div class="cert-box ko">${img}<div><b>${esc(modNom(m))}</b><p>${MT.erreur}${esc(c.erreur)}</p></div></div>`;
  if(c.a_valider)return `<div class="cert-box att">${img}<div><b>${esc(modNom(m))}</b><p>${MT.aValider}</p></div></div>`;
  if(c.eligible===false)return `<div class="cert-box ko">${img}<div><b>${esc(modNom(m))}</b><p>${esc(c.raison||'')}</p></div></div>`;
- const L=c.certificats||[],mo=L.find(x=>x.type==="module")||{},pa=L.find(x=>x.type==="parcours"&&x.nouveau);
+ const L=c.certificats||[],mo=L.find(x=>x.type==="module"||x.type==="attestation")||{},pa=L.find(x=>x.type==="parcours"&&x.nouveau);
  return `<div class="cert-box">${img}<div><b>${mo.deja?MT.deja:MT.obtenu} : ${esc(modNom(m))}</b>${mo.numero?`<p>${MT.certif} ${esc(mo.numero)}</p>`:''}${pa?`<p><b style="display:inline">${MT.parcours}</b> (${esc(pa.numero)})</p>`:''}
   <p><a href="${SIM.espace}">${MT.espace}</a></p></div></div>`;}
 
