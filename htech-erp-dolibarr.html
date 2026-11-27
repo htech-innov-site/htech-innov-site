@@ -13712,10 +13712,10 @@ async function academyEcrire(id,type){
 
 // ── Formations : catalogue de l'Academy, y compris vos formations sur mesure ──
 v4Def('academy-formations',{table:'produits',where:{type_article:'formation'},titre:'Formations',icone:'📚',
-  sousTitre:'Catalogue de H TECH ACADEMY : formations de la grille et formations créées par vous (sur mesure, hors grille). Décochez « Publiée sur le site » pour une formation privée.',
+  sousTitre:'Catalogue 2027 de H TECH ACADEMY : 3 parcours certifiants (références HTA-…), leurs modules et les certifications PMI-GPM et GPM. Les anciennes formations sont archivées. Le site affiche les 3 parcours ; les tarifs saisis ici pour les références HTA-… y sont repris.',
   nouveau:'Nouvelle formation',large:1,ordre:'designation',asc:true,recherche:['designation','reference','categorie','description'],
   champs:[{k:'designation',l:'Intitulé de la formation',req:1},{k:'reference',l:'Référence (laissée vide = générée automatiquement)',ph:'HTI-FO-EXCEL'},
-    {k:'categorie',l:'Domaine',t:'select',o:['Formations inter-entreprises','Formation intra-entreprise','Formation sur mesure','Gestion de projet','Agilité','Durabilité et ESG','Gouvernance et PMO','Bureautique et outils','Management et leadership','Sécurité électronique','Cybersécurité','Autre'],def:'Formation sur mesure'},
+    {k:'categorie',l:'Domaine',t:'select',o:['Parcours 1 · Gestion de projet','Parcours 2 · Management de PMO','Parcours 3 · Management de projet durable','Certifications PMI-GPM et GPM','Formations inter-entreprises','Formation intra-entreprise','Formation sur mesure','Gestion de projet','Agilité','Durabilité et ESG','Gouvernance et PMO','Bureautique et outils','Management et leadership','Sécurité électronique','Cybersécurité','Autre'],def:'Formation sur mesure'},
     {k:'duree_txt',l:'Durée (ex. 2 jours, 14 heures)'},
     {k:'description',l:'Description (objectifs, public, contenu)',t:'textarea',rows:4},
     {k:'prix_org',l:'Prix par participant — organisation (FCFA HT)',t:'money'},{k:'prix_part',l:'Prix par participant — particulier (FCFA HT, vide = non proposé)',t:'money'},
@@ -15979,6 +15979,8 @@ async function htaImageSignature(path){
 
 // ── Dessin du certificat (A4 paysage, reproduction du modèle H TECH ACADEMY) ──
 async function htaDessiner(c){
+  if(c.type_certificat==='module'||c.type_certificat==='attestation')return hta27DessinerERP(c);
+  if(c.type_certificat==='parcours'&&!c._badges)await hta27PreparerParcours(c);
   await htaLibs();
   const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape'});
   if(window._HTA_SCRIPT_FONT){try{doc.addFileToVFS('GreatVibes.ttf',window._HTA_SCRIPT_FONT);doc.addFont('GreatVibes.ttf','GreatVibes','normal');}catch(e){window._HTA_SCRIPT_FONT=null;}}
@@ -16019,6 +16021,7 @@ async function htaDessiner(c){
   doc.setTextColor(...BRUN);doc.text(P(c.formation_titre),W/2,101,{align:'center'});
   const sous=[c.heures?String(c.heures).toUpperCase():'',c.niveau?('NIVEAU '+String(c.niveau).toUpperCase()):''].filter(Boolean).join('  ·  ');
   if(sous)espace(P(sous),1.3,W/2,108,8.6,['helvetica','bold'],BRONZE,'center');
+  if(c._badges&&c._badges.length)hta27RangeeBadges(doc,c._badges,121,14,W,c._repli);
   if(c._part&&c._part.type==='atp'&&c._part.nom){doc.setFont('helvetica','italic');doc.setFontSize(7.6);doc.setTextColor(...GRIS);
     doc.text(P('Formation dispensée par H TECH ACADEMY, partenaire de formation agréé (ATP) de '+c._part.nom+(c._part.agrement?' — agrément n° '+c._part.agrement:'')+'.'),W/2,114,{align:'center'});
     doc.setFontSize(6.6);doc.text(P('Le présent certificat atteste la formation suivie ; il ne constitue pas une certification délivrée par '+c._part.nom+'.'),W/2,118,{align:'center'});}
@@ -16090,11 +16093,13 @@ async function htaNumero(){
 }
 async function htaCreer(c,opts){
   opts=opts||{};
-  c.numero=await htaNumero();
+  c.numero=(c.catalogue_code&&c.type_certificat&&c.type_certificat!=='formation')?await hta27Numero(c):await htaNumero();
   const row={numero:c.numero,inscription_id:c.inscription_id||null,apprenant_id:c.apprenant_id||null,titulaire:c.titulaire,formation_ref:c.formation_ref||null,formation_titre:c.formation_titre,
     heures:c.heures||null,niveau:c.niveau||null,date_obtention:c.date_obtention,date_validite:c.date_validite||null,
     signataire1_nom:c.signataire1_nom||null,signataire1_fonction:c.signataire1_fonction||null,signataire2_nom:c.signataire2_nom||null,signataire2_fonction:c.signataire2_fonction||null,
     statut:'valide',created_by:uid()};
+  if(c.catalogue_code&&c.type_certificat&&c.type_certificat!=='formation'){row.type_certificat=c.type_certificat;row.catalogue_code=c.catalogue_code;
+    row.periode_debut=c.periode_debut||null;row.periode_fin=c.periode_fin||null;row.lieu=c.lieu||null;}
   if(c.partenaire_id){row.partenaire_id=c.partenaire_id;row.partenaire_nom=c.partenaire_nom||null;row.partenaire_lien=c.partenaire_lien||null;row.partenaire_type=c.partenaire_type||null;row.partenaire_agrement=c.partenaire_agrement||null;}
   let{data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single();
   if(error&&/partenaire_/.test(error.message)){toast('⚠ Partenaire non enregistré : exécutez migration-partenaires-certificats-rapports.sql',8000);['partenaire_id','partenaire_nom','partenaire_lien','partenaire_type','partenaire_agrement'].forEach(k=>delete row[k]);({data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single());}
@@ -16127,27 +16132,32 @@ async function htaForm(p){
   document.getElementById('modalBody').innerHTML=`
     ${deja.length?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:10px;font-size:12.5px">⚠️ Cet apprenant a déjà le certificat ${esc(deja.map(x=>x.numero).join(', '))} pour cette inscription.</div>`:''}
     <div class="form-grid">
+      <div class="form-field full"><label for="htK">Modèle et catalogue 2027</label><div style="display:flex;gap:10px;align-items:center"><img id="htBadge" alt="" width="46" height="46" style="border-radius:50%;display:none"><select id="htK" onchange="hta27Choisir()" style="flex:1">${hta27Options(p.catalogue_code)}</select></div>
+        <div class="cell-sub">Module ou formation du parcours (badge, modèle « fin de formation »), certification de fin de parcours (badges des modules) ou attestation CSPP™.</div></div>
       <div class="form-field full"><label for="htT">Titulaire (tel qu’il apparaîtra) *</label><input id="htT" value="${esc(p.titulaire||'')}"></div>
       <div class="form-field full"><label for="htF">Formation *</label><input id="htF" value="${esc(p.formation_titre||'')}"></div>
       <div class="form-field"><label for="htH">Volume</label><input id="htH" value="${esc(p.heures||'')}" placeholder="30 heures"></div>
       <div class="form-field"><label for="htN">Niveau</label><select id="htN"><option value="">—</option>${HTA_NIVEAUX.map(n=>`<option ${n===p.niveau?'selected':''}>${n}</option>`).join('')}</select></div>
       <div class="form-field"><label for="htD">Date d’obtention *</label><input id="htD" type="date" value="${esc(p.date_obtention||isoJour())}"></div>
       <div class="form-field"><label for="htV">Validité</label><select id="htV"><option value="3">3 ans</option><option value="2">2 ans</option><option value="1">1 an</option><option value="aucune">Sans date d’expiration</option></select></div>
+      <div class="form-field ht27f"><label for="htP1">Période de formation — du</label><input id="htP1" type="date" value="${esc(p.periode_debut||'')}"></div>
+      <div class="form-field ht27f"><label for="htP2">au</label><input id="htP2" type="date" value="${esc(p.periode_fin||'')}"></div>
+      <div class="form-field full ht27f"><label for="htL">Lieu</label><input id="htL" value="${esc(p.lieu||'Abidjan / à distance')}"></div>
       <div class="form-field"><label for="htS1">Signataire de gauche</label><select id="htS1">${opt(HTA_SIGN[0]?.id)}</select></div>
       <div class="form-field"><label for="htS2">Signataire de droite</label><select id="htS2">${opt(HTA_SIGN[1]?.id)}</select></div>
       ${partChamp('htPart',p.partenaire_id)}
       <p class="cell-sub full" style="margin:0">Le numéro HTA est attribué à la création. Le PDF est déposé dans l’espace de l’apprenant sur H TECH ACADEMY et le certificat devient vérifiable en ligne.</p>
     </div>`;
-  window._HTA_P=p;
+  window._HTA_P=p;hta27Choisir(true);
   document.getElementById('modalFooter').innerHTML=`<button class="btn btn-outline" onclick="closeModal()">Annuler</button><button class="btn btn-outline" onclick="htaApercu()">👁 Aperçu</button><button class="btn btn-primary" id="htGo" onclick="htaValider()">🎓 Générer le certificat</button>`;
   document.getElementById('modalOverlay').classList.add('open');
 }
 function htaLireForm(){
   const p=window._HTA_P||{},s1=HTA_SIGN.find(s=>s.id===gv('htS1')),s2=HTA_SIGN.find(s=>s.id===gv('htS2'));
   return{...p,titulaire:g('htT')||'',formation_titre:g('htF')||'',heures:g('htH')||'',niveau:gv('htN')||'',date_obtention:gv('htD')||isoJour(),
-    date_validite:htaValidite(gv('htD')||isoJour(),gv('htV')),signataire1_nom:s1?.nom||'',signataire1_fonction:s1?.fonction||'',signataire2_nom:s2?.nom||'',signataire2_fonction:s2?.fonction||'',...partLire('htPart')};
+    date_validite:htaValidite(gv('htD')||isoJour(),gv('htV')),signataire1_nom:s1?.nom||'',signataire1_fonction:s1?.fonction||'',signataire2_nom:s2?.nom||'',signataire2_fonction:s2?.fonction||'',...partLire('htPart'),...hta27LireForm()};
 }
-async function htaApercu(){const c=htaLireForm();c.numero='HTA-'+(c.date_obtention||'').slice(0,4)+'-APERÇU';await htaTelecharger(c);}
+async function htaApercu(){const c=htaLireForm();c.numero=c.catalogue_code?hta27NumeroApercu(c):'HTA-'+(c.date_obtention||'').slice(0,4)+'-APERÇU';await htaTelecharger(c);}
 async function htaValider(){
   const c=htaLireForm();if(!c.titulaire||!c.formation_titre){toast('❌ Titulaire et formation requis');return;}
   const b=document.getElementById('htGo');b.disabled=true;b.textContent='Génération…';
@@ -16198,10 +16208,12 @@ v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
   try{HTA_ELIG=err?[]:await htaEligibles();}catch(e){logErr(e);HTA_ELIG=[];}
   const st={valide:['Valide','#3F8A1E'],retire:['Retiré','#D97706'],annule:['Annulé','#DC2626']};
   const expire=c=>c.date_validite&&c.date_validite<isoJour();
+  const S27=err?'':await hta27Sections();
   pg.innerHTML=`<div class="v4-head"><div><h1 class="page-title">🎓 Certificats H TECH ACADEMY</h1><div class="page-sub">Numérotés HTA, vérifiables en ligne et déposés dans l’espace de chaque apprenant</div></div>
     <div class="v4-tools"><a class="btn btn-outline btn-sm" href="${esc(ACAD_URL_SITE+'#/verifier')}" target="_blank">🔍 Page de vérification</a><button class="btn btn-outline btn-sm" onclick="showPage('academy-attestations')">📜 Attestations de suivi</button><button class="btn btn-primary btn-sm" onclick="htaForm()">+ Certificat manuel</button></div></div>
   ${err?'<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ Les tables des certificats n’existent pas encore : exécutez <b>migration-certificats-hta.sql</b> dans Supabase.</div>':''}
   <div class="card" style="margin-bottom:14px;font-size:12.5px;border-left:4px solid #1565C0">⚡ <b>Génération automatique</b> : dès qu’un apprenant termine sa dernière leçon ou rend son dernier devoir sur H TECH ACADEMY, son certificat est généré (signataires 1 et 2 ci-dessous, validité 3 ans), déposé dans son espace et ajouté ici. La liste ci-dessous rattrape les parcours terminés avant cette mise en place.</div>
+  ${S27}
   <div class="card" style="margin-bottom:14px;border-left:4px solid ${HTA_ELIG.length?'#3F8A1E':'var(--g200)'}">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="card-title" style="margin:0">✅ Parcours terminés à 100 % — à certifier (${HTA_ELIG.length})</div>
     ${HTA_ELIG.length>1?`<button class="btn btn-accent btn-sm" onclick="htaGenererTous()">🎓 Générer tous les certificats</button>`:''}</div>
@@ -16211,7 +16223,7 @@ v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
       <button class="btn btn-primary btn-sm" onclick="htaFormInscription('${x.i.id}')">🎓 Générer</button></div>`).join('')||'<div class="cell-sub">Aucun apprenant en attente de certificat.</div>'}
   </div>
   <div class="card" style="margin-bottom:14px"><div class="card-title">Certificats délivrés (${HTA_ROWS.length})</div><div class="table-wrap"><table><thead><tr><th>N°</th><th>Titulaire</th><th>Formation</th><th>Obtention</th><th>Validité</th><th>Statut</th><th>Actions</th></tr></thead><tbody>
-  ${HTA_ROWS.map(c=>`<tr><td><code style="font-size:10.5px">${esc(c.numero)}</code></td><td><strong>${esc(c.titulaire)}</strong></td><td style="font-size:12px">${esc(c.formation_titre)}<div class="cell-sub">${esc([c.heures,c.niveau].filter(Boolean).join(' · '))}</div>${c.partenaire_nom?`<div class="cell-sub" style="color:#1565C0">🤝 ${esc(c.partenaire_nom)}</div>`:''}</td>
+  ${HTA_ROWS.map(c=>`<tr><td><code style="font-size:10.5px">${esc(c.numero)}</code></td><td><strong>${esc(c.titulaire)}</strong></td><td style="font-size:12px">${hta27Vignette(c)}${esc(c.formation_titre)}<div class="cell-sub">${esc([c.heures,c.niveau].filter(Boolean).join(' · '))}</div>${c.partenaire_nom?`<div class="cell-sub" style="color:#1565C0">🤝 ${esc(c.partenaire_nom)}</div>`:''}</td>
     <td style="font-size:12px">${fmtD(c.date_obtention)}</td><td style="font-size:12px">${c.date_validite?fmtD(c.date_validite)+(expire(c)?' <span style="color:#D97706">(expiré)</span>':''):'Sans expiration'}</td>
     <td><select onchange="htaStatut('${c.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${(st[c.statut]||st.valide)[1]};font-weight:600">${Object.entries(st).map(([k,v])=>`<option value="${k}" ${k===c.statut?'selected':''}>${v[0]}</option>`).join('')}</select></td>
     <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="htaModifier('${c.id}')" title="Modifier le certificat">✏️</button><button class="btn btn-outline btn-sm" onclick="htaPdf('${c.id}')" title="Télécharger le PDF">📄</button><a class="btn btn-outline btn-sm" href="${esc(htaUrlVerif(c.numero))}" target="_blank" title="Vérifier en ligne">🔗</a><button class="btn btn-outline btn-sm" onclick="htaSupprimer('${c.id}')" title="Supprimer définitivement">🗑</button></div>${c.motif_statut&&c.statut!=='valide'?`<div class="cell-sub">Motif : ${esc(c.motif_statut)}</div>`:''}${c.modifie_le?`<div class="cell-sub">Modifié le ${fmtD(c.modifie_le)}</div>`:''}</td></tr>`).join('')
@@ -20290,7 +20302,7 @@ function erpSimFabrique_gp(){
   function band(p){if(p>=80)return["Réussi","var(--good)"];if(p>=65)return["Presque","var(--d4)"];if(p>=50)return["Insuffisant","var(--warn)"];return["À retravailler","var(--bad)"]}
   function fmt(s){const m=Math.floor(s/60),r=s%60;return (m>=60?Math.floor(m/60)+" h "+String(m%60).padStart(2,"0"):m)+" min "+String(r).padStart(2,"0")}
   const DOMAINS = [
- {id:1,name:"Démarrage",short:"Démarrage",w:15,c:"var(--d1)",
+ {id:1,name:"Initiation",short:"Initiation",w:15,c:"var(--d1)",
   lead:"Avant d’engager des moyens, on vérifie que le projet en vaut la peine et on l’autorise officiellement. Le démarrage répond à trois questions : pourquoi ce projet, est-il faisable, et qui est concerné ?",
   tasks:[
    ["Analyser l’opportunité : business case, business plan et faisabilité",["Le business case justifie l’investissement : besoin, options (dont « ne rien faire »), coûts, bénéfices, recommandation","Le business plan décrit le modèle économique d’une activité ou d’une entreprise","Faisabilité technique, économique, organisationnelle, réglementaire et sociale","Indicateurs : délai de retour sur investissement, valeur actuelle nette","Le sponsor est garant du business case, revu aux étapes clés"]],
@@ -20315,7 +20327,7 @@ function erpSimFabrique_gp(){
    ["Gérer la qualité et les communications",["Assurance qualité (processus) et contrôle qualité (livrables)","Audits qualité, cause racine, Ishikawa, Pareto","Communication push, pull et interactive","Adapter le message à son destinataire"]],
    ["Mettre en œuvre les réponses aux risques, conduire les achats, engager les parties prenantes",["Appliquer le plan de réponse, puis évaluer son efficacité","Contournement : réponse non planifiée à un événement imprévu","Sélection objective des fournisseurs ; avenants écrits","Engagement régulier des parties prenantes"]]],
   reflex:["Le chef de projet coordonne ; le sponsor lève les obstacles.","Un sujet sensible se communique en direct, l’écrit confirme.","Écouter d’abord : désaccord, démotivation, réticence.","Aucune modification sans procédure, même pour faire plaisir."]},
- {id:4,name:"Surveillance et maîtrise",short:"Surveillance et maîtrise",w:20,c:"var(--d4)",
+ {id:4,name:"Suivi et monitoring",short:"Suivi et monitoring",w:20,c:"var(--d4)",
   lead:"On compare en continu le réalisé au prévu, on analyse les écarts et on décide : actions correctives, actions préventives ou demandes de modification approuvées.",
   tasks:[
    ["Suivre l’avancement et maîtriser les changements",["Références de base : contenu, délais, coûts approuvés","Demande de modification : enregistrer, analyser, décider, mettre à jour, communiquer","Comité de contrôle des modifications","Actions correctives et préventives ; rapport d’avancement"]],
@@ -20736,6 +20748,379 @@ async function simRapportAnnulation(A){
     if(window._SIM_SCRIPT===undefined){if(window._HTA_SCRIPT_FONT)window._SIM_SCRIPT=window._HTA_SCRIPT_FONT;else window._SIM_SCRIPT=null;}}
   return{run:async(r,infos,hist)=>{INFOS=infos;store.history=hist||[];return await simRapport(r);},runAnnul:async(A,infos)=>{INFOS=infos;return await simRapportAnnulation(A);}};
 }
+function erpSimFabrique_dur(){
+  const SIM={lang:'fr'};let session=null;const store={history:[]};let INFOS=null;
+  const sbSim={rpc:async()=>({data:INFOS})};const simArgs=()=>({});
+  const modal=(t,m)=>toast('❌ '+t+' : '+String(m).replace(/<[^>]+>/g,''),8000);
+  function band(p){if(p>=80)return["Réussi","var(--good)"];if(p>=65)return["Presque","var(--d4)"];if(p>=50)return["Insuffisant","var(--warn)"];return["À retravailler","var(--bad)"]}
+  function fmt(s){const m=Math.floor(s/60),r=s%60;return (m>=60?Math.floor(m/60)+" h "+String(m%60).padStart(2,"0"):m)+" min "+String(r).padStart(2,"0")}
+  const DOMAINS = [{"id": 1, "name": "Prendre les commandes", "short": "Prendre les commandes", "w": 33, "c": "var(--d1)", "lead": "Piloter un projet durable, c’est définir la valeur attendue et les critères de réussite avant tout, puis cadrer le périmètre, le budget, le planning et les risques sans perdre de vue les personnes, la planète et la prospérité.", "tasks": [["Définir la valeur et les critères de réussite", ["Business case durable : valeur économique, sociale et environnementale", "Triple bilan : personnes, planète, prospérité", "Critères de réussite spécifiques, mesurables et datés", "La réussite se juge aussi sur la durée des bénéfices"]], ["Cadrer le périmètre, le budget et le planning", ["Toute demande de modification est analysée puis décidée par l’autorité compétente", "Coût global (cycle de vie) plutôt que coût d’achat", "Contexte local dans le planning : saisons, calendrier agricole, disponibilité", "Arbitrages rendus visibles : effets sur la valeur et les impacts"]], ["Piloter les risques, menaces et opportunités", ["Risques sociaux et environnementaux inscrits au registre", "Opportunités de durabilité : exploiter, partager, améliorer", "Mécanisme de gestion des plaintes", "Chaque risque a un propriétaire et une réponse suivie"]], ["Conduire le changement", ["Les bénéfices dépendent de l’adoption par les utilisateurs", "Comprendre les freins, former, désigner des relais", "Propriétaire des bénéfices après la clôture", "Transparence : un écart s’annonce tôt, avec ses causes"]]], "reflex": ["La valeur durable passe avant le triangle délais-coût-contenu.", "Une bonne idée hors périmètre suit quand même la procédure de modification.", "Un risque social ou environnemental est un vrai risque projet.", "Sans adoption, pas de bénéfices."]}, {"id": 2, "name": "Parler le langage ESG", "short": "Parler le langage ESG", "w": 17, "c": "var(--d2)", "lead": "Comprendre les critères environnementaux, sociaux et de gouvernance, les grands référentiels de reporting et la matérialité permet de dialoguer avec les directions, les investisseurs et les bailleurs, et d’éviter le greenwashing.", "tasks": [["Triple bilan et piliers ESG", ["E : climat, énergie, eau, déchets, biodiversité", "S : travail, santé-sécurité, communautés, droits humains", "G : éthique, anticorruption, instances dirigeantes", "Scopes 1, 2 et 3 des émissions"]], ["Référentiels GRI, SASB et IFRS (ISSB)", ["GRI : impacts de l’organisation sur l’économie, l’environnement et les personnes", "SASB : sujets et indicateurs par secteur, utiles aux investisseurs", "IFRS S1 : informations générales ; IFRS S2 : climat", "Perspective financière de l’ISSB"]], ["Matérialité", ["Analyse de matérialité avec les parties prenantes", "Double matérialité : impacts sur le monde et effets sur l’organisation", "La matérialité dépend du secteur", "Revue régulière de l’analyse"]], ["Éviter le greenwashing", ["Allégations précises, proportionnées et prouvées", "Pas de compromis caché", "Indicateurs mesurés, méthode et limites publiées", "Vérification indépendante quand c’est possible"]]], "reflex": ["GRI regarde vers l’extérieur, l’ISSB vers la valeur de l’entreprise.", "Matériel = important pour les parties prenantes et pour l’organisation.", "Une allégation sans preuve est un risque de réputation.", "Scope 3 = chaîne de valeur."]}, {"id": 3, "name": "Rendre vos projets durables", "short": "Rendre vos projets durables", "w": 17, "c": "var(--d3)", "lead": "La méthode PRiSM™ intègre la durabilité à chaque phase du cycle de vie du projet. Elle s’appuie sur des achats responsables, l’engagement des parties prenantes et la maîtrise des risques de durabilité.", "tasks": [["Cycle de vie PRiSM™", ["Projects integrating Sustainable Methods", "Durabilité intégrée du lancement à la clôture", "Fin de vie des livrables pensée dès la conception", "Clôture : leçons apprises et suivi des bénéfices transmis"]], ["Achats durables", ["Coût du cycle de vie et impacts du produit et du fournisseur", "Critères sociaux et environnementaux pondérés", "Droits humains dans la chaîne d’approvisionnement", "Achat local quand la qualité est garantie"]], ["Parties prenantes", ["Engagement précoce des communautés", "Grille pouvoir/intérêt", "Générations futures et groupes vulnérables", "Registre des engagements"]], ["Risques de durabilité", ["Risques physiques : inondations, chaleur, sécheresse", "Risques de transition : réglementation, technologie, marché", "Intégrés au processus normal de gestion des risques", "Analyse sur toute la durée de vie des livrables"]]], "reflex": ["La durabilité ne s’ajoute pas à la fin : elle s’intègre dès le départ.", "Le moins cher à l’achat n’est pas le moins cher sur la durée.", "Ceux qui n’ont pas de voix comptent aussi.", "Physique = climat ; transition = changements de l’économie."]}, {"id": 4, "name": "Prouver votre impact", "short": "Prouver votre impact", "w": 33, "c": "var(--d4)", "lead": "Le standard P5™ relie les processus et les produits du projet à leurs impacts sur les personnes, la planète et la prospérité. Le plan de gestion de la durabilité transforme cette analyse en actions, indicateurs et seuils suivis.", "tasks": [["Analyse d’impact P5™", ["Personnes, Planète, Prospérité, Processus, Produits", "Impacts positifs et négatifs, évalués et traités", "Réalisée tôt, puis mise à jour", "Bénéficiaires associés à la mesure"]], ["Plan de gestion de la durabilité", ["Objectifs, actions, responsables, échéances, indicateurs", "Intégré au plan de management du projet", "Revu en comité de pilotage", "Suivi transmis à l’exploitation à la clôture"]], ["Indicateurs et seuils d’impact", ["Réalisation (ce qui est fait) et impact (ce qui change)", "Situation de référence mesurée avant le démarrage", "Indicateur : mesure, unité, source, fréquence", "Seuil franchi = analyse et action corrective"]]], "reflex": ["Pas de preuve d’impact sans situation de référence.", "Compter les activités ne suffit pas : mesurez le changement.", "Un seuil dépassé se corrige, il ne se déplace pas.", "Chaque action a un responsable et une échéance."]}];
+  /* ===================== Rapport de préparation signé (PDF, charte H TECH INNOV) ===================== */
+const SIM_LOGO_ACADEMY='data:image/jpeg;base64,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';
+const RT=SIM.lang==='en'?{titre:'PREPARATION REPORT',partenariat:'IN PARTNERSHIP WITH',partenariatATP:'AUTHORIZED TRAINING PARTNER',enPart:'Report issued in partnership with',enATP:(n,a)=>'H TECH ACADEMY is an Authorized Training Partner (ATP) of '+n+(a?' (approval no. '+a+')':'')+'. This report covers exam preparation and is not a certification issued by '+n+'. ',sous:'H TECH ACADEMY · Training centre of H TECH INNOV · Abidjan',num:'Report no.',date:'Date',appr:'LEARNER',ident:'E-mail',acces:'Access',accesV:{formation:'Included in H TECH ACADEMY training',code:'30-day access code',compte:'Learner account'},
+  session:'Session',jour:'Date of the session',duree:'Duration',langue:'Language',langueV:'English',res:'OVERALL RESULT',bonnes:'correct answers out of',seuil:'Pass mark: 80 % · intermediate benchmark: 65 %',
+  dom:'RESULTS BY DOMAIN',colD:['Domain','Questions','Correct','Score','Level'],forts:'STRENGTHS',axes:'AREAS FOR IMPROVEMENT',aucunFort:'No domain is above 80 % yet: keep consolidating the fundamentals.',aucunAxe:'No domain below target: maintain your level with regular mock exams.',
+  revoir:'Tasks to review',reflexe:'Key exam reflex',plan:'RECOMMENDED ACTION PLAN',prog:'PROGRESSION (LAST SESSIONS)',sig:'Signatures',verif:'Verify online',genere:'Report generated electronically by H TECH ACADEMY. Scores are calculated by the H TECH ACADEMY server and cannot be modified.',
+  verdict:p=>p>=80?'Ready: your level is above target. Keep training with full mock exams until the exam.':p>=65?'On target: consolidate your weakest domains to secure your result.':p>=50?'Below target: a targeted revision plan is needed before sitting the exam.':'Needs improvement: go back to the study guide and train domain by domain before a new mock exam.',
+  actions:(faibles,p)=>[faibles.length?'Re-read the study guide for: '+faibles.join(', ')+'.':'Re-read the study guide for the domains below 80 %.','Run a targeted practice session on your mistakes, then 20 questions per weak domain.',
+    p>=80?'Keep one full mock exam (64 questions) per week until the exam.':'Take a new full mock exam (64 questions) within 7 days; goal: 80 % or more.','Review these results with your H TECH ACADEMY expert.'],
+  page:'Page',de:'of',sans:'—'}
+ :{titre:'RAPPORT DE PRÉPARATION',partenariat:'EN PARTENARIAT AVEC',partenariatATP:'PARTENAIRE DE FORMATION AGRÉÉ',enPart:'Rapport établi en partenariat avec',enATP:(n,a)=>'H TECH ACADEMY est partenaire de formation agréé (ATP) de '+n+(a?' (agrément n° '+a+')':'')+'. Ce rapport porte sur une préparation et ne constitue pas une certification délivrée par '+n+'. ',sous:'H TECH ACADEMY · Centre de formation de H TECH INNOV · Abidjan',num:'N° du rapport',date:'Date',appr:'APPRENANT(E)',ident:'E-mail',acces:'Accès',accesV:{formation:'Inclus dans une formation H TECH ACADEMY',code:'Code d’accès de 30 jours',compte:'Compte apprenant'},
+  session:'Session',jour:'Date de la session',duree:'Durée',langue:'Langue',langueV:'Français',res:'RÉSULTAT GLOBAL',bonnes:'bonnes réponses sur',seuil:'Seuil de réussite : 80 % · repère intermédiaire : 65 %',
+  dom:'RÉSULTATS PAR DOMAINE',colD:['Domaine','Questions','Bonnes','Score','Niveau'],forts:'POINTS FORTS',axes:'AXES D’AMÉLIORATION',aucunFort:'Aucune formation n’atteint encore 80 % : poursuivez la consolidation des fondamentaux.',aucunAxe:'Toutes les formations atteignent 80 % : maintenez votre niveau par des examens blancs réguliers.',
+  revoir:'Points à revoir',reflexe:'Réflexe d’examen',plan:'PLAN D’ACTION RECOMMANDÉ',prog:'PROGRESSION (DERNIÈRES SESSIONS)',sig:'Signatures',verif:'Vérifier en ligne',genere:'Rapport généré électroniquement par H TECH ACADEMY. Les scores sont calculés par le serveur de H TECH ACADEMY et ne peuvent pas être modifiés.',
+  verdict:p=>p>=80?'Réussi : votre niveau atteint le seuil de 80 %. Entretenez-le avec des examens blancs complets.':p>=65?'Presque : consolidez les formations les plus faibles pour franchir le seuil de 80 %.':p>=50?'Insuffisant : un plan de révision ciblé est nécessaire avant un nouvel examen blanc.':'À retravailler : reprenez le cours et le guide d’étude, puis entraînez-vous groupe par groupe.',
+  actions:(faibles,p)=>[faibles.length?'Relire le guide d’étude des domaines : '+faibles.join(', ')+'.':'Relire le guide d’étude des domaines sous 80 %.','Faire un entraînement ciblé sur vos erreurs, puis 20 questions par domaine faible.',
+    p>=80?'Maintenir un examen blanc complet (64 questions) par semaine jusqu’à l’examen.':'Repasser un examen blanc complet (64 questions) sous 7 jours ; objectif : 80 % ou plus.','Faire le point sur ces résultats avec votre expert H TECH ACADEMY.'],
+  page:'Page',de:'sur',sans:'—'};
+function simCharger(u){return new Promise((ok,ko)=>{const s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=()=>ko(new Error('Chargement impossible : '+u));document.head.appendChild(s);});}
+async function simLibsPdf(){
+  if(!window.jspdf)await simCharger('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!window.qrcode){try{await simCharger('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
+  if(window._SIM_SCRIPT===undefined){try{const r=await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf');const b=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));window._SIM_SCRIPT=btoa(s);}catch(e){window._SIM_SCRIPT=null;}}
+}
+(function(){var OK=/^[\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]$/;
+ var EQ={'Ɛ':'E','ɛ':'e','Ɔ':'O','ɔ':'o','Ŋ':'N','ŋ':'n','Ʋ':'V','ʋ':'v','Ɩ':'I','ɩ':'i','Ɲ':'N','ɲ':'n','Ɓ':'B','ɓ':'b','Ɗ':'D','ɗ':'d','Ƴ':'Y','ƴ':'y','Ə':'E','ə':'e','Đ':'D','đ':'d','Ł':'L','ł':'l','Ø':'Ø','ß':'ß','ı':'i','Ŧ':'T','ŧ':'t','Ħ':'H','ħ':'h'};
+ window.htiLettrePdf=function(ch){if(OK.test(ch))return ch;if(EQ[ch])return EQ[ch];var b=ch.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return b&&b!==ch&&[...b].every(function(x){return OK.test(x);})?b:'';};})();
+const simPdfTxt=t=>String(t??'').replace(/[\u202f\u00a0\u2007\u2009]/g,' ').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/[→⇒➜←]/g,'-').replace(/[✓✔]/g,'v').replace(/[\u2032]/g,"'")
+  .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/gu,c=>htiLettrePdf(c)).replace(/ {2,}/g,' ');
+async function simRapport(source){
+  const btn=document.getElementById('simBtnRapport');if(btn){btn.disabled=true;btn.dataset.t=btn.textContent;btn.textContent='…';}
+  try{
+    await simLibsPdf();
+    const s=session,r=source||(s&&s.result);if(!r){throw new Error('Aucun résultat');}
+    const{data:inf}=await sbSim.rpc('sim_rapport_infos',simArgs());const I=inf||{};
+    const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,H=297,M=16,P=simPdfTxt;
+    if(window._SIM_SCRIPT){try{doc.addFileToVFS('GreatVibes.ttf',window._SIM_SCRIPT);doc.addFont('GreatVibes.ttf','GreatVibes','normal');}catch(e){window._SIM_SCRIPT=null;}}
+    const NAVY=[10,42,102],BLEU=[21,101,192],VERT=[63,138,30],GRIS=[90,100,120],CLAIR=[238,243,251],ROUGE=[180,35,24],AMBRE=[180,83,9];
+    const col=p=>p>=80?VERT:p>=65?BLEU:p>=50?AMBRE:ROUGE;
+    const dateS=new Date(r.date||Date.now()),dfr=d=>d.toLocaleDateString(SIM.lang==='en'?'en-GB':'fr-FR',{day:'numeric',month:'long',year:'numeric'});
+    const num='RPT-'+String(r.id||'').replace(/-/g,'').slice(0,10).toUpperCase(),url='https://www.htechinnov.com/academy/#/verifier-rapport/'+(r.id||'');
+    const simNom=I.simulateur||(SIM.lang==='en'?'Sustainable Project Management Simulator':'Simulateur Management de projet durable');
+    let y=0;
+    const piedDePage=()=>{const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setDrawColor(...BLEU);doc.setLineWidth(0.4);doc.line(M,H-17,W-M,H-17);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);
+      doc.text(P('H TECH INNOV | SARL | RCCM CI-ABJ-03-2026-B12-06284 | Cocody Riviera Jules Verne, Abidjan, Côte d’Ivoire'),W/2,H-12.5,{align:'center'});
+      doc.text(P('Standard +225 27 22 56 28 37 | +225 07 14 94 24 21 | info@htechinnov.com | www.htechinnov.com'),W/2,H-9,{align:'center'});
+      doc.text(P(num),M,H-5);doc.text(P(`${RT.page} ${i} ${RT.de} ${n}`),W-M,H-5,{align:'right'});}};
+    const enteteSuite=()=>{doc.setFillColor(...NAVY);doc.rect(0,0,W,12,'F');doc.setFillColor(...VERT);doc.rect(0,12,W,1.2,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);doc.text('H TECH ACADEMY',M,8);doc.setFont('helvetica','normal');doc.text(P(RT.titre+' · '+num),W-M,8,{align:'right'});y=22;};
+    const place=h=>{if(y+h>H-22){doc.addPage();enteteSuite();}};
+    const titre=t=>{place(14);doc.setFillColor(...BLEU);doc.rect(M,y-3.6,1.6,5.2,'F');doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...NAVY);doc.text(P(t),M+4,y+0.6);y+=7;};
+    const para=(t,sz=9,c=GRIS,ind=0,gras=false)=>{doc.setFont('helvetica',gras?'bold':'normal');doc.setFontSize(sz);doc.setTextColor(...c);const L=doc.splitTextToSize(P(t),W-2*M-ind);place(L.length*sz*0.45+1);doc.text(L,M+ind,y);y+=L.length*sz*0.45+1.2;};
+    // ── En-tête ──
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,40,'F');doc.setFillColor(...VERT);doc.rect(0,40,W,1.4,'F');doc.setFillColor(...BLEU);doc.rect(0,41.4,W,0.8,'F');
+    try{doc.addImage(SIM_LOGO_ACADEMY,'JPEG',M,6,28,28);}catch(e){}
+    const PT=I.partenaire;
+    if(PT&&(PT.nom||PT.logo)){const bx=M+31,by=6,bw=54,bh=28.5;doc.setFillColor(255,255,255);doc.roundedRect(bx,by,bw,bh,2,2,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.setTextColor(...GRIS);doc.text(P(PT.type==='atp'?RT.partenariatATP:RT.partenariat),bx+bw/2,by+3.8,{align:'center'});
+      if(PT.logo){try{const fm=/^data:image\/png/i.test(PT.logo)?'PNG':'JPEG',pr=doc.getImageProperties(PT.logo),k=Math.min((bw-12)/pr.width,11/pr.height);doc.addImage(PT.logo,fm,bx+bw/2-pr.width*k/2,by+5.2+(11-pr.height*k)/2,pr.width*k,pr.height*k);}catch(e){}}
+      doc.setFont('helvetica','bold');let fs=6.8;doc.setFontSize(fs);let L=doc.splitTextToSize(P(PT.nom||''),bw-6);while(L.length>2&&fs>5){fs-=0.3;doc.setFontSize(fs);L=doc.splitTextToSize(P(PT.nom||''),bw-6);}
+      doc.setTextColor(...NAVY);L.slice(0,2).forEach((t,k)=>doc.text(t,bx+bw/2,by+19.6+k*fs*0.42,{align:'center'}));
+      if(PT.type==='atp'&&PT.agrement){doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(...GRIS);doc.text(P((SIM.lang==='en'?'Approval no. ':'Agrément n° ')+PT.agrement),bx+bw/2,by+26.4,{align:'center'});}
+      else if(PT.lien){const site=String(PT.lien).replace(/^https?:\/\//,'').replace(/\/$/,'');doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(...BLEU);doc.text(P(site),bx+bw/2,by+26.4,{align:'center'});doc.link(bx,by+23.5,bw,4,{url:PT.lien});}}
+    doc.setFont('helvetica','bold');doc.setFontSize(PT&&(PT.nom||PT.logo)?15.5:18);doc.setTextColor(255,255,255);doc.text(P(RT.titre),W-M,15,{align:'right'});
+    doc.setFontSize(11.5);doc.setTextColor(159,210,122);doc.text(P(simNom),W-M,22,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(201,214,236);doc.text(P(RT.sous),W-M,27.5,{align:'right'});
+    doc.setFontSize(8.5);doc.setTextColor(255,255,255);doc.text(P(`${RT.num} : ${num}   ·   ${RT.date} : ${dfr(new Date())}`),W-M,34,{align:'right'});
+    y=52;
+    // ── Apprenant ──
+    doc.setFillColor(...CLAIR);doc.roundedRect(M,y-6,W-2*M,40,2.5,2.5,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...BLEU);doc.text(P(RT.appr),M+5,y);
+    doc.setFont('times','bold');let tn=19;doc.setFontSize(tn);const nomA=P(I.titulaire||RT.sans);while(doc.getTextWidth(nomA)>W-2*M-12&&tn>12){tn--;doc.setFontSize(tn);}
+    doc.setTextColor(...NAVY);doc.text(nomA,M+5,y+8);
+    const lignes=[[RT.ident,I.email||RT.sans],[RT.acces,(RT.accesV[I.acces]||RT.accesV.compte)],[RT.session,(source?r.label:(s&&s.label))||RT.sans],[RT.jour,dfr(dateS)+' · '+dateS.toLocaleTimeString(SIM.lang==='en'?'en-GB':'fr-FR',{hour:'2-digit',minute:'2-digit'})],[RT.duree,typeof fmt==='function'?fmt(r.secs||0):RT.sans],[RT.langue,RT.langueV]];
+    doc.setFontSize(8.6);lignes.forEach(([l,v],i)=>{const x=M+5+(i%2)*((W-2*M)/2),yy=y+15+Math.floor(i/2)*6;doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(l+' :'),x,yy);const wl=doc.getTextWidth(P(l+' : '));doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);doc.text(P(String(v)).slice(0,62),x+wl,yy);});
+    y+=42;
+    // ── Résultat global ──
+    titre(RT.res);const[bl]=band(r.pct),cc=col(r.pct);
+    doc.setDrawColor(...cc);doc.setLineWidth(1.2);doc.roundedRect(M,y-2,44,26,3,3,'S');
+    doc.setFont('helvetica','bold');doc.setFontSize(26);doc.setTextColor(...cc);doc.text(r.pct+' %',M+22,y+11,{align:'center'});
+    doc.setFontSize(8.2);doc.text(P(bl),M+22,y+19,{align:'center'});
+    doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(...NAVY);doc.text(P(`${r.ok} ${RT.bonnes} ${r.n}`),M+50,y+3);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...GRIS);const vd=doc.splitTextToSize(P(RT.verdict(r.pct)),W-2*M-52);doc.text(vd,M+50,y+9);
+    doc.setFontSize(7.6);doc.text(P(RT.seuil),M+50,y+10+vd.length*4.2);
+    y+=31;
+    // ── Par domaine ──
+    titre(RT.dom);const D=DOMAINS.filter(d=>r.byD&&r.byD[d.id]).map(d=>{const[o,n]=r.byD[d.id];return{d,o,n,p:Math.round(o/n*100)};});
+    const cx=[M,M+76,M+96,M+114,M+146];doc.setFillColor(...NAVY);doc.rect(M,y-4,W-2*M,6.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(255,255,255);
+    RT.colD.forEach((h,i)=>doc.text(P(h),cx[i]+2,y));y+=6;
+    D.forEach((x,i)=>{place(8);if(i%2===0){doc.setFillColor(247,249,253);doc.rect(M,y-4.4,W-2*M,7.2,'F');}
+      doc.setFont('helvetica','bold');doc.setFontSize(8.4);doc.setTextColor(...NAVY);doc.text(P(['I','II','III','IV','V','VI'][x.d.id-1]+'. '+x.d.short),cx[0]+2,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(String(x.n),cx[1]+2,y);doc.text(String(x.o),cx[2]+2,y);
+      doc.setFillColor(226,232,242);doc.rect(cx[3]+2,y-2.6,18,3,'F');doc.setFillColor(...col(x.p));doc.rect(cx[3]+2,y-2.6,18*x.p/100,3,'F');
+      doc.setFont('helvetica','bold');doc.setTextColor(...col(x.p));doc.text(x.p+' %',cx[3]+22,y);doc.setFontSize(7.6);doc.text(P(band(x.p)[0]),cx[4]+2,y);y+=7.2;});
+    y+=3;
+    // Erreurs par tâche (session en cours uniquement)
+    const err=Object.assign({},r.erreurs||{});if(s&&s.items&&!source)s.items.filter(it=>(s.mode==='exam'||it.checked)&&it.ok===false).forEach(it=>{const k=it.q.d+':'+it.q.t;err[k]=(err[k]||0)+1;});
+    // ── Points forts ──
+    titre(RT.forts);const forts=D.filter(x=>x.p>=80).sort((a,b)=>b.p-a.p);
+    if(forts.length)forts.forEach(x=>para('•  '+x.d.name+' — '+x.p+' %',9,[40,60,90],2));else para(RT.aucunFort,9,GRIS,2);
+    y+=2;
+    // ── Axes d’amélioration ──
+    titre(RT.axes);const faibles=D.filter(x=>x.p<65).sort((a,b)=>a.p-b.p);const aRenforcer=faibles.length?faibles:D.filter(x=>x.p<80).sort((a,b)=>a.p-b.p).slice(0,2);
+    if(!aRenforcer.length)para(RT.aucunAxe,9,GRIS,2);
+    aRenforcer.forEach(x=>{place(22);para(['I','II','III','IV','V','VI'][x.d.id-1]+'. '+x.d.name+' — '+x.p+' % ('+band(x.p)[0]+')',9.4,col(x.p),2,true);
+      const taches=x.d.tasks.map((t,i)=>({t:t[0],n:err[x.d.id+':'+(i+1)]||0})).sort((a,b)=>b.n-a.n);const sel=taches.filter(t=>t.n>0).slice(0,3);const L=(sel.length?sel:taches.slice(0,2)).map(t=>t.t+(t.n?` (${t.n} ${SIM.lang==='en'?'error(s)':'erreur(s)'})`:''));
+      para(RT.revoir+' : '+L.join(' ; ')+'.',8.6,GRIS,6);
+      const ref=(x.d.reflex||[])[0];if(ref)para(RT.reflexe+' : '+ref,8.6,[40,60,90],6);y+=1.5;});
+    y+=1;
+    // ── Plan d’action ──
+    place(34);titre(RT.plan);RT.actions(aRenforcer.map(x=>['I','II','III','IV','V','VI'][x.d.id-1]+'. '+x.d.short),r.pct).forEach((a,i)=>para((i+1)+'.  '+a,9,[40,60,90],2));
+    y+=2;
+    // ── Progression ──
+    const H0=(store.history||[]).slice(0,8).reverse();
+    if(H0.length>1){titre(RT.prog);place(36);const bx=M+4,bw=(W-2*M-8)/H0.length,bh=24,base=y+bh;
+      doc.setDrawColor(210,218,232);doc.setLineWidth(0.2);[65,80].forEach(v=>{const yy=base-bh*v/100;doc.line(M,yy,W-M,yy);doc.setFontSize(6.5);doc.setTextColor(...GRIS);doc.text(v+' %',W-M,yy-0.8,{align:'right'});});
+      H0.forEach((h,i)=>{const hh=Math.max(1,bh*h.pct/100),x=bx+i*bw+bw*0.2;doc.setFillColor(...col(h.pct));doc.rect(x,base-hh,bw*0.6,hh,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...col(h.pct));doc.text(h.pct+' %',x+bw*0.3,base-hh-1.2,{align:'center'});
+        doc.setFont('helvetica','normal');doc.setFontSize(6.3);doc.setTextColor(...GRIS);doc.text(new Date(h.date).toLocaleDateString(SIM.lang==='en'?'en-GB':'fr-FR',{day:'2-digit',month:'2-digit'}),x+bw*0.3,base+3.5,{align:'center'});});
+      y=base+9;}
+    // ── Signatures + QR ──
+    place(52);y+=2;doc.setDrawColor(...BLEU);doc.setLineWidth(0.3);doc.line(M,y,W-M,y);y+=6;
+    doc.setFont('helvetica','normal');doc.setFontSize(8.6);doc.setTextColor(...GRIS);doc.text(P((SIM.lang==='en'?'Issued in Abidjan, on ':'Fait à Abidjan, le ')+dfr(new Date())+'.'),M,y);y+=4;
+    const sigs=(I.signataires||[]).slice(0,2),zone=(W-2*M-30)/2;
+    sigs.forEach((sg,i)=>{const x0=M+i*(zone+4),xm=x0+zone/2,ys=y+14;
+      doc.setFont('helvetica','italic');doc.setFontSize(6.6);doc.setTextColor(170,175,185);doc.text(P(SIM.lang==='en'?'Signature and stamp':'Signature et cachet'),xm,ys-9,{align:'center'});
+      doc.setDrawColor(...NAVY);doc.setLineWidth(0.3);doc.line(x0+4,ys+3,x0+zone-4,ys+3);
+      doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(P(sg.nom||''),xm,ys+7.5,{align:'center'});
+      doc.setFont('helvetica','normal');doc.setFontSize(7.8);doc.setTextColor(...GRIS);doc.text(P(sg.fonction||''),xm,ys+11.5,{align:'center'});});
+    if(window.qrcode&&r.id){try{const q=qrcode(0,'M');q.addData(url);q.make();const n=q.getModuleCount(),sz=24,m=sz/n,qx=W-M-sz,qy=y+1;
+      doc.setFillColor(...NAVY);for(let a=0;a<n;a++)for(let b=0;b<n;b++)if(q.isDark(a,b))doc.rect(qx+b*m,qy+a*m,m+0.02,m+0.02,'F');
+      doc.setFontSize(6.8);doc.setTextColor(...BLEU);doc.text(P(RT.verif),qx+sz/2,qy+sz+3.2,{align:'center'});doc.link(qx,qy,sz,sz,{url});}catch(e){}}
+    y+=34;doc.setFont('helvetica','italic');doc.setFontSize(7.2);doc.setTextColor(...GRIS);doc.text(doc.splitTextToSize(P((PT&&PT.nom&&PT.type==='atp'?RT.enATP(PT.nom,PT.agrement):'')+(PT&&PT.nom&&PT.type!=='atp'?RT.enPart+' '+PT.nom+(PT.lien?' ('+String(PT.lien).replace(/^https?:\/\//,'').replace(/\/$/,'')+')':'')+'. ':'')+RT.genere),W-2*M),M,y);
+    piedDePage();
+    const nf=('Rapport-'+simNom+'-'+(I.titulaire||'apprenant')+'-'+dateS.toISOString().slice(0,10)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-')+'.pdf';
+    doc.save(nf);return doc;
+  }catch(e){if(typeof modal==='function')modal(SIM.lang==='en'?'Report unavailable':'Rapport indisponible',esc(e.message||String(e)),'OK',()=>{});else alert(e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.t||btn.textContent;}}
+}
+/* Rapport d’annulation d’un examen surveillé (PDF) */
+async function simRapportAnnulation(A){
+  try{await simLibsPdf();const{data:inf}=await sbSim.rpc('sim_rapport_infos',simArgs());const I=inf||{};const EN=SIM.lang==='en';
+    const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,M=16,P=simPdfTxt,NAVY=[10,42,102],ROUGE=[180,35,24],GRIS=[90,100,120],CLAIR=[238,243,251];
+    const num='RPT-'+String(A.id||'').replace(/-/g,'').slice(0,10).toUpperCase(),url='https://www.htechinnov.com/academy/#/verifier-rapport/'+(A.id||'');
+    const T=EN?{titre:'EXAM CANCELLATION REPORT',sous:'Proctored mock exam — not completed',cand:'CANDIDATE',sess:'Session',sim:'Simulator',date:'Date',duree:'Time elapsed',rep:'Questions answered',motif:'REASON FOR CANCELLATION',chrono:'TIMELINE OF INCIDENTS',h:'Time',ev:'Event',det:'Details',
+        note:'This mock exam was stopped by the H TECH ACADEMY proctoring system. No score is awarded. No image was recorded: face detection ran only in the candidate’s browser; only the incidents above were kept.',regles:'Rules accepted before the exam: full screen, single window, camera on, no screenshots, one warning allowed.',verif:'Verify online',visa:'H TECH ACADEMY — date and stamp'}
+      :{titre:'RAPPORT D’ANNULATION D’EXAMEN',sous:'Examen blanc surveillé — non finalisé',cand:'CANDIDAT(E)',sess:'Session',sim:'Simulateur',date:'Date',duree:'Temps écoulé',rep:'Questions répondues',motif:'MOTIF DE L’ANNULATION',chrono:'CHRONOLOGIE DES INCIDENTS',h:'Heure',ev:'Événement',det:'Précisions',
+        note:'Cet examen blanc a été arrêté par le dispositif de surveillance de H TECH ACADEMY. Aucun score n’est attribué. Aucune image n’a été enregistrée : la détection du visage s’est faite uniquement dans le navigateur du candidat ; seuls les incidents ci-dessus ont été conservés.',regles:'Règles acceptées avant l’examen : plein écran, fenêtre unique, caméra active, aucune capture d’écran, un seul avertissement toléré.',verif:'Vérifier en ligne',visa:'H TECH ACADEMY — date et cachet'};
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,36,'F');doc.setFillColor(...ROUGE);doc.rect(0,36,W,1.4,'F');try{doc.addImage(SIM_LOGO_ACADEMY,'JPEG',M,5,26,26);}catch(e){}
+    doc.setFont('helvetica','bold');doc.setFontSize(15.5);doc.setTextColor(255,255,255);doc.text(P(T.titre),W-M,15,{align:'right'});doc.setFontSize(10);doc.setTextColor(255,190,180);doc.text(P(T.sous),W-M,22,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(220,228,240);doc.text(P(num+'  ·  '+new Date(A.date).toLocaleDateString(EN?'en-GB':'fr-FR')),W-M,29,{align:'right'});
+    let y=48;doc.setFillColor(...CLAIR);doc.roundedRect(M,y-6,W-2*M,34,2.5,2.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(21,101,192);doc.text(T.cand,M+5,y);
+    doc.setFont('times','bold');doc.setFontSize(17);doc.setTextColor(...NAVY);doc.text(P(I.titulaire||'—'),M+5,y+8);
+    const d=new Date(A.date),loc=EN?'en-GB':'fr-FR',lignes=[[T.sim,I.simulateur||''],[T.sess,A.label],[T.date,d.toLocaleDateString(loc)+' · '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})],[T.duree,fmt(A.secs||0)],[T.rep,(A.rep||0)+' / '+(A.nb||0)],['E-mail',I.email||'—']];
+    doc.setFontSize(8.6);lignes.forEach(([l,v],i)=>{const x=M+5+(i%2)*((W-2*M)/2),yy=y+15+Math.floor(i/2)*5.6;doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(l+' :'),x,yy);doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);doc.text(P(String(v)).slice(0,60),x+doc.getTextWidth(P(l+' : ')),yy);});
+    y+=38;doc.setDrawColor(...ROUGE);doc.setLineWidth(0.8);doc.roundedRect(M,y,W-2*M,16,2,2,'S');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...ROUGE);doc.text(T.motif,M+5,y+5.5);
+    doc.setFontSize(11);doc.text(doc.splitTextToSize(P(A.motif),W-2*M-10)[0],M+5,y+12);y+=24;
+    doc.setFontSize(10.5);doc.setTextColor(...NAVY);doc.text(T.chrono,M,y);y+=4;doc.setFillColor(...NAVY);doc.rect(M,y,W-2*M,6.5,'F');doc.setFontSize(8);doc.setTextColor(255,255,255);
+    doc.text(T.h,M+2,y+4.5);doc.text(T.ev,M+26,y+4.5);doc.text(T.det,M+90,y+4.5);y+=6.5;
+    const TY=EN?{plein_ecran:'Left full screen',onglet:'Switched tab or minimised',fenetre:'Switched window',capture:'Screenshot attempt',raccourci:'Blocked shortcut',camera_hors_cadre:'Face out of frame',camera_plusieurs:'Several people',camera_coupee:'Camera off',retour:'Returned to the exam',fermeture:'Page closed or reloaded',abandon:'Abandoned by the candidate',debut:'Exam started',fin:'Exam ended'}:{plein_ecran:'Sortie du plein écran',onglet:'Changement d’onglet ou réduction',fenetre:'Changement de fenêtre',capture:'Tentative de capture d’écran',raccourci:'Raccourci bloqué',camera_hors_cadre:'Visage hors du cadre',camera_plusieurs:'Plusieurs personnes',camera_coupee:'Caméra coupée',retour:'Retour dans l’examen',fermeture:'Fermeture ou rechargement de la page',abandon:'Abandon par le candidat',debut:'Début de l’examen',fin:'Fin de l’examen'};
+    (A.inc||[]).forEach((x,i)=>{if(y>262){doc.addPage();y=20;}if(i%2===0){doc.setFillColor(247,249,253);doc.rect(M,y,W-2*M,6.3,'F');}
+      const grave=['plein_ecran','onglet','fenetre','capture','camera_hors_cadre','camera_plusieurs','camera_coupee','fermeture','abandon'].includes(x.type);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(...GRIS);doc.text(new Date(x.t).toLocaleTimeString(loc),M+2,y+4.3);
+      doc.setFont('helvetica','bold');doc.setTextColor(...(grave?ROUGE:NAVY));doc.text(P((TY[x.type]||x.type)),M+26,y+4.3);
+      doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(doc.splitTextToSize(P(String(x.detail||'')),W-2*M-92)[0]||'',M+90,y+4.3);y+=6.3;});
+    y+=8;doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.splitTextToSize(P(T.note+' '+T.regles),W-2*M-30).forEach(l=>{doc.text(l,M,y);y+=3.8;});
+    if(window.qrcode&&A.id){try{const q=qrcode(0,'M');q.addData(url);q.make();const n=q.getModuleCount(),sz=22,m=sz/n,qx=W-M-sz,qy=Math.min(y-16,250);
+      doc.setFillColor(...NAVY);for(let a=0;a<n;a++)for(let b=0;b<n;b++)if(q.isDark(a,b))doc.rect(qx+b*m,qy+a*m,m+0.02,m+0.02,'F');doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P(T.verif),qx+sz/2,qy+sz+3,{align:'center'});}catch(e){}}
+    y=Math.max(y+6,0);if(y<262){doc.setDrawColor(213,224,240);doc.roundedRect(M,y,88,22,2,2,'S');doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P(T.visa),M+4,y+18);}
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P('H TECH INNOV | SARL | Cocody Riviera Jules Verne, Abidjan | info@htechinnov.com | www.htechinnov.com'),W/2,289,{align:'center'});
+    doc.save(('Rapport-annulation-'+(I.titulaire||'candidat')+'-'+String(A.date).slice(0,10)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-')+'.pdf');
+  }catch(e){if(typeof modal==='function')modal('Rapport',esc(e.message||String(e)),'OK',()=>{});}}
+
+
+  async function simLibsPdf(){await ensurePdf();if(!window.qrcode){try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
+    if(window._SIM_SCRIPT===undefined){if(window._HTA_SCRIPT_FONT)window._SIM_SCRIPT=window._HTA_SCRIPT_FONT;else window._SIM_SCRIPT=null;}}
+  return{run:async(r,infos,hist)=>{INFOS=infos;store.history=hist||[];return await simRapport(r);},runAnnul:async(A,infos)=>{INFOS=infos;return await simRapportAnnulation(A);}};
+}
+
+function erpSimFabrique_dur_en(){
+  const SIM={lang:'en'};let session=null;const store={history:[]};let INFOS=null;
+  const sbSim={rpc:async()=>({data:INFOS})};const simArgs=()=>({});
+  const modal=(t,m)=>toast('❌ '+t+' : '+String(m).replace(/<[^>]+>/g,''),8000);
+  function band(p){if(p>=80)return["Passed","var(--good)"];if(p>=65)return["Almost","var(--d4)"];if(p>=50)return["Insufficient","var(--warn)"];return["Needs Work","var(--bad)"]}
+  function fmt(s){const m=Math.floor(s/60),r=s%60;return (m>=60?Math.floor(m/60)+" h "+String(m%60).padStart(2,"0"):m)+" min "+String(r).padStart(2,"0")+" s"}
+  const DOMAINS = [{"id": 1, "name": "Taking command", "short": "Taking command", "w": 33, "c": "var(--d1)", "lead": "Leading a sustainable project means defining the expected value and success criteria first, then shaping scope, budget, schedule and risks without losing sight of people, planet and prosperity.", "tasks": [["Define value and success criteria", ["Sustainable business case: economic, social and environmental value", "Triple bottom line: people, planet, prosperity", "Specific, measurable, time-bound success criteria", "Success is also judged on how long benefits last"]], ["Shape scope, budget and schedule", ["Every change request is analysed, then decided by the appropriate authority", "Life-cycle cost rather than purchase cost", "Local context in the schedule: seasons, farming calendar, availability", "Visible trade-offs: effects on value and impacts"]], ["Manage risks, threats and opportunities", ["Social and environmental risks recorded in the register", "Sustainability opportunities: exploit, share, enhance", "Grievance mechanism", "Every risk has an owner and a monitored response"]], ["Lead the change", ["Benefits depend on users adopting new practices", "Understand barriers, train, appoint champions", "Benefits owner after closure", "Transparency: report variances early, with their causes"]]], "reflex": ["Lasting value comes before the time-cost-scope triangle.", "A good idea outside scope still follows change control.", "A social or environmental risk is a real project risk.", "No adoption, no benefits."]}, {"id": 2, "name": "Speaking the ESG language", "short": "Speaking ESG", "w": 17, "c": "var(--d2)", "lead": "Understanding environmental, social and governance criteria, the main reporting frameworks and materiality lets you talk with management, investors and donors, and avoid greenwashing.", "tasks": [["Triple bottom line and ESG pillars", ["E: climate, energy, water, waste, biodiversity", "S: labour, health and safety, communities, human rights", "G: ethics, anti-corruption, governing bodies", "Scope 1, 2 and 3 emissions"]], ["GRI, SASB and IFRS (ISSB) frameworks", ["GRI: the organisation’s impacts on the economy, environment and people", "SASB: industry-specific topics and metrics for investors", "IFRS S1: general disclosures; IFRS S2: climate", "The ISSB’s financial perspective"]], ["Materiality", ["Materiality assessment with stakeholders", "Double materiality: impacts on the world and effects on the organisation", "Materiality depends on the industry", "Regular review"]], ["Avoiding greenwashing", ["Precise, proportionate and substantiated claims", "No hidden trade-offs", "Measured indicators, published method and limits", "Independent verification where possible"]]], "reflex": ["GRI looks outward; the ISSB looks at enterprise value.", "Material = important to stakeholders and to the organisation.", "An unproven claim is a reputational risk.", "Scope 3 = value chain."]}, {"id": 3, "name": "Making your projects sustainable", "short": "Sustainable projects", "w": 17, "c": "var(--d3)", "lead": "The PRiSM™ method integrates sustainability into every phase of the project life cycle, supported by responsible procurement, stakeholder engagement and sustainability risk management.", "tasks": [["The PRiSM™ life cycle", ["Projects integrating Sustainable Methods", "Sustainability integrated from start to closure", "End of life of deliverables considered at design", "Closure: lessons learned and benefits monitoring handed over"]], ["Sustainable procurement", ["Life-cycle cost and impacts of product and supplier", "Weighted social and environmental criteria", "Human rights in the supply chain", "Local purchasing when quality is assured"]], ["Stakeholders", ["Early community engagement", "Power/interest grid", "Future generations and vulnerable groups", "Commitments register"]], ["Sustainability risks", ["Physical risks: floods, heat, drought", "Transition risks: regulation, technology, markets", "Part of the normal risk management process", "Assessed over the whole life of the deliverables"]]], "reflex": ["Sustainability is not added at the end: it is built in from the start.", "Cheapest to buy is not cheapest over time.", "Those without a voice count too.", "Physical = climate; transition = changes in the economy."]}, {"id": 4, "name": "Proving your impact", "short": "Proving impact", "w": 33, "c": "var(--d4)", "lead": "The P5™ Standard links the project’s processes and products to their impacts on people, planet and prosperity. The sustainability management plan turns this analysis into actions, indicators and monitored thresholds.", "tasks": [["P5™ impact analysis", ["People, Planet, Prosperity, Process, Products", "Positive and negative impacts, assessed and addressed", "Done early, then updated", "Beneficiaries involved in measurement"]], ["Sustainability management plan", ["Objectives, actions, owners, due dates, indicators", "Integrated into the project management plan", "Reviewed by the steering committee", "Monitoring handed over to operations at closure"]], ["Impact indicators and thresholds", ["Outputs (what is done) and impact (what changes)", "Baseline measured before the start", "Indicator: measure, unit, source, frequency", "Threshold crossed = analysis and corrective action"]]], "reflex": ["No proof of impact without a baseline.", "Counting activities is not enough: measure the change.", "A crossed threshold is corrected, not moved.", "Every action has an owner and a due date."]}];
+  /* ===================== Rapport de préparation signé (PDF, charte H TECH INNOV) ===================== */
+const SIM_LOGO_ACADEMY='data:image/jpeg;base64,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';
+const RT=SIM.lang==='en'?{titre:'PREPARATION REPORT',partenariat:'IN PARTNERSHIP WITH',partenariatATP:'AUTHORIZED TRAINING PARTNER',enPart:'Report issued in partnership with',enATP:(n,a)=>'H TECH ACADEMY is an Authorized Training Partner (ATP) of '+n+(a?' (approval no. '+a+')':'')+'. This report covers exam preparation and is not a certification issued by '+n+'. ',sous:'H TECH ACADEMY · Training centre of H TECH INNOV · Abidjan',num:'Report no.',date:'Date',appr:'LEARNER',ident:'E-mail',acces:'Access',accesV:{formation:'Included in H TECH ACADEMY training',code:'30-day access code',compte:'Learner account'},
+  session:'Session',jour:'Date of the session',duree:'Duration',langue:'Language',langueV:'English',res:'OVERALL RESULT',bonnes:'correct answers out of',seuil:'Pass mark: 80 % · intermediate benchmark: 65 %',
+  dom:'RESULTS BY DOMAIN',colD:['Domain','Questions','Correct','Score','Level'],forts:'STRENGTHS',axes:'AREAS FOR IMPROVEMENT',aucunFort:'No course has reached 80 % yet: keep consolidating the fundamentals.',aucunAxe:'All courses have reached 80 %: maintain your level with regular mock exams.',
+  revoir:'Points to review',reflexe:'Key exam reflex',plan:'RECOMMENDED ACTION PLAN',prog:'PROGRESSION (LAST SESSIONS)',sig:'Signatures',verif:'Verify online',genere:'Report generated electronically by H TECH ACADEMY. Scores are calculated by the H TECH ACADEMY server and cannot be modified.',
+  verdict:p=>p>=80?'Passed: your level reaches the 80% pass mark. Keep it up with full mock exams.':p>=65?'Almost: strengthen your weakest courses to cross the 80% pass mark.':p>=50?'Insufficient: a targeted revision plan is needed before another mock exam.':'Needs work: go back to the course and study guide, then practise course by course.',
+  actions:(faibles,p)=>[faibles.length?'Re-read the study guide for: '+faibles.join(', ')+'.':'Re-read the study guide for the domains below 80 %.','Run a targeted practice session on your mistakes, then 20 questions per weak domain.',
+    p>=80?'Keep one full mock exam (64 questions) per week until the exam.':'Take a new full mock exam (64 questions) within 7 days; goal: 80 % or more.','Review these results with your H TECH ACADEMY expert.'],
+  page:'Page',de:'of',sans:'—'}
+ :{titre:'RAPPORT DE PRÉPARATION',partenariat:'EN PARTENARIAT AVEC',partenariatATP:'PARTENAIRE DE FORMATION AGRÉÉ',enPart:'Rapport établi en partenariat avec',enATP:(n,a)=>'H TECH ACADEMY est partenaire de formation agréé (ATP) de '+n+(a?' (agrément n° '+a+')':'')+'. Ce rapport porte sur une préparation et ne constitue pas une certification délivrée par '+n+'. ',sous:'H TECH ACADEMY · Centre de formation de H TECH INNOV · Abidjan',num:'N° du rapport',date:'Date',appr:'APPRENANT(E)',ident:'E-mail',acces:'Accès',accesV:{formation:'Inclus dans une formation H TECH ACADEMY',code:'Code d’accès de 30 jours',compte:'Compte apprenant'},
+  session:'Session',jour:'Date de la session',duree:'Durée',langue:'Langue',langueV:'Français',res:'RÉSULTAT GLOBAL',bonnes:'bonnes réponses sur',seuil:'Seuil de réussite : 80 % · repère intermédiaire : 65 %',
+  dom:'RÉSULTATS PAR DOMAINE',colD:['Domaine','Questions','Bonnes','Score','Niveau'],forts:'POINTS FORTS',axes:'AXES D’AMÉLIORATION',aucunFort:'Aucun domaine n’atteint encore 80 % : poursuivez la consolidation des fondamentaux.',aucunAxe:'Aucun domaine sous la cible : maintenez votre niveau par des examens blancs réguliers.',
+  revoir:'Tâches à revoir',reflexe:'Réflexe d’examen',plan:'PLAN D’ACTION RECOMMANDÉ',prog:'PROGRESSION (DERNIÈRES SESSIONS)',sig:'Signatures',verif:'Vérifier en ligne',genere:'Rapport généré électroniquement par H TECH ACADEMY. Les scores sont calculés par le serveur de H TECH ACADEMY et ne peuvent pas être modifiés.',
+  verdict:p=>p>=80?'Prêt(e) : votre niveau est au-dessus de la cible. Poursuivez avec des examens blancs complets jusqu’à l’examen.':p>=65?'Dans la cible : consolidez vos domaines les plus faibles pour sécuriser votre résultat.':p>=50?'En dessous de la cible : un plan de révision ciblé est nécessaire avant de vous présenter à l’examen.':'À améliorer : reprenez le guide d’étude et entraînez-vous domaine par domaine avant un nouvel examen blanc.',
+  actions:(faibles,p)=>[faibles.length?'Relire le guide d’étude des domaines : '+faibles.join(', ')+'.':'Relire le guide d’étude des domaines sous 80 %.','Faire un entraînement ciblé sur vos erreurs, puis 20 questions par domaine faible.',
+    p>=80?'Maintenir un examen blanc complet (64 questions) par semaine jusqu’à l’examen.':'Repasser un examen blanc complet (64 questions) sous 7 jours ; objectif : 80 % ou plus.','Faire le point sur ces résultats avec votre expert H TECH ACADEMY.'],
+  page:'Page',de:'sur',sans:'—'};
+function simCharger(u){return new Promise((ok,ko)=>{const s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=()=>ko(new Error('Chargement impossible : '+u));document.head.appendChild(s);});}
+async function simLibsPdf(){
+  if(!window.jspdf)await simCharger('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!window.qrcode){try{await simCharger('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
+  if(window._SIM_SCRIPT===undefined){try{const r=await fetch('https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf');const b=new Uint8Array(await r.arrayBuffer());let s='';for(let i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));window._SIM_SCRIPT=btoa(s);}catch(e){window._SIM_SCRIPT=null;}}
+}
+(function(){var OK=/^[\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]$/;
+ var EQ={'Ɛ':'E','ɛ':'e','Ɔ':'O','ɔ':'o','Ŋ':'N','ŋ':'n','Ʋ':'V','ʋ':'v','Ɩ':'I','ɩ':'i','Ɲ':'N','ɲ':'n','Ɓ':'B','ɓ':'b','Ɗ':'D','ɗ':'d','Ƴ':'Y','ƴ':'y','Ə':'E','ə':'e','Đ':'D','đ':'d','Ł':'L','ł':'l','Ø':'Ø','ß':'ß','ı':'i','Ŧ':'T','ŧ':'t','Ħ':'H','ħ':'h'};
+ window.htiLettrePdf=function(ch){if(OK.test(ch))return ch;if(EQ[ch])return EQ[ch];var b=ch.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return b&&b!==ch&&[...b].every(function(x){return OK.test(x);})?b:'';};})();
+const simPdfTxt=t=>String(t??'').replace(/[\u202f\u00a0\u2007\u2009]/g,' ').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/[→⇒➜←]/g,'-').replace(/[✓✔]/g,'v').replace(/[\u2032]/g,"'")
+  .replace(/[^\x09\x0A\x0D\x20-\x7E\u00A1-\u00FF\u20AC\u201A\u0192\u201E\u2026\u2020\u2021\u02C6\u2030\u0160\u2039\u0152\u017D\u2018\u2019\u201C\u201D\u2022\u2013\u2014\u02DC\u2122\u0161\u203A\u0153\u017E\u0178]/gu,c=>htiLettrePdf(c)).replace(/ {2,}/g,' ');
+async function simRapport(source){
+  const btn=document.getElementById('simBtnRapport');if(btn){btn.disabled=true;btn.dataset.t=btn.textContent;btn.textContent='…';}
+  try{
+    await simLibsPdf();
+    const s=session,r=source||(s&&s.result);if(!r){throw new Error('Aucun résultat');}
+    const{data:inf}=await sbSim.rpc('sim_rapport_infos',simArgs());const I=inf||{};
+    const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,H=297,M=16,P=simPdfTxt;
+    if(window._SIM_SCRIPT){try{doc.addFileToVFS('GreatVibes.ttf',window._SIM_SCRIPT);doc.addFont('GreatVibes.ttf','GreatVibes','normal');}catch(e){window._SIM_SCRIPT=null;}}
+    const NAVY=[10,42,102],BLEU=[21,101,192],VERT=[63,138,30],GRIS=[90,100,120],CLAIR=[238,243,251],ROUGE=[180,35,24],AMBRE=[180,83,9];
+    const col=p=>p>=80?VERT:p>=65?BLEU:p>=50?AMBRE:ROUGE;
+    const dateS=new Date(r.date||Date.now()),dfr=d=>d.toLocaleDateString(SIM.lang==='en'?'en-GB':'fr-FR',{day:'numeric',month:'long',year:'numeric'});
+    const num='RPT-'+String(r.id||'').replace(/-/g,'').slice(0,10).toUpperCase(),url='https://www.htechinnov.com/academy/#/verifier-rapport/'+(r.id||'');
+    const simNom=SIM.lang==='en'?'Sustainable Project Management Simulator':(I.simulateur||'Simulateur Management de projet durable');
+    let y=0;
+    const piedDePage=()=>{const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setDrawColor(...BLEU);doc.setLineWidth(0.4);doc.line(M,H-17,W-M,H-17);
+      doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);
+      doc.text(P('H TECH INNOV | SARL | RCCM CI-ABJ-03-2026-B12-06284 | Cocody Riviera Jules Verne, Abidjan, Côte d’Ivoire'),W/2,H-12.5,{align:'center'});
+      doc.text(P('Standard +225 27 22 56 28 37 | +225 07 14 94 24 21 | info@htechinnov.com | www.htechinnov.com'),W/2,H-9,{align:'center'});
+      doc.text(P(num),M,H-5);doc.text(P(`${RT.page} ${i} ${RT.de} ${n}`),W-M,H-5,{align:'right'});}};
+    const enteteSuite=()=>{doc.setFillColor(...NAVY);doc.rect(0,0,W,12,'F');doc.setFillColor(...VERT);doc.rect(0,12,W,1.2,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);doc.text('H TECH ACADEMY',M,8);doc.setFont('helvetica','normal');doc.text(P(RT.titre+' · '+num),W-M,8,{align:'right'});y=22;};
+    const place=h=>{if(y+h>H-22){doc.addPage();enteteSuite();}};
+    const titre=t=>{place(14);doc.setFillColor(...BLEU);doc.rect(M,y-3.6,1.6,5.2,'F');doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...NAVY);doc.text(P(t),M+4,y+0.6);y+=7;};
+    const para=(t,sz=9,c=GRIS,ind=0,gras=false)=>{doc.setFont('helvetica',gras?'bold':'normal');doc.setFontSize(sz);doc.setTextColor(...c);const L=doc.splitTextToSize(P(t),W-2*M-ind);place(L.length*sz*0.45+1);doc.text(L,M+ind,y);y+=L.length*sz*0.45+1.2;};
+    // ── En-tête ──
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,40,'F');doc.setFillColor(...VERT);doc.rect(0,40,W,1.4,'F');doc.setFillColor(...BLEU);doc.rect(0,41.4,W,0.8,'F');
+    try{doc.addImage(SIM_LOGO_ACADEMY,'JPEG',M,6,28,28);}catch(e){}
+    const PT=I.partenaire;
+    if(PT&&(PT.nom||PT.logo)){const bx=M+31,by=6,bw=54,bh=28.5;doc.setFillColor(255,255,255);doc.roundedRect(bx,by,bw,bh,2,2,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.setTextColor(...GRIS);doc.text(P(PT.type==='atp'?RT.partenariatATP:RT.partenariat),bx+bw/2,by+3.8,{align:'center'});
+      if(PT.logo){try{const fm=/^data:image\/png/i.test(PT.logo)?'PNG':'JPEG',pr=doc.getImageProperties(PT.logo),k=Math.min((bw-12)/pr.width,11/pr.height);doc.addImage(PT.logo,fm,bx+bw/2-pr.width*k/2,by+5.2+(11-pr.height*k)/2,pr.width*k,pr.height*k);}catch(e){}}
+      doc.setFont('helvetica','bold');let fs=6.8;doc.setFontSize(fs);let L=doc.splitTextToSize(P(PT.nom||''),bw-6);while(L.length>2&&fs>5){fs-=0.3;doc.setFontSize(fs);L=doc.splitTextToSize(P(PT.nom||''),bw-6);}
+      doc.setTextColor(...NAVY);L.slice(0,2).forEach((t,k)=>doc.text(t,bx+bw/2,by+19.6+k*fs*0.42,{align:'center'}));
+      if(PT.type==='atp'&&PT.agrement){doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(...GRIS);doc.text(P((SIM.lang==='en'?'Approval no. ':'Agrément n° ')+PT.agrement),bx+bw/2,by+26.4,{align:'center'});}
+      else if(PT.lien){const site=String(PT.lien).replace(/^https?:\/\//,'').replace(/\/$/,'');doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(...BLEU);doc.text(P(site),bx+bw/2,by+26.4,{align:'center'});doc.link(bx,by+23.5,bw,4,{url:PT.lien});}}
+    doc.setFont('helvetica','bold');doc.setFontSize(PT&&(PT.nom||PT.logo)?15.5:18);doc.setTextColor(255,255,255);doc.text(P(RT.titre),W-M,15,{align:'right'});
+    doc.setFontSize(11.5);doc.setTextColor(159,210,122);doc.text(P(simNom),W-M,22,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(201,214,236);doc.text(P(RT.sous),W-M,27.5,{align:'right'});
+    doc.setFontSize(8.5);doc.setTextColor(255,255,255);doc.text(P(`${RT.num} : ${num}   ·   ${RT.date} : ${dfr(new Date())}`),W-M,34,{align:'right'});
+    y=52;
+    // ── Apprenant ──
+    doc.setFillColor(...CLAIR);doc.roundedRect(M,y-6,W-2*M,40,2.5,2.5,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(...BLEU);doc.text(P(RT.appr),M+5,y);
+    doc.setFont('times','bold');let tn=19;doc.setFontSize(tn);const nomA=P(I.titulaire||RT.sans);while(doc.getTextWidth(nomA)>W-2*M-12&&tn>12){tn--;doc.setFontSize(tn);}
+    doc.setTextColor(...NAVY);doc.text(nomA,M+5,y+8);
+    const lignes=[[RT.ident,I.email||RT.sans],[RT.acces,(RT.accesV[I.acces]||RT.accesV.compte)],[RT.session,(source?r.label:(s&&s.label))||RT.sans],[RT.jour,dfr(dateS)+' · '+dateS.toLocaleTimeString(SIM.lang==='en'?'en-GB':'fr-FR',{hour:'2-digit',minute:'2-digit'})],[RT.duree,typeof fmt==='function'?fmt(r.secs||0):RT.sans],[RT.langue,RT.langueV]];
+    doc.setFontSize(8.6);lignes.forEach(([l,v],i)=>{const x=M+5+(i%2)*((W-2*M)/2),yy=y+15+Math.floor(i/2)*6;doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(l+' :'),x,yy);const wl=doc.getTextWidth(P(l+' : '));doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);doc.text(P(String(v)).slice(0,62),x+wl,yy);});
+    y+=42;
+    // ── Résultat global ──
+    titre(RT.res);const[bl]=band(r.pct),cc=col(r.pct);
+    doc.setDrawColor(...cc);doc.setLineWidth(1.2);doc.roundedRect(M,y-2,44,26,3,3,'S');
+    doc.setFont('helvetica','bold');doc.setFontSize(26);doc.setTextColor(...cc);doc.text(r.pct+' %',M+22,y+11,{align:'center'});
+    doc.setFontSize(8.2);doc.text(P(bl),M+22,y+19,{align:'center'});
+    doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(...NAVY);doc.text(P(`${r.ok} ${RT.bonnes} ${r.n}`),M+50,y+3);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...GRIS);const vd=doc.splitTextToSize(P(RT.verdict(r.pct)),W-2*M-52);doc.text(vd,M+50,y+9);
+    doc.setFontSize(7.6);doc.text(P(RT.seuil),M+50,y+10+vd.length*4.2);
+    y+=31;
+    // ── Par domaine ──
+    titre(RT.dom);const D=DOMAINS.filter(d=>r.byD&&r.byD[d.id]).map(d=>{const[o,n]=r.byD[d.id];return{d,o,n,p:Math.round(o/n*100)};});
+    const cx=[M,M+76,M+96,M+114,M+146];doc.setFillColor(...NAVY);doc.rect(M,y-4,W-2*M,6.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(255,255,255);
+    RT.colD.forEach((h,i)=>doc.text(P(h),cx[i]+2,y));y+=6;
+    D.forEach((x,i)=>{place(8);if(i%2===0){doc.setFillColor(247,249,253);doc.rect(M,y-4.4,W-2*M,7.2,'F');}
+      doc.setFont('helvetica','bold');doc.setFontSize(8.4);doc.setTextColor(...NAVY);doc.text(P(['I','II','III','IV','V','VI'][x.d.id-1]+'. '+x.d.short),cx[0]+2,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(String(x.n),cx[1]+2,y);doc.text(String(x.o),cx[2]+2,y);
+      doc.setFillColor(226,232,242);doc.rect(cx[3]+2,y-2.6,18,3,'F');doc.setFillColor(...col(x.p));doc.rect(cx[3]+2,y-2.6,18*x.p/100,3,'F');
+      doc.setFont('helvetica','bold');doc.setTextColor(...col(x.p));doc.text(x.p+' %',cx[3]+22,y);doc.setFontSize(7.6);doc.text(P(band(x.p)[0]),cx[4]+2,y);y+=7.2;});
+    y+=3;
+    // Erreurs par tâche (session en cours uniquement)
+    const err=Object.assign({},r.erreurs||{});if(s&&s.items&&!source)s.items.filter(it=>(s.mode==='exam'||it.checked)&&it.ok===false).forEach(it=>{const k=it.q.d+':'+it.q.t;err[k]=(err[k]||0)+1;});
+    // ── Points forts ──
+    titre(RT.forts);const forts=D.filter(x=>x.p>=80).sort((a,b)=>b.p-a.p);
+    if(forts.length)forts.forEach(x=>para('•  '+x.d.name+' — '+x.p+' %',9,[40,60,90],2));else para(RT.aucunFort,9,GRIS,2);
+    y+=2;
+    // ── Axes d’amélioration ──
+    titre(RT.axes);const faibles=D.filter(x=>x.p<65).sort((a,b)=>a.p-b.p);const aRenforcer=faibles.length?faibles:D.filter(x=>x.p<80).sort((a,b)=>a.p-b.p).slice(0,2);
+    if(!aRenforcer.length)para(RT.aucunAxe,9,GRIS,2);
+    aRenforcer.forEach(x=>{place(22);para(['I','II','III','IV','V','VI'][x.d.id-1]+'. '+x.d.name+' — '+x.p+' % ('+band(x.p)[0]+')',9.4,col(x.p),2,true);
+      const taches=x.d.tasks.map((t,i)=>({t:t[0],n:err[x.d.id+':'+(i+1)]||0})).sort((a,b)=>b.n-a.n);const sel=taches.filter(t=>t.n>0).slice(0,3);const L=(sel.length?sel:taches.slice(0,2)).map(t=>t.t+(t.n?` (${t.n} ${SIM.lang==='en'?'error(s)':'erreur(s)'})`:''));
+      para(RT.revoir+' : '+L.join(' ; ')+'.',8.6,GRIS,6);
+      const ref=(x.d.reflex||[])[0];if(ref)para(RT.reflexe+' : '+ref,8.6,[40,60,90],6);y+=1.5;});
+    y+=1;
+    // ── Plan d’action ──
+    place(34);titre(RT.plan);RT.actions(aRenforcer.map(x=>['I','II','III','IV','V','VI'][x.d.id-1]+'. '+x.d.short),r.pct).forEach((a,i)=>para((i+1)+'.  '+a,9,[40,60,90],2));
+    y+=2;
+    // ── Progression ──
+    const H0=(store.history||[]).slice(0,8).reverse();
+    if(H0.length>1){titre(RT.prog);place(36);const bx=M+4,bw=(W-2*M-8)/H0.length,bh=24,base=y+bh;
+      doc.setDrawColor(210,218,232);doc.setLineWidth(0.2);[65,80].forEach(v=>{const yy=base-bh*v/100;doc.line(M,yy,W-M,yy);doc.setFontSize(6.5);doc.setTextColor(...GRIS);doc.text(v+' %',W-M,yy-0.8,{align:'right'});});
+      H0.forEach((h,i)=>{const hh=Math.max(1,bh*h.pct/100),x=bx+i*bw+bw*0.2;doc.setFillColor(...col(h.pct));doc.rect(x,base-hh,bw*0.6,hh,'F');
+        doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(...col(h.pct));doc.text(h.pct+' %',x+bw*0.3,base-hh-1.2,{align:'center'});
+        doc.setFont('helvetica','normal');doc.setFontSize(6.3);doc.setTextColor(...GRIS);doc.text(new Date(h.date).toLocaleDateString(SIM.lang==='en'?'en-GB':'fr-FR',{day:'2-digit',month:'2-digit'}),x+bw*0.3,base+3.5,{align:'center'});});
+      y=base+9;}
+    // ── Signatures + QR ──
+    place(52);y+=2;doc.setDrawColor(...BLEU);doc.setLineWidth(0.3);doc.line(M,y,W-M,y);y+=6;
+    doc.setFont('helvetica','normal');doc.setFontSize(8.6);doc.setTextColor(...GRIS);doc.text(P((SIM.lang==='en'?'Issued in Abidjan, on ':'Fait à Abidjan, le ')+dfr(new Date())+'.'),M,y);y+=4;
+    const sigs=(I.signataires||[]).slice(0,2),zone=(W-2*M-30)/2;
+    sigs.forEach((sg,i)=>{const x0=M+i*(zone+4),xm=x0+zone/2,ys=y+14;
+      doc.setFont('helvetica','italic');doc.setFontSize(6.6);doc.setTextColor(170,175,185);doc.text(P(SIM.lang==='en'?'Signature and stamp':'Signature et cachet'),xm,ys-9,{align:'center'});
+      doc.setDrawColor(...NAVY);doc.setLineWidth(0.3);doc.line(x0+4,ys+3,x0+zone-4,ys+3);
+      doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(P(sg.nom||''),xm,ys+7.5,{align:'center'});
+      doc.setFont('helvetica','normal');doc.setFontSize(7.8);doc.setTextColor(...GRIS);doc.text(P(sg.fonction||''),xm,ys+11.5,{align:'center'});});
+    if(window.qrcode&&r.id){try{const q=qrcode(0,'M');q.addData(url);q.make();const n=q.getModuleCount(),sz=24,m=sz/n,qx=W-M-sz,qy=y+1;
+      doc.setFillColor(...NAVY);for(let a=0;a<n;a++)for(let b=0;b<n;b++)if(q.isDark(a,b))doc.rect(qx+b*m,qy+a*m,m+0.02,m+0.02,'F');
+      doc.setFontSize(6.8);doc.setTextColor(...BLEU);doc.text(P(RT.verif),qx+sz/2,qy+sz+3.2,{align:'center'});doc.link(qx,qy,sz,sz,{url});}catch(e){}}
+    y+=34;doc.setFont('helvetica','italic');doc.setFontSize(7.2);doc.setTextColor(...GRIS);doc.text(doc.splitTextToSize(P((PT&&PT.nom&&PT.type==='atp'?RT.enATP(PT.nom,PT.agrement):'')+(PT&&PT.nom&&PT.type!=='atp'?RT.enPart+' '+PT.nom+(PT.lien?' ('+String(PT.lien).replace(/^https?:\/\//,'').replace(/\/$/,'')+')':'')+'. ':'')+RT.genere),W-2*M),M,y);
+    piedDePage();
+    const nf=('Rapport-'+simNom+'-'+(I.titulaire||'apprenant')+'-'+dateS.toISOString().slice(0,10)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-')+'.pdf';
+    doc.save(nf);return doc;
+  }catch(e){if(typeof modal==='function')modal(SIM.lang==='en'?'Report unavailable':'Rapport indisponible',esc(e.message||String(e)),'OK',()=>{});else alert(e.message);}
+  finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.t||btn.textContent;}}
+}
+/* Rapport d’annulation d’un examen surveillé (PDF) */
+async function simRapportAnnulation(A){
+  try{await simLibsPdf();const{data:inf}=await sbSim.rpc('sim_rapport_infos',simArgs());const I=inf||{};const EN=SIM.lang==='en';
+    const{jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'}),W=210,M=16,P=simPdfTxt,NAVY=[10,42,102],ROUGE=[180,35,24],GRIS=[90,100,120],CLAIR=[238,243,251];
+    const num='RPT-'+String(A.id||'').replace(/-/g,'').slice(0,10).toUpperCase(),url='https://www.htechinnov.com/academy/#/verifier-rapport/'+(A.id||'');
+    const T=EN?{titre:'EXAM CANCELLATION REPORT',sous:'Proctored mock exam — not completed',cand:'CANDIDATE',sess:'Session',sim:'Simulator',date:'Date',duree:'Time elapsed',rep:'Questions answered',motif:'REASON FOR CANCELLATION',chrono:'TIMELINE OF INCIDENTS',h:'Time',ev:'Event',det:'Details',
+        note:'This mock exam was stopped by the H TECH ACADEMY proctoring system. No score is awarded. No image was recorded: face detection ran only in the candidate’s browser; only the incidents above were kept.',regles:'Rules accepted before the exam: full screen, single window, camera on, no screenshots, one warning allowed.',verif:'Verify online',visa:'H TECH ACADEMY — date and stamp'}
+      :{titre:'RAPPORT D’ANNULATION D’EXAMEN',sous:'Examen blanc surveillé — non finalisé',cand:'CANDIDAT(E)',sess:'Session',sim:'Simulateur',date:'Date',duree:'Temps écoulé',rep:'Questions répondues',motif:'MOTIF DE L’ANNULATION',chrono:'CHRONOLOGIE DES INCIDENTS',h:'Heure',ev:'Événement',det:'Précisions',
+        note:'Cet examen blanc a été arrêté par le dispositif de surveillance de H TECH ACADEMY. Aucun score n’est attribué. Aucune image n’a été enregistrée : la détection du visage s’est faite uniquement dans le navigateur du candidat ; seuls les incidents ci-dessus ont été conservés.',regles:'Règles acceptées avant l’examen : plein écran, fenêtre unique, caméra active, aucune capture d’écran, un seul avertissement toléré.',verif:'Vérifier en ligne',visa:'H TECH ACADEMY — date et cachet'};
+    doc.setFillColor(...NAVY);doc.rect(0,0,W,36,'F');doc.setFillColor(...ROUGE);doc.rect(0,36,W,1.4,'F');try{doc.addImage(SIM_LOGO_ACADEMY,'JPEG',M,5,26,26);}catch(e){}
+    doc.setFont('helvetica','bold');doc.setFontSize(15.5);doc.setTextColor(255,255,255);doc.text(P(T.titre),W-M,15,{align:'right'});doc.setFontSize(10);doc.setTextColor(255,190,180);doc.text(P(T.sous),W-M,22,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(220,228,240);doc.text(P(num+'  ·  '+new Date(A.date).toLocaleDateString(EN?'en-GB':'fr-FR')),W-M,29,{align:'right'});
+    let y=48;doc.setFillColor(...CLAIR);doc.roundedRect(M,y-6,W-2*M,34,2.5,2.5,'F');doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(21,101,192);doc.text(T.cand,M+5,y);
+    doc.setFont('times','bold');doc.setFontSize(17);doc.setTextColor(...NAVY);doc.text(P(I.titulaire||'—'),M+5,y+8);
+    const d=new Date(A.date),loc=EN?'en-GB':'fr-FR',lignes=[[T.sim,I.simulateur||''],[T.sess,A.label],[T.date,d.toLocaleDateString(loc)+' · '+d.toLocaleTimeString(loc,{hour:'2-digit',minute:'2-digit'})],[T.duree,fmt(A.secs||0)],[T.rep,(A.rep||0)+' / '+(A.nb||0)],['E-mail',I.email||'—']];
+    doc.setFontSize(8.6);lignes.forEach(([l,v],i)=>{const x=M+5+(i%2)*((W-2*M)/2),yy=y+15+Math.floor(i/2)*5.6;doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(l+' :'),x,yy);doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);doc.text(P(String(v)).slice(0,60),x+doc.getTextWidth(P(l+' : ')),yy);});
+    y+=38;doc.setDrawColor(...ROUGE);doc.setLineWidth(0.8);doc.roundedRect(M,y,W-2*M,16,2,2,'S');doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...ROUGE);doc.text(T.motif,M+5,y+5.5);
+    doc.setFontSize(11);doc.text(doc.splitTextToSize(P(A.motif),W-2*M-10)[0],M+5,y+12);y+=24;
+    doc.setFontSize(10.5);doc.setTextColor(...NAVY);doc.text(T.chrono,M,y);y+=4;doc.setFillColor(...NAVY);doc.rect(M,y,W-2*M,6.5,'F');doc.setFontSize(8);doc.setTextColor(255,255,255);
+    doc.text(T.h,M+2,y+4.5);doc.text(T.ev,M+26,y+4.5);doc.text(T.det,M+90,y+4.5);y+=6.5;
+    const TY=EN?{plein_ecran:'Left full screen',onglet:'Switched tab or minimised',fenetre:'Switched window',capture:'Screenshot attempt',raccourci:'Blocked shortcut',camera_hors_cadre:'Face out of frame',camera_plusieurs:'Several people',camera_coupee:'Camera off',retour:'Returned to the exam',fermeture:'Page closed or reloaded',abandon:'Abandoned by the candidate',debut:'Exam started',fin:'Exam ended'}:{plein_ecran:'Sortie du plein écran',onglet:'Changement d’onglet ou réduction',fenetre:'Changement de fenêtre',capture:'Tentative de capture d’écran',raccourci:'Raccourci bloqué',camera_hors_cadre:'Visage hors du cadre',camera_plusieurs:'Plusieurs personnes',camera_coupee:'Caméra coupée',retour:'Retour dans l’examen',fermeture:'Fermeture ou rechargement de la page',abandon:'Abandon par le candidat',debut:'Début de l’examen',fin:'Fin de l’examen'};
+    (A.inc||[]).forEach((x,i)=>{if(y>262){doc.addPage();y=20;}if(i%2===0){doc.setFillColor(247,249,253);doc.rect(M,y,W-2*M,6.3,'F');}
+      const grave=['plein_ecran','onglet','fenetre','capture','camera_hors_cadre','camera_plusieurs','camera_coupee','fermeture','abandon'].includes(x.type);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.2);doc.setTextColor(...GRIS);doc.text(new Date(x.t).toLocaleTimeString(loc),M+2,y+4.3);
+      doc.setFont('helvetica','bold');doc.setTextColor(...(grave?ROUGE:NAVY));doc.text(P((TY[x.type]||x.type)),M+26,y+4.3);
+      doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(doc.splitTextToSize(P(String(x.detail||'')),W-2*M-92)[0]||'',M+90,y+4.3);y+=6.3;});
+    y+=8;doc.setFont('helvetica','italic');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.splitTextToSize(P(T.note+' '+T.regles),W-2*M-30).forEach(l=>{doc.text(l,M,y);y+=3.8;});
+    if(window.qrcode&&A.id){try{const q=qrcode(0,'M');q.addData(url);q.make();const n=q.getModuleCount(),sz=22,m=sz/n,qx=W-M-sz,qy=Math.min(y-16,250);
+      doc.setFillColor(...NAVY);for(let a=0;a<n;a++)for(let b=0;b<n;b++)if(q.isDark(a,b))doc.rect(qx+b*m,qy+a*m,m+0.02,m+0.02,'F');doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P(T.verif),qx+sz/2,qy+sz+3,{align:'center'});}catch(e){}}
+    y=Math.max(y+6,0);if(y<262){doc.setDrawColor(213,224,240);doc.roundedRect(M,y,88,22,2,2,'S');doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P(T.visa),M+4,y+18);}
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);doc.text(P('H TECH INNOV | SARL | Cocody Riviera Jules Verne, Abidjan | info@htechinnov.com | www.htechinnov.com'),W/2,289,{align:'center'});
+    doc.save(('Rapport-annulation-'+(I.titulaire||'candidat')+'-'+String(A.date).slice(0,10)).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-')+'.pdf');
+  }catch(e){if(typeof modal==='function')modal('Rapport',esc(e.message||String(e)),'OK',()=>{});}}
+
+
+  async function simLibsPdf(){await ensurePdf();if(!window.qrcode){try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');}catch(e){}}
+    if(window._SIM_SCRIPT===undefined){if(window._HTA_SCRIPT_FONT)window._SIM_SCRIPT=window._HTA_SCRIPT_FONT;else window._SIM_SCRIPT=null;}}
+  return{run:async(r,infos,hist)=>{INFOS=infos;store.history=hist||[];return await simRapport(r);},runAnnul:async(A,infos)=>{INFOS=infos;return await simRapportAnnulation(A);}};
+}
 
 var ERP_SIM_FAB={};
 async function erpSimRapport(id){
@@ -20749,7 +21134,7 @@ async function erpSimRapport(id){
     else if(c){partId=c.partenaire_id||null;acces='code';}
     const px=(PART_LISTE||[]).find(x=>x.id===partId);
     const infos={titulaire:p?((p.prenom||'')+' '+(p.nom||'')).trim():c?((c.prenom||'')+' '+(c.nom||'')).trim():'—',email:p?.email||c?.email||'',acces,
-      simulateur:(S.find(x=>x.code===simc)||{}).nom||(simc==='gp'?'Simulateur Gestion de projet — Débutant':'Simulateur PMO'),signataires:(HTA_SIGN||[]).slice(0,2).map(s=>({nom:s.nom,fonction:s.fonction||''})),
+      simulateur:(S.find(x=>x.code===simc)||{}).nom||(simc==='gp'?'Simulateur Gestion de projet':simc==='dur'?'Simulateur Management de projet durable':'Simulateur Management de PMO'),signataires:(HTA_SIGN||[]).slice(0,2).map(s=>({nom:s.nom,fonction:s.fonction||''})),
       partenaire:px?{nom:px.nom,lien:px.lien||'',logo:px.logo_data||null,type:px.type||'',agrement:px.numero_agrement||''}:null};
     // Erreurs par tâche, relues en base pour cette session
     const erreurs={};try{const{data:rep}=await sb.from('sim_reponses').select('question_id').eq('tentative_id',id).eq('correct',false);
@@ -20758,7 +21143,7 @@ async function erpSimRapport(id){
     const meme=x=>(t.user_id&&x.user_id===t.user_id)||(t.code_id&&x.code_id===t.code_id);
     const hist=T.filter(x=>x.statut!=='annule'&&meme(x)&&(x.simulateur||'pmo')===simc&&x.created_at<=t.created_at).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))
       .map(x=>({id:x.id,date:x.created_at,label:x.libelle,ok:x.ok,n:x.nb,pct:x.pct,byD:x.par_domaine||{},secs:x.duree_s||0}));
-    const lg=simc==='gp'?(t.langue==='en'?'gp_en':'gp'):(t.langue==='en'?'en':'fr');if(!ERP_SIM_FAB[lg])ERP_SIM_FAB[lg]=lg==='gp'?erpSimFabrique_gp():lg==='gp_en'?erpSimFabrique_gp_en():lg==='en'?erpSimFabrique_en():erpSimFabrique_fr();
+    const lg=simc==='gp'||simc==='dur'?simc+(t.langue==='en'?'_en':''):(t.langue==='en'?'en':'fr');if(!ERP_SIM_FAB[lg])ERP_SIM_FAB[lg]=lg==='gp'?erpSimFabrique_gp():lg==='gp_en'?erpSimFabrique_gp_en():lg==='dur'?erpSimFabrique_dur():lg==='dur_en'?erpSimFabrique_dur_en():lg==='en'?erpSimFabrique_en():erpSimFabrique_fr();
     if(t.statut==='annule')await ERP_SIM_FAB[lg].runAnnul({id:t.id,motif:t.motif_annulation||'',inc:t.incidents||[],label:t.libelle,secs:t.duree_s||0,nb:t.nb,rep:t.nb_repondues||0,date:t.created_at},infos);
     else await ERP_SIM_FAB[lg].run({id:t.id,ok:t.ok,n:t.nb,pct:t.pct,byD:t.par_domaine||{},secs:t.duree_s||0,date:t.created_at,label:t.libelle,erreurs},infos,hist);
     try{logAudit('rapport_simulateur','sim_tentatives',id,{titulaire:infos.titulaire,pct:t.pct});}catch(e){}
@@ -22170,6 +22555,245 @@ async function valBadge(){const el=document.getElementById('badgeValidations');i
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',creer);else creer();
   setInterval(()=>{const u=CU?.id||null;if(u&&CP&&VAL.uid!==u){VAL.uid=u;VAL.charge=false;valChargerRegles().then(valBadge);}},1500);
   setInterval(()=>{if(CU?.id)valBadge();},60000);})();
+</script>
+<script>
+/* H TECH ACADEMY — Catalogue 2027 : parcours, modules, badges, certificats et examens sur simulateur.
+   Source unique partagée par le site, l'ERP, les simulateurs et la fonction academy-certifier. */
+var HTA27={
+ annee:2027,
+ parcours:[
+  {code:'GP',num:1,nom:'Gestion de projet',ref:'HTA-GP',prix:350000,heures:28,couleur:[21,101,192],simulateur:'gp',unite:'Module',
+   certificat:'Gestion de projets · Maîtrise des cinq processus',sousTitre:'28 HEURES · 5 MODULES VALIDÉS'},
+  {code:'PMO',num:2,nom:'Management de PMO',ref:'HTA-PMO',prix:250000,heures:28,couleur:[106,63,181],simulateur:'pmo',unite:'Module',
+   certificat:'Management de PMO · Un PMO créateur de valeur',sousTitre:'28 HEURES · 5 MODULES VALIDÉS'},
+  {code:'DUR',num:3,nom:'Management de projet durable',ref:'HTA-DUR',prix:350000,heures:24,couleur:[63,138,30],simulateur:'dur',unite:'Formation',
+   certificat:null,sousTitre:'24 HEURES · 4 FORMATIONS VALIDÉES'}],
+ modules:[
+  {code:'GP01',parcours:'GP',n:'01',nom:'Initiation',ref:'HTA-GP-01',heures:4,prix:150000,badge:'gp-01',couleur:[42,125,170],sel:[[1]]},
+  {code:'GP02',parcours:'GP',n:'02',nom:'Planification',ref:'HTA-GP-02',heures:8,prix:200000,badge:'gp-02',couleur:[38,110,60],sel:[[2]]},
+  {code:'GP03',parcours:'GP',n:'03',nom:'Exécution',ref:'HTA-GP-03',heures:6,prix:175000,badge:'gp-03',couleur:[201,140,36],sel:[[3]]},
+  {code:'GP04',parcours:'GP',n:'04',nom:'Suivi et monitoring',ref:'HTA-GP-04',heures:6,prix:175000,badge:'gp-04',couleur:[184,80,58],sel:[[4]]},
+  {code:'GP05',parcours:'GP',n:'05',nom:'Clôture',ref:'HTA-GP-05',heures:4,prix:150000,badge:'gp-05',couleur:[96,62,150],sel:[[5]]},
+  {code:'PMO01',parcours:'PMO',n:'01',nom:'Exploration',ref:'HTA-PMO-01',heures:4,prix:40000,badge:'pmo-01',couleur:[24,128,140],sel:[[1],[3,1]]},
+  {code:'PMO02',parcours:'PMO',n:'02',nom:'Conception',ref:'HTA-PMO-02',heures:8,prix:70000,badge:'pmo-02',couleur:[66,82,190],sel:[[2],[3,2],[3,3],[3,4]]},
+  {code:'PMO03',parcours:'PMO',n:'03',nom:'Déploiement',ref:'HTA-PMO-03',heures:6,prix:50000,badge:'pmo-03',couleur:[40,120,52],sel:[[4]]},
+  {code:'PMO04',parcours:'PMO',n:'04',nom:'Amélioration',ref:'HTA-PMO-04',heures:6,prix:50000,badge:'pmo-04',couleur:[220,126,40],sel:[[5,1],[5,2],[5,3]]},
+  {code:'PMO05',parcours:'PMO',n:'05',nom:'Réalisation',ref:'HTA-PMO-05',heures:4,prix:40000,badge:'pmo-05',couleur:[170,50,80],sel:[[5,4],[6]]},
+  {code:'DUR1',parcours:'DUR',n:'',nom:'Prendre les commandes',ref:'HTA-DUR-PILOTER',heures:8,prix:111000,badge:'dur-piloter',couleur:[44,96,150],sel:[[1]]},
+  {code:'DUR2',parcours:'DUR',n:'',nom:'Parler le langage ESG',ref:'HTA-DUR-ESG',heures:4,prix:68000,badge:'dur-esg',couleur:[34,110,64],sel:[[2]]},
+  {code:'DUR3',parcours:'DUR',n:'',nom:'Rendre vos projets durables',ref:'HTA-DUR-PRISM',heures:4,prix:68000,badge:'dur-prism',couleur:[26,130,130],sel:[[3]]},
+  {code:'DUR4',parcours:'DUR',n:'',nom:'Prouver votre impact',ref:'HTA-DUR-IMPACT',heures:8,prix:130000,badge:'dur-impact',couleur:[176,128,30],sel:[[4]]}],
+ attestations:[
+  {code:'CSPP',parcours:'DUR',nom:'Préparation CSPP™',ref:'HTA-CSPP',heures:24,badge:'atp-gpm'},
+  {code:'CSPPP',parcours:'DUR',nom:'Préparation CSPP™ · Practitioners',ref:'HTA-CSPP-PRAT',heures:16,badge:'atp-gpm'}],
+ examen:{questions:20,seuil:80,minutesParQuestion:1},
+ urlBadge:function(base,b){return String(base||'').replace(/\/?$/,'/')+'badges/pdf/'+b+'.png';},
+ module:function(c){return this.modules.find(function(m){return m.code===c;});},
+ parcoursDe:function(c){return this.parcours.find(function(p){return p.code===c;});},
+ modulesDe:function(p){return this.modules.filter(function(m){return m.parcours===p;});},
+ numeroLibelle:function(m){var p=this.parcoursDe(m.parcours);return (p.unite==='Module'?'Module '+m.n+' du parcours ':'Formation du parcours ')+p.nom+' H TECH ACADEMY';}
+};
+if(typeof module!=='undefined')module.exports=HTA27;
+
+/* ═══ Certificats H TECH ACADEMY 2027 : modèle « fin de formation » (module, formation, attestation)
+   et rangée de badges du certificat de fin de parcours. Code partagé ERP / fonction academy-certifier. ═══ */
+function hta27Badge(doc,img,cx,cy,d,repli){
+  if(img){try{doc.addImage(img,'PNG',cx-d/2,cy-d/2,d,d);return;}catch(e){}}
+  // Badge de secours dessiné (si l'image n'est pas disponible)
+  const c=(repli&&repli.couleur)||[10,42,102];
+  doc.setFillColor(201,168,92);doc.circle(cx,cy,d/2,'F');doc.setFillColor(14,30,66);doc.circle(cx,cy,d/2-d*0.04,'F');
+  doc.setFillColor(...c);doc.circle(cx,cy,d*0.31,'F');doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');
+  doc.setFontSize(d*0.9);doc.text(String((repli&&repli.n)||''),cx,cy+d*0.06,{align:'center'});
+  doc.setFontSize(d*0.17);doc.text(String((repli&&repli.nom)||'').toUpperCase().slice(0,18),cx,cy+d*0.2,{align:'center'});
+}
+function hta27RangeeBadges(doc,imgs,y,d,W,repli){
+  const n=imgs.length;if(!n)return;const gap=d*0.32,tot=n*d+(n-1)*gap;let x=(W-tot)/2+d/2;
+  imgs.forEach((im,i)=>{hta27Badge(doc,im,x,y,d,repli&&repli[i]);x+=d+gap;});
+}
+function hta27DessinerFin(doc,c,R){
+  // c : numero, titulaire, formation_titre, heures, date_obtention, periode_debut, periode_fin, lieu, _module, _parcours, _s1, _s2, type_certificat
+  const W=297,H=210,P=R.P,NAVY=[10,42,102],BLEU=[29,74,140],VERT=[38,110,60],GRIS=[70,78,92],CLAIR=[150,158,172];
+  const m=c._module||{},p=c._parcours||{},att=c.type_certificat==='attestation';
+  const dfr=R.dfr;
+  doc.setFillColor(255,255,255);doc.rect(0,0,W,H,'F');
+  doc.setFillColor(...NAVY);doc.rect(0,0,W,4.5,'F');doc.rect(0,H-4.5,W,4.5,'F');
+  doc.setDrawColor(...NAVY);doc.setLineWidth(0.5);doc.rect(9,10,W-18,H-20,'S');
+  // Logo H TECH ACADEMY (marque) ou pavé de secours
+  if(R.logoAcademy){try{const pr=doc.getImageProperties(R.logoAcademy),k=Math.min(26/pr.width,22/pr.height);
+      doc.addImage(R.logoAcademy,/^data:image\/png/i.test(R.logoAcademy)?'PNG':'JPEG',17,15,pr.width*k,pr.height*k);}catch(e){}}
+  else{doc.setFillColor(...NAVY);doc.roundedRect(17,15,24,22,2,2,'F');doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(8.4);
+    doc.text('H TECH',29,26,{align:'center'});doc.setTextColor(120,190,255);doc.setFontSize(6.4);doc.text('ACADEMY',29,30,{align:'center'});}
+  doc.setFont('helvetica','bold');doc.setFontSize(24);doc.setTextColor(...NAVY);doc.text('H TECH INNOV',W/2,25,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GRIS);
+  doc.text(P('Riviera Cocody – Jules Verne, Abidjan, Côte d’Ivoire · www.htechinnov.com'),W/2,31,{align:'center'});
+  // Pavé de droite
+  doc.setFillColor(...VERT);doc.roundedRect(W-62,15,45,20,1.6,1.6,'F');doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');doc.setFontSize(6.2);doc.text(att?'ATTESTATION':'FORMATION',W-39.5,21,{align:'center'});doc.text('H TECH ACADEMY',W-39.5,24.6,{align:'center'});
+  doc.setFontSize(11);doc.text(P(att?'CSPP™':(m.n?'MODULE '+m.n:'DURABILITÉ')),W-39.5,31,{align:'center'});
+  // Titre et titulaire
+  doc.setFont('times','normal');doc.setFontSize(33);doc.setTextColor(...BLEU);doc.text(P(att?'Attestation de préparation':'Certificat de fin de formation'),W/2,50,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...GRIS);doc.text(P(att?'Cette attestation est délivrée à':'Ce certificat est décerné à'),W/2,57,{align:'center'});
+  doc.setFont('times','normal');let tn=27;doc.setFontSize(tn);while(doc.getTextWidth(P(c.titulaire||''))>190&&tn>16){tn--;doc.setFontSize(tn);}
+  doc.setTextColor(...NAVY);doc.text(P(c.titulaire||''),W/2,68,{align:'center'});
+  doc.setDrawColor(...CLAIR);doc.setLineWidth(0.3);doc.line(W/2-70,71,W/2+70,71);
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...GRIS);doc.text(P('pour avoir suivi avec succès la formation'),W/2,77.5,{align:'center'});
+  doc.setFont('helvetica','bold');let tf=19;doc.setFontSize(tf);while(doc.getTextWidth(P(c.formation_titre||''))>220&&tf>12){tf--;doc.setFontSize(tf);}
+  doc.setTextColor(...NAVY);doc.text(P(c.formation_titre||''),W/2,86,{align:'center'});
+  const ligne=att?'Préparation à la certification PMI-GPM CSPP™, parcours Management de projet durable H TECH ACADEMY':(m.code?R.libelleModule(m):'');
+  if(ligne){doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...GRIS);doc.text(P(ligne),W/2,92.5,{align:'center'});}
+  // Badge
+  hta27Badge(doc,R.badge,W/2,113,32,m);
+  // Informations
+  const info=(lbl,val,x,y,al)=>{doc.setFontSize(9.2);doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);const a=P(lbl)+' : ';
+    doc.setFont('helvetica','bold');const wa=doc.getTextWidth(a);doc.setFont('helvetica','normal');const wv=doc.getTextWidth(P(val));
+    const x0=al==='right'?x-wa-wv:x;doc.setFont('helvetica','bold');doc.text(a,x0,y);doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(val),x0+wa,y);};
+  const h=c.heures||(m.heures?m.heures+' heures':'');
+  info('Durée de la formation',h||'—',24,108);
+  if(p.heures&&m.heures)info('Parcours',m.heures+' h sur '+p.heures+' h',24,115);
+  const d1=c.periode_debut||c.date_obtention,d2=c.periode_fin||c.date_obtention;
+  info('Période',d1&&d2&&d1!==d2?'du '+dfr(d1)+' au '+dfr(d2):'le '+dfr(d2),W-24,108,'right');
+  info('Lieu',c.lieu||'Abidjan / à distance',W-24,115,'right');
+  doc.setFont('helvetica','normal');doc.setFontSize(7.4);doc.setTextColor(...GRIS);
+  doc.text(P(att?'Attestation délivrée par H TECH ACADEMY, partenaire de formation agréé (ATP) GPM. Elle ne constitue pas la certification CSPP™ délivrée par PMI après l’examen Pearson VUE.'
+    :'Formation dispensée par H TECH ACADEMY, marque de formation de H TECH INNOV, et validée par un examen sur le simulateur H TECH ACADEMY.'),W/2,137,{align:'center'});
+  // Pied : numéro, signatures, QR
+  doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(P('Certificat n° '+(c.numero||'')),20,163);
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.text(P('Délivré à Abidjan le '+dfr(c.date_obtention)),20,168.5);
+  const sig=(s,lbl,org,x)=>{doc.setDrawColor(...CLAIR);doc.setLineWidth(0.3);doc.line(x-27,155,x+27,155);
+    doc.setFont('helvetica','bold');doc.setFontSize(8.8);doc.setTextColor(...NAVY);doc.text(P(lbl),x,161,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.text(P(s&&s.nom?s.nom:org),x,166,{align:'center'});
+    if(s&&s.nom)doc.text(P(org),x,170.5,{align:'center'});};
+  sig(c._s1,'Le formateur','H TECH ACADEMY',118);sig(c._s2,'La direction','H TECH INNOV',196);
+  try{const q=R.qrcode(0,'M');q.addData(R.urlVerif);q.make();const n=q.getModuleCount(),sz=21,mm=sz/n,qx=W-22-sz,qy=148;
+    doc.setFillColor(...NAVY);for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(q.isDark(r,k))doc.rect(qx+k*mm,qy+r*mm,mm+0.02,mm+0.02,'F');
+    doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P('Vérifier en ligne'),qx+sz/2,qy+sz+3.4,{align:'center'});
+    doc.link(qx,qy,sz,sz,{url:R.urlVerif});}catch(e){}
+  doc.setDrawColor(225,229,236);doc.setLineWidth(0.25);doc.line(16,180,W-16,180);
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);
+  doc.text(P(att?'Ce document atteste du suivi de la préparation CSPP™ et de la réussite à l’examen sur le simulateur H TECH ACADEMY.'
+    :'Ce document atteste du suivi de la formation et de la réussite à l’examen '+(m.n?'du module '+m.n+' « '+(m.nom||c.formation_titre)+' »':'de la formation « '+(m.nom||c.formation_titre)+' »')+' sur le simulateur H TECH ACADEMY.'),W/2,186,{align:'center'});
+  return doc;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// H TECH ACADEMY — Catalogue 2027 dans l'ERP : certificats par module, fin de parcours, badges,
+// examens de module réussis à certifier, PDF manquants
+// ══════════════════════════════════════════════════════════════════════
+var HTA27_IMG={};
+async function hta27Img(nom){
+  if(!nom)return null;if(nom in HTA27_IMG)return HTA27_IMG[nom];
+  try{const r=await fetch(ACAD_URL_SITE+'badges/pdf/'+nom,{cache:'force-cache'});if(!r.ok)throw new Error(r.status);const b=await r.blob();
+    HTA27_IMG[nom]=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res(null);fr.readAsDataURL(b);});}
+  catch(e){HTA27_IMG[nom]=null;}
+  return HTA27_IMG[nom];
+}
+function hta27Info(code){
+  if(!code)return null;const m=HTA27.module(code);if(m)return{type:'module',m,p:HTA27.parcoursDe(m.parcours)};
+  const p=HTA27.parcoursDe(code);if(p)return{type:'parcours',p};
+  const a=HTA27.attestations.find(x=>'ATT-'+x.code===code);if(a)return{type:'attestation',a,p:HTA27.parcoursDe(a.parcours)};
+  return null;
+}
+function hta27Dfr(d){return d?new Date(String(d).slice(0,10)+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';}
+async function hta27DessinerERP(c){
+  await htaLibs();const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape'});
+  const i=hta27Info(c.catalogue_code)||{},m=i.m||{},p=i.p||{},badge=m.badge||(i.a&&i.a.badge)||'';
+  const logo=(typeof MARQUES_IMG!=='undefined'&&MARQUES_IMG&&MARQUES_IMG.academy)||await hta27Img('logo-academy.jpg');
+  hta27DessinerFin(doc,{...c,_module:c.type_certificat==='module'?{code:m.code,n:m.n,nom:m.nom,heures:m.heures,couleur:m.couleur,parcours:m.parcours}:{},_parcours:{nom:p.nom,heures:p.heures}},
+    {P:pdfT,dfr:hta27Dfr,qrcode:window.qrcode,urlVerif:htaUrlVerif(c.numero||''),badge:await hta27Img(badge+'.png'),logoAcademy:logo,libelleModule:x=>HTA27.numeroLibelle(x)});
+  return doc;
+}
+async function hta27PreparerParcours(c){
+  const i=hta27Info(c.catalogue_code);if(!i||i.type!=='parcours')return;
+  const L=HTA27.modulesDe(i.p.code);c._badges=[];for(const m of L)c._badges.push(await hta27Img(m.badge+'.png'));
+  c._repli=L.map(m=>({n:m.n,nom:m.nom,couleur:m.couleur}));
+  if(!/valid/i.test(c.heures||''))c.heures=(c.heures||i.p.heures+' heures')+' · '+L.length+' '+(i.p.unite==='Module'?'modules validés':'formations validées');
+  c.niveau=null;
+}
+async function hta27Numero(c){
+  const{data,error}=await sb.rpc('hta_prochain_numero_serie',{p_serie:c.catalogue_code,p_type:c.type_certificat==='parcours'?'parcours':'module'});
+  if(error||!data)throw new Error('Numérotation 2027 indisponible : exécutez migration-catalogue-2027.sql ('+(error?.message||'')+')');
+  return data;
+}
+function hta27NumeroApercu(c){const a=(c.date_obtention||isoJour()).slice(0,4),k=String(c.catalogue_code).replace('ATT-','');
+  return c.type_certificat==='parcours'?'HTA-'+a+'-'+k+'-APERÇU':'HTA-'+k+'-'+a+'-APERÇU';}
+function hta27Options(sel){
+  return '<option value="">Formation — modèle classique (saisie libre)</option>'+HTA27.parcours.map(p=>`<optgroup label="Parcours ${p.num} · ${esc(p.nom)}">`
+    +(p.certificat?`<option value="${p.code}" ${sel===p.code?'selected':''}>🏆 Certification de fin de parcours — ${esc(p.certificat)}</option>`:'')
+    +HTA27.modulesDe(p.code).map(m=>`<option value="${m.code}" ${sel===m.code?'selected':''}>🏅 ${m.n?'Module '+m.n+' · ':'Formation · '}${esc(m.nom)}</option>`).join('')
+    +HTA27.attestations.filter(a=>a.parcours===p.code).map(a=>`<option value="ATT-${a.code}" ${sel==='ATT-'+a.code?'selected':''}>📜 Attestation — ${esc(a.nom)}</option>`).join('')
+    +'</optgroup>').join('');
+}
+function hta27Choisir(initial){
+  const el=document.getElementById('htK');if(!el)return;const i=hta27Info(el.value),img=document.getElementById('htBadge');
+  document.querySelectorAll('.ht27f').forEach(x=>x.style.display=i&&i.type!=='parcours'?'':'none');
+  const b=i?(i.m?i.m.badge:i.a?i.a.badge:null):null;
+  if(img){if(b){img.src=ACAD_URL_SITE+'badges/'+(b==='atp-gpm'?'atp-gpm':b)+'.webp';img.style.display='';}else img.style.display='none';}
+  if(!i||initial&&window._HTA_P&&window._HTA_P.formation_titre&&!window._HTA_P.catalogue_code)return;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
+  if(i.type==='module'){set('htF',i.m.nom);set('htH',i.m.heures+' heures');}
+  else if(i.type==='parcours'){set('htF',i.p.certificat);set('htH',i.p.heures+' heures');}
+  else{set('htF',i.a.nom);set('htH',i.a.heures+' heures');}
+  set('htV','aucune');set('htN','');
+}
+function hta27LireForm(){
+  const v=(document.getElementById('htK')||{}).value||'',i=hta27Info(v);
+  if(!i)return{type_certificat:'formation',catalogue_code:null};
+  return{type_certificat:i.type,catalogue_code:v,periode_debut:gv('htP1')||null,periode_fin:gv('htP2')||null,lieu:g('htL')||null,
+};
+}
+function hta27Vignette(c){
+  const i=hta27Info(c.catalogue_code);if(!i)return '';
+  const b=i.m?i.m.badge:i.a?i.a.badge:null,lib={module:i.p&&i.p.unite==='Formation'?'Formation':'Module',parcours:'Fin de parcours',attestation:'Attestation'}[i.type];
+  return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">${b?`<img src="${esc(ACAD_URL_SITE+'badges/'+b+'.webp')}" alt="" width="26" height="26" style="border-radius:50%" onerror="this.remove()">`:'🏆'}<span class="badge badge-blue" style="font-size:10.5px">${esc(lib)}${i.p?' · '+esc(i.p.nom):''}</span></div>`;
+}
+async function hta27Sections(){
+  let R=[],err=null;try{const r=await sb.rpc('hta_reussites_a_certifier');if(r.error)err=r.error;R=r.data||[];}catch(e){err=e;}
+  window.HTA27_REUSS=R;
+  const nb=code=>HTA_ROWS.filter(c=>c.catalogue_code===code&&c.statut==='valide').length;
+  const sansPdf=HTA_ROWS.filter(c=>c.statut==='valide'&&!c.fichier_path);
+  const img=(b,t)=>b?`<img src="${esc(ACAD_URL_SITE+'badges/'+b+'.webp')}" alt="" width="${t||44}" height="${t||44}" style="border-radius:50%;vertical-align:middle" onerror="this.style.visibility='hidden'">`:'';
+  return `<div class="card" style="margin-bottom:14px;border-left:4px solid #3F8A1E"><div class="card-title">🏅 Catalogue 2027 : badges et certificats par parcours</div>
+    <div class="cell-sub">Chaque module réussi à 80 % sur le simulateur donne un badge et un certificat (n° HTA-GP01-AAAA-00001), délivrés automatiquement aux apprenants connectés et déposés dans leur espace. Les modules du parcours tous validés donnent la certification de fin de parcours (n° HTA-AAAA-GP-000001), sans date d’expiration. Un examen annulé par la surveillance annule le certificat correspondant.</div>
+    ${HTA27.parcours.map(p=>`<div style="margin-top:14px"><b>Parcours ${p.num} · ${esc(p.nom)}</b>${p.certificat?` <span class="cell-sub" style="display:inline">— certification de fin de parcours : ${nb(p.code)} délivrée(s)</span>`:''}
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">${HTA27.modulesDe(p.code).map(m=>`<div style="text-align:center;width:104px">${img(m.badge,52)}<div style="font-size:11.5px;line-height:1.25;margin-top:4px;font-weight:600">${esc(m.nom)}</div><div class="cell-sub" style="margin:0">${nb(m.code)} certificat(s)</div></div>`).join('')}</div></div>`).join('')}
+  </div>
+  ${err?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ Exécutez <b>migration-catalogue-2027.sql</b> dans Supabase pour activer les certificats par module (${esc(err.message||String(err))}).</div>`
+  :`<div class="card" style="margin-bottom:14px;border-left:4px solid ${R.length?'#D97706':'var(--g200)'}"><div class="card-title" style="margin:0">🎯 Examens de module réussis, à certifier (${R.length})</div>
+    <div class="cell-sub" style="margin:4px 0 8px">Accès par code (sans compte) ou délivrance automatique interrompue. Vérifiez le nom du titulaire avant de délivrer.</div>
+    ${R.map((x,k)=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--g100)">
+      <div style="display:flex;gap:10px;align-items:center">${img((HTA27.module(x.module)||{}).badge,40)}<div><b>${esc(x.titulaire||'—')}</b> <span class="cell-sub" style="display:inline">${x.compte?'compte apprenant':'code d’accès'}${x.email?' · '+esc(x.email):''}</span>
+      <div class="cell-sub" style="margin:0">${esc(x.module_nom||x.module)} · ${esc(String(x.pct))} % · ${esc(fmtD(x.date_examen))}</div></div></div>
+      <button class="btn btn-primary btn-sm" onclick="hta27Delivrer(${k})">🏅 Délivrer</button></div>`).join('')||'<div class="cell-sub">Aucun examen en attente.</div>'}</div>`}
+  ${sansPdf.length?`<div class="card" style="margin-bottom:14px;border-left:4px solid #1565C0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+    <div>📄 <b>${sansPdf.length} certificat(s) sans PDF</b><div class="cell-sub" style="margin:0">Délivrés après un examen sur le simulateur, PDF en attente (fonction academy-certifier non redéployée ou momentanément indisponible).</div></div>
+    <button class="btn btn-outline btn-sm" onclick="hta27PdfManquants()">📄 Générer les PDF</button></div>`:''}`;
+}
+async function hta27Delivrer(k){
+  const x=(window.HTA27_REUSS||[])[k];if(!x)return;
+  const nom=prompt('Nom du titulaire, tel qu’il figurera sur le certificat « '+(x.module_nom||x.module)+' » :',x.titulaire||'');if(nom===null)return;
+  if(!String(nom).trim()){toast('❌ Nom du titulaire requis');return;}
+  const{data,error}=await sb.rpc('hta_certifier_tentative',{p_tentative:x.tentative_id,p_titulaire:String(nom).trim()});
+  if(error){toast('❌ '+error.message,9000);return;}
+  if(data&&data.eligible===false){toast('ℹ️ '+(data.raison||'Non éligible'),8000);return;}
+  const L=((data&&data.certificats)||[]).filter(c=>c.nouveau);
+  try{logAudit('certificat_hta','hta_certificats',L.map(c=>c.numero).join(', '),{titulaire:nom,module:x.module});}catch(e){}
+  await hta27PdfManquants(true);
+  toast(L.length?'✅ Délivré : '+L.map(c=>c.numero).join(', '):'ℹ️ Ce module était déjà certifié pour ce titulaire',8000);
+  v4Render('academy-certificats');
+}
+async function hta27PdfManquants(silence){
+  const{data,error}=await sb.from('hta_certificats').select('*').eq('statut','valide').is('fichier_path',null);
+  if(error){if(!silence)toast('❌ '+error.message);return;}
+  let ok=0;
+  for(const c of data||[]){
+    try{const doc=await htaDessiner(await htaPreparerSignataires({...c})),chemin='certificats-hta/'+c.numero+'.pdf';
+      const up=await sb.storage.from(HTA_BUCKET).upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
+      if(!up.error){await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',c.id);ok++;}}
+    catch(e){logErr(e);}
+  }
+  if(!silence){toast('✅ '+ok+' PDF généré(s) et déposé(s) dans les espaces apprenants',6000);v4Render('academy-certificats');}
+}
+
 </script>
 </body>
 </html>
