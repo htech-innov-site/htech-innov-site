@@ -13712,7 +13712,7 @@ async function academyEcrire(id,type){
 
 // ── Formations : catalogue de l'Academy, y compris vos formations sur mesure ──
 v4Def('academy-formations',{table:'produits',where:{type_article:'formation'},titre:'Formations',icone:'📚',
-  sousTitre:'Catalogue 2027 de H TECH ACADEMY : 3 parcours certifiants (références HTA-…), leurs modules et les certifications PMI-GPM et GPM. Les anciennes formations sont archivées. Le site affiche les 3 parcours ; les tarifs saisis ici pour les références HTA-… y sont repris.',
+  sousTitre:'Catalogue 2027 de H TECH ACADEMY : 3 parcours certifiants (références HTA-…), leurs modules et les certifications PMI-GPM et GPM. Les anciennes formations sont archivées. Le site affiche les 3 parcours et les certifications PMI-GPM et GPM (offre séparée) ; les tarifs saisis ici pour les références HTA-… y sont repris.',
   nouveau:'Nouvelle formation',large:1,ordre:'designation',asc:true,recherche:['designation','reference','categorie','description'],
   champs:[{k:'designation',l:'Intitulé de la formation',req:1},{k:'reference',l:'Référence (laissée vide = générée automatiquement)',ph:'HTI-FO-EXCEL'},
     {k:'categorie',l:'Domaine',t:'select',o:['Parcours 1 · Gestion de projet','Parcours 2 · Management de PMO','Parcours 3 · Management de projet durable','Certifications PMI-GPM et GPM','Formations inter-entreprises','Formation intra-entreprise','Formation sur mesure','Gestion de projet','Agilité','Durabilité et ESG','Gouvernance et PMO','Bureautique et outils','Management et leadership','Sécurité électronique','Cybersécurité','Autre'],def:'Formation sur mesure'},
@@ -15984,7 +15984,7 @@ async function htaDessiner(c){
   await htaLibs();
   const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape'});
   if(window._HTA_SCRIPT_FONT){try{doc.addFileToVFS('GreatVibes.ttf',window._HTA_SCRIPT_FONT);doc.addFont('GreatVibes.ttf','GreatVibes','normal');}catch(e){window._HTA_SCRIPT_FONT=null;}}
-  const W=297,H=210,P=pdfT;
+  const W=297,H=210,EN=c._lang==='en',P=t=>pdfT(EN?htaEN(t):t),TF=EN?(c.formation_titre_en||htaEN(c.formation_titre||'')):(c.formation_titre||'');
   const BRUN=[59,42,32],TAN=[184,151,122],BRONZE=[139,107,78],NAVY=[10,42,102],GRIS=[75,80,92],CREME=[255,252,246];
   const espace=(t,cs,x,y,size,font,col,align)=>{doc.setFont(font[0],font[1]);doc.setFontSize(size);doc.setTextColor(...col);doc.setCharSpace(cs);
     const w=doc.getTextWidth(t)+cs*(t.length-1);const xx=align==='center'?x-w/2:align==='right'?x-w:x;doc.text(t,xx,y);doc.setCharSpace(0);return w;};
@@ -16011,14 +16011,14 @@ async function htaDessiner(c){
     if(c._part.lien){doc.setFont('helvetica','normal');doc.setFontSize(6.4);doc.setTextColor(21,101,192);const site=String(c._part.lien).replace(/^https?:\/\//,'').replace(/\/$/,'');doc.text(P(site),xc,yy+0.8,{align:'center'});doc.link(xc-LW/2,yy-2,LW,3.6,{url:c._part.lien});yy+=3.2;}
     if(atp&&c._part.agrement){doc.setFont('helvetica','bold');doc.setFontSize(6.2);doc.setTextColor(...BRONZE);doc.text(P('N° d’agrément : '+c._part.agrement),xc,yy+0.8,{align:'center'});}}
   // Titre
-  espace('CERTIFICAT',1.6,W/2,53,40,['times','bold'],BRUN,'center');
+  espace(P('CERTIFICAT'),1.6,W/2,53,40,['times','bold'],BRUN,'center');
   espace(P('EST DÉCERNÉ À'),2.2,W/2,62,9,['helvetica','normal'],GRIS,'center');
   doc.setFont('times','bold');let tn=34;doc.setFontSize(tn);while(doc.getTextWidth(P(c.titulaire))>215&&tn>20){tn--;doc.setFontSize(tn);}
   doc.setTextColor(...NAVY);doc.text(P(c.titulaire),W/2,76.5,{align:'center'});
   doc.setFont('helvetica','normal');doc.setFontSize(10.2);doc.setTextColor(...GRIS);
   doc.text(doc.splitTextToSize(P('qui a suivi avec assiduité la formation ci-dessous, en a satisfait les évaluations et a démontré la maîtrise des compétences attendues.'),180),W/2,84.5,{align:'center',lineHeightFactor:1.45});
-  doc.setFont('times','bold');let tf=22;doc.setFontSize(tf);while(doc.getTextWidth(P(c.formation_titre))>230&&tf>13){tf--;doc.setFontSize(tf);}
-  doc.setTextColor(...BRUN);doc.text(P(c.formation_titre),W/2,101,{align:'center'});
+  doc.setFont('times','bold');let tf=22;doc.setFontSize(tf);while(doc.getTextWidth(pdfT(TF))>230&&tf>13){tf--;doc.setFontSize(tf);}
+  doc.setTextColor(...BRUN);doc.text(pdfT(TF),W/2,101,{align:'center'});
   const sous=[c.heures?String(c.heures).toUpperCase():'',c.niveau?('NIVEAU '+String(c.niveau).toUpperCase()):''].filter(Boolean).join('  ·  ');
   if(sous)espace(P(sous),1.3,W/2,108,8.6,['helvetica','bold'],BRONZE,'center');
   if(c._badges&&c._badges.length)hta27RangeeBadges(doc,c._badges,121,14,W,c._repli);
@@ -16054,7 +16054,7 @@ async function htaDessiner(c){
   await sig(c._s1,28,108);await sig(c._s2,189,269);
   // Pied : numéro, dates, QR
   const bloc=(lbl,val,x)=>{espace(P(lbl),1.1,x,182.5,7.3,['helvetica','normal'],BRONZE);doc.setFont('helvetica','bold');doc.setFontSize(10.8);doc.setTextColor(...BRUN);doc.text(P(val),x,188.5);};
-  const dfr=d=>d?new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';
+  const dfr=d=>d?new Date(d+'T12:00:00').toLocaleDateString(EN?'en-GB':'fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';
   bloc('N° DE CERTIFICAT',c.numero||'',28);bloc("DATE D'OBTENTION",dfr(c.date_obtention),103);bloc("VALABLE JUSQU'AU",c.date_validite?dfr(c.date_validite):'Sans date d’expiration',178);
   try{const q=qrcode(0,'M');q.addData(htaUrlVerif(c.numero||''));q.make();const n=q.getModuleCount(),sz=19,m=sz/n,qx=W-27-sz,qy=173;
     doc.setFillColor(255,255,255);doc.rect(qx-1,qy-1,sz+2,sz+2,'F');doc.setFillColor(...NAVY);
@@ -16100,6 +16100,7 @@ async function htaCreer(c,opts){
     statut:'valide',created_by:uid()};
   if(c.catalogue_code&&c.type_certificat&&c.type_certificat!=='formation'){row.type_certificat=c.type_certificat;row.catalogue_code=c.catalogue_code;
     row.periode_debut=c.periode_debut||null;row.periode_fin=c.periode_fin||null;row.lieu=c.lieu||null;}
+  if(c.formation_titre_en)row.formation_titre_en=c.formation_titre_en;
   if(c.partenaire_id){row.partenaire_id=c.partenaire_id;row.partenaire_nom=c.partenaire_nom||null;row.partenaire_lien=c.partenaire_lien||null;row.partenaire_type=c.partenaire_type||null;row.partenaire_agrement=c.partenaire_agrement||null;}
   let{data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single();
   if(error&&/partenaire_/.test(error.message)){toast('⚠ Partenaire non enregistré : exécutez migration-partenaires-certificats-rapports.sql',8000);['partenaire_id','partenaire_nom','partenaire_lien','partenaire_type','partenaire_agrement'].forEach(k=>delete row[k]);({data:ins,error}=await sb.from('hta_certificats').insert(row).select('id').single());}
@@ -16108,6 +16109,7 @@ async function htaCreer(c,opts){
   const blob=doc.output('blob'),chemin='certificats-hta/'+row.numero+'.pdf';
   const up=await sb.storage.from(HTA_BUCKET).upload(chemin,blob,{contentType:'application/pdf',upsert:true});
   if(!up.error)await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',ins.id);
+  try{await htaDeposerPdf({...row,id:ins.id},'en');}catch(e){logErr(e);}
   if(row.inscription_id)await sb.from('academy_inscriptions').update({statut:'terminee',date_fin:row.date_obtention}).eq('id',row.inscription_id);
   try{logAudit('certificat_hta','hta_certificats',row.numero,{titulaire:row.titulaire,formation:row.formation_titre});}catch(e){}
   if(!opts.silencieux)doc.save(pdfT('Certificat-'+row.numero+'-'+String(row.titulaire).replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');
@@ -16136,6 +16138,7 @@ async function htaForm(p){
         <div class="cell-sub">Module ou formation du parcours (badge, modèle « fin de formation »), certification de fin de parcours (badges des modules) ou attestation CSPP™.</div></div>
       <div class="form-field full"><label for="htT">Titulaire (tel qu’il apparaîtra) *</label><input id="htT" value="${esc(p.titulaire||'')}"></div>
       <div class="form-field full"><label for="htF">Formation *</label><input id="htF" value="${esc(p.formation_titre||'')}"></div>
+      <div class="form-field full"><label for="htFe">Intitulé en anglais (version anglaise du certificat)</label><input id="htFe" value="${esc(p.formation_titre_en||'')}" placeholder="Laisser vide : traduction automatique pour le catalogue 2027, sinon intitulé français"></div>
       <div class="form-field"><label for="htH">Volume</label><input id="htH" value="${esc(p.heures||'')}" placeholder="30 heures"></div>
       <div class="form-field"><label for="htN">Niveau</label><select id="htN"><option value="">—</option>${HTA_NIVEAUX.map(n=>`<option ${n===p.niveau?'selected':''}>${n}</option>`).join('')}</select></div>
       <div class="form-field"><label for="htD">Date d’obtention *</label><input id="htD" type="date" value="${esc(p.date_obtention||isoJour())}"></div>
@@ -16226,7 +16229,7 @@ v4Def('academy-certificats',{titre:'Certificats',icone:'🎓',custom:async pg=>{
   ${HTA_ROWS.map(c=>`<tr><td><code style="font-size:10.5px">${esc(c.numero)}</code></td><td><strong>${esc(c.titulaire)}</strong></td><td style="font-size:12px">${hta27Vignette(c)}${esc(c.formation_titre)}<div class="cell-sub">${esc([c.heures,c.niveau].filter(Boolean).join(' · '))}</div>${c.partenaire_nom?`<div class="cell-sub" style="color:#1565C0">🤝 ${esc(c.partenaire_nom)}</div>`:''}</td>
     <td style="font-size:12px">${fmtD(c.date_obtention)}</td><td style="font-size:12px">${c.date_validite?fmtD(c.date_validite)+(expire(c)?' <span style="color:#D97706">(expiré)</span>':''):'Sans expiration'}</td>
     <td><select onchange="htaStatut('${c.id}',this.value)" style="font-size:11.5px;padding:3px 6px;border-radius:8px;border:1px solid var(--g200);color:${(st[c.statut]||st.valide)[1]};font-weight:600">${Object.entries(st).map(([k,v])=>`<option value="${k}" ${k===c.statut?'selected':''}>${v[0]}</option>`).join('')}</select></td>
-    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="htaModifier('${c.id}')" title="Modifier le certificat">✏️</button><button class="btn btn-outline btn-sm" onclick="htaPdf('${c.id}')" title="Télécharger le PDF">📄</button><a class="btn btn-outline btn-sm" href="${esc(htaUrlVerif(c.numero))}" target="_blank" title="Vérifier en ligne">🔗</a><button class="btn btn-outline btn-sm" onclick="htaSupprimer('${c.id}')" title="Supprimer définitivement">🗑</button></div>${c.motif_statut&&c.statut!=='valide'?`<div class="cell-sub">Motif : ${esc(c.motif_statut)}</div>`:''}${c.modifie_le?`<div class="cell-sub">Modifié le ${fmtD(c.modifie_le)}</div>`:''}</td></tr>`).join('')
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-outline btn-sm" onclick="htaModifier('${c.id}')" title="Modifier le certificat">✏️</button><button class="btn btn-outline btn-sm" onclick="htaPdf('${c.id}')" title="Télécharger le PDF (français ou anglais)">📄 FR/EN</button><a class="btn btn-outline btn-sm" href="${esc(htaUrlVerif(c.numero))}" target="_blank" title="Vérifier en ligne">🔗</a><button class="btn btn-outline btn-sm" onclick="htaSupprimer('${c.id}')" title="Supprimer définitivement">🗑</button></div>${c.motif_statut&&c.statut!=='valide'?`<div class="cell-sub">Motif : ${esc(c.motif_statut)}</div>`:''}${c.modifie_le?`<div class="cell-sub">Modifié le ${fmtD(c.modifie_le)}</div>`:''}</td></tr>`).join('')
     ||'<tr><td colspan="7" style="text-align:center;color:var(--g400);padding:16px">Aucun certificat délivré.</td></tr>'}
   </tbody></table></div></div>
   <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="card-title" style="margin:0">✍️ Signataires</div><button class="btn btn-outline btn-sm" onclick="htaSignForm()">+ Ajouter un signataire</button></div>
@@ -16288,6 +16291,7 @@ async function htaModifValider(){
     const chemin=c.fichier_path||('certificats-hta/'+c.numero+'.pdf');
     const up=await sb.storage.from(HTA_BUCKET).upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
     if(!up.error&&!c.fichier_path)await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',c.id);
+    try{await htaDeposerPdf({...n},'en');}catch(e){logErr(e);}
     try{logAudit('modification_certificat','hta_certificats',c.numero,{avant:{titulaire:c.titulaire,formation:c.formation_titre,date_validite:c.date_validite},apres:m});}catch(e){}
     toast('✅ Certificat '+c.numero+' modifié'+(up.error?' (PDF non remplacé : '+up.error.message+')':' et PDF remplacé'),6000);closeModal();v4Render('academy-certificats');
   }catch(e){b.disabled=false;b.textContent='💾 Enregistrer et régénérer';toast('❌ '+e.message,9000);}
@@ -16301,16 +16305,6 @@ async function htaSupprimer(id){
   const{error}=await sb.from('hta_certificats').delete().eq('id',id);if(error){toast('❌ '+error.message);return;}
   try{logAudit('suppression_certificat','hta_certificats',c.numero,{titulaire:c.titulaire,formation:c.formation_titre});}catch(e){}
   toast('Certificat '+c.numero+' supprimé',5000);v4Render('academy-certificats');
-}
-async function htaPdf(id){
-  const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;
-  if(c.fichier_path){const{data,error}=await sb.storage.from(HTA_BUCKET).createSignedUrl(c.fichier_path,600);if(!error&&data?.signedUrl){window.open(data.signedUrl,'_blank');return;}}
-  // PDF absent (ancien stockage, envoi échoué) : régénération, enregistrement, téléchargement
-  const doc=await htaDessiner(await htaPreparerSignataires({...c})),chemin='certificats-hta/'+c.numero+'.pdf';
-  const up=await sb.storage.from(HTA_BUCKET).upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
-  if(!up.error){await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',c.id);c.fichier_path=chemin;}
-  else toast('⚠️ PDF non enregistré dans le stockage : '+up.error.message+' — exécutez migration-certificats-hta.sql',9000);
-  doc.save(pdfT('Certificat-'+c.numero+'-'+String(c.titulaire||'').replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');
 }
 function htaSignForm(id){
   const s=id?HTA_SIGN.find(x=>x.id===id):{ordre:HTA_SIGN.filter(x=>!String(x.id).startsWith('d')).length+1};
@@ -21134,7 +21128,7 @@ async function erpSimRapport(id){
     else if(c){partId=c.partenaire_id||null;acces='code';}
     const px=(PART_LISTE||[]).find(x=>x.id===partId);
     const infos={titulaire:p?((p.prenom||'')+' '+(p.nom||'')).trim():c?((c.prenom||'')+' '+(c.nom||'')).trim():'—',email:p?.email||c?.email||'',acces,
-      simulateur:(S.find(x=>x.code===simc)||{}).nom||(simc==='gp'?'Simulateur Gestion de projet':simc==='dur'?'Simulateur Management de projet durable':'Simulateur Management de PMO'),signataires:(HTA_SIGN||[]).slice(0,2).map(s=>({nom:s.nom,fonction:s.fonction||''})),
+      simulateur:(S.find(x=>x.code===simc)||{}).nom||(simc==='gp'?'Simulateur Gestion de projet':simc==='dur'?'Simulateur Management de projet durable':simc==='cspp'?'Simulateur CSPP™':'Simulateur Management de PMO'),signataires:(HTA_SIGN||[]).slice(0,2).map(s=>({nom:s.nom,fonction:s.fonction||''})),
       partenaire:px?{nom:px.nom,lien:px.lien||'',logo:px.logo_data||null,type:px.type||'',agrement:px.numero_agrement||''}:null};
     // Erreurs par tâche, relues en base pour cette session
     const erreurs={};try{const{data:rep}=await sb.from('sim_reponses').select('question_id').eq('tentative_id',id).eq('correct',false);
@@ -21143,7 +21137,7 @@ async function erpSimRapport(id){
     const meme=x=>(t.user_id&&x.user_id===t.user_id)||(t.code_id&&x.code_id===t.code_id);
     const hist=T.filter(x=>x.statut!=='annule'&&meme(x)&&(x.simulateur||'pmo')===simc&&x.created_at<=t.created_at).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))
       .map(x=>({id:x.id,date:x.created_at,label:x.libelle,ok:x.ok,n:x.nb,pct:x.pct,byD:x.par_domaine||{},secs:x.duree_s||0}));
-    const lg=simc==='gp'||simc==='dur'?simc+(t.langue==='en'?'_en':''):(t.langue==='en'?'en':'fr');if(!ERP_SIM_FAB[lg])ERP_SIM_FAB[lg]=lg==='gp'?erpSimFabrique_gp():lg==='gp_en'?erpSimFabrique_gp_en():lg==='dur'?erpSimFabrique_dur():lg==='dur_en'?erpSimFabrique_dur_en():lg==='en'?erpSimFabrique_en():erpSimFabrique_fr();
+    const lg=simc==='gp'||simc==='dur'||simc==='cspp'?(simc==='gp'?'gp':'dur')+(t.langue==='en'?'_en':''):(t.langue==='en'?'en':'fr');if(!ERP_SIM_FAB[lg])ERP_SIM_FAB[lg]=lg==='gp'?erpSimFabrique_gp():lg==='gp_en'?erpSimFabrique_gp_en():lg==='dur'?erpSimFabrique_dur():lg==='dur_en'?erpSimFabrique_dur_en():lg==='en'?erpSimFabrique_en():erpSimFabrique_fr();
     if(t.statut==='annule')await ERP_SIM_FAB[lg].runAnnul({id:t.id,motif:t.motif_annulation||'',inc:t.incidents||[],label:t.libelle,secs:t.duree_s||0,nb:t.nb,rep:t.nb_repondues||0,date:t.created_at},infos);
     else await ERP_SIM_FAB[lg].run({id:t.id,ok:t.ok,n:t.nb,pct:t.pct,byD:t.par_domaine||{},secs:t.duree_s||0,date:t.created_at,label:t.libelle,erreurs},infos,hist);
     try{logAudit('rapport_simulateur','sim_tentatives',id,{titulaire:infos.titulaire,pct:t.pct});}catch(e){}
@@ -22584,8 +22578,8 @@ var HTA27={
   {code:'DUR3',parcours:'DUR',n:'',nom:'Rendre vos projets durables',ref:'HTA-DUR-PRISM',heures:4,prix:68000,badge:'dur-prism',couleur:[26,130,130],sel:[[3]]},
   {code:'DUR4',parcours:'DUR',n:'',nom:'Prouver votre impact',ref:'HTA-DUR-IMPACT',heures:8,prix:130000,badge:'dur-impact',couleur:[176,128,30],sel:[[4]]}],
  attestations:[
-  {code:'CSPP',parcours:'DUR',nom:'Préparation CSPP™',ref:'HTA-CSPP',heures:24,badge:'atp-gpm'},
-  {code:'CSPPP',parcours:'DUR',nom:'Préparation CSPP™ · Practitioners',ref:'HTA-CSPP-PRAT',heures:16,badge:'atp-gpm'}],
+  {code:'CSPP',parcours:'CERT',nom:'Préparation CSPP™',ref:'HTA-CSPP',heures:24,badge:'att-cspp'},
+  {code:'CSPPP',parcours:'CERT',nom:'Préparation CSPP™ · Practitioners',ref:'HTA-CSPP-PRAT',heures:16,badge:'att-cspp'}],
  examen:{questions:20,seuil:80,minutesParQuestion:1},
  urlBadge:function(base,b){return String(base||'').replace(/\/?$/,'/')+'badges/pdf/'+b+'.png';},
  module:function(c){return this.modules.find(function(m){return m.code===c;});},
@@ -22595,8 +22589,45 @@ var HTA27={
 };
 if(typeof module!=='undefined')module.exports=HTA27;
 
-/* ═══ Certificats H TECH ACADEMY 2027 : modèle « fin de formation » (module, formation, attestation)
-   et rangée de badges du certificat de fin de parcours. Code partagé ERP / fonction academy-certifier. ═══ */
+/* ═══ Certificats H TECH ACADEMY 2027 : modèle « fin de formation » (module, formation, attestation),
+   rangée de badges du certificat de fin de parcours, versions française et anglaise.
+   Code partagé ERP / fonction academy-certifier. ═══ */
+const HTA_EN_DICT={
+  'CENTRE DE FORMATION DE H TECH INNOV · ABIDJAN':'TRAINING CENTRE OF H TECH INNOV · ABIDJAN','PARTENAIRE AGRÉÉ (ATP)':'ACCREDITED PARTNER (ATP)',
+  'EN PARTENARIAT AVEC':'IN PARTNERSHIP WITH','CERTIFICAT':'CERTIFICATE','EST DÉCERNÉ À':'IS AWARDED TO',
+  'qui a suivi avec assiduité la formation ci-dessous, en a satisfait les évaluations et a démontré la maîtrise des compétences attendues.':'who has diligently completed the training below, passed its assessments and demonstrated the expected competencies.',
+  'Signature':'Signature','N° DE CERTIFICAT':'CERTIFICATE NO.',"DATE D'OBTENTION":'DATE OF AWARD',"VALABLE JUSQU'AU":'VALID UNTIL',
+  'Sans date d’expiration':'No expiry date','Vérifier en ligne':'Verify online',
+  // Intitulés du catalogue 2027
+  'Gestion de projets · Maîtrise des cinq processus':'Project Management · Mastery of the Five Processes',
+  'Management de PMO · Un PMO créateur de valeur':'PMO Management · A Value-Creating PMO',
+  'Initiation':'Initiation','Planification':'Planning','Exécution':'Execution','Suivi et monitoring':'Monitoring and Controlling','Clôture':'Closing',
+  'Exploration':'Exploration','Conception':'Design','Déploiement':'Deployment','Amélioration':'Improvement','Réalisation':'Realisation',
+  'Prendre les commandes':'Taking Command','Parler le langage ESG':'Speaking the ESG Language','Rendre vos projets durables':'Making Your Projects Sustainable',
+  'Prouver votre impact':'Proving Your Impact','Préparation CSPP™':'CSPP™ Preparation','Préparation CSPP™ · Practitioners':'CSPP™ Preparation · Practitioners',
+  'Gestion de projet':'Project Management','Management de PMO':'PMO Management','Management de projet durable':'Sustainable Project Management',
+  // Fonctions courantes des signataires
+  'Directeur général':'Managing Director','Directrice générale':'Managing Director','Gérante':'Managing Director','Gérant':'Managing Director',
+  'Directeur des études':'Director of Studies','Directrice des études':'Director of Studies','Directeur pédagogique':'Academic Director',
+  'Directrice pédagogique':'Academic Director','Responsable pédagogique':'Head of Training','Formateur':'Trainer','Formatrice':'Trainer',
+  'Formateur certifié':'Certified Trainer','Business Manager':'Business Manager','Abidjan / à distance':'Abidjan / remote'
+};
+function htaEN(s){
+  s=String(s??'');if(s in HTA_EN_DICT)return HTA_EN_DICT[s];
+  let m;
+  if((m=/^\|  (.*)$/.exec(s)))return '|  '+htaEN(m[1]);
+  if((m=/^N° d’agrément : (.*)$/.exec(s)))return 'Accreditation no.: '+m[1];
+  if((m=/^Formation dispensée par H TECH ACADEMY, partenaire de formation agréé \(ATP\) de (.*?)( — agrément n° (.*))?\.$/.exec(s)))
+    return 'Training delivered by H TECH ACADEMY, Accredited Training Partner (ATP) of '+m[1]+(m[3]?' — accreditation no. '+m[3]:'')+'.';
+  if((m=/^Le présent certificat atteste la formation suivie ; il ne constitue pas une certification délivrée par (.*)\.$/.exec(s)))
+    return 'This certificate attests the training completed; it is not a certification issued by '+m[1]+'.';
+  // Sous-titre : « 28 HEURES · 5 MODULES VALIDÉS », « NIVEAU … »
+  if(/HEURES?|NIVEAU|VALIDÉ/.test(s))return s.replace(/(\d+)\s*HEURES?/g,'$1 HOURS').replace(/MODULES VALIDÉS/g,'MODULES COMPLETED')
+    .replace(/FORMATIONS VALIDÉES/g,'COURSES COMPLETED').replace(/NIVEAU /g,'LEVEL ').replace(/DÉBUTANT/g,'BEGINNER').replace(/INTERMÉDIAIRE/g,'INTERMEDIATE').replace(/AVANCÉ/g,'ADVANCED');
+  if((m=/^(\d+)\s*heures?(.*)$/.exec(s)))return m[1]+' hours'+m[2].replace('modules validés','modules completed').replace('formations validées','courses completed');
+  return s;
+}
+function hta27Dfr(d,lang){return d?new Date(String(d).slice(0,10)+'T12:00:00').toLocaleDateString(lang==='en'?'en-GB':'fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';}
 function hta27Badge(doc,img,cx,cy,d,repli){
   if(img){try{doc.addImage(img,'PNG',cx-d/2,cy-d/2,d,d);return;}catch(e){}}
   // Badge de secours dessiné (si l'image n'est pas disponible)
@@ -22611,10 +22642,11 @@ function hta27RangeeBadges(doc,imgs,y,d,W,repli){
   imgs.forEach((im,i)=>{hta27Badge(doc,im,x,y,d,repli&&repli[i]);x+=d+gap;});
 }
 function hta27DessinerFin(doc,c,R){
-  // c : numero, titulaire, formation_titre, heures, date_obtention, periode_debut, periode_fin, lieu, _module, _parcours, _s1, _s2, type_certificat
-  const W=297,H=210,P=R.P,NAVY=[10,42,102],BLEU=[29,74,140],VERT=[38,110,60],GRIS=[70,78,92],CLAIR=[150,158,172];
+  // c : numero, titulaire, formation_titre(_en), heures, date_obtention, periode_debut, periode_fin, lieu, _module, _parcours, _s1, _s2, _part, type_certificat
+  // R : P, qrcode, urlVerif, badge, logoAcademy, lang ('fr' | 'en')
+  const W=297,H=210,P=R.P,NAVY=[10,42,102],BLEU=[29,74,140],GRIS=[70,78,92],CLAIR=[150,158,172];
+  const EN=R.lang==='en',T=(fr,en)=>EN?en:fr,tr=s=>EN?htaEN(s):s,dfr=d=>hta27Dfr(d,R.lang);
   const m=c._module||{},p=c._parcours||{},att=c.type_certificat==='attestation';
-  const dfr=R.dfr;
   doc.setFillColor(255,255,255);doc.rect(0,0,W,H,'F');
   doc.setFillColor(...NAVY);doc.rect(0,0,W,4.5,'F');doc.rect(0,H-4.5,W,4.5,'F');
   doc.setDrawColor(...NAVY);doc.setLineWidth(0.5);doc.rect(9,10,W-18,H-20,'S');
@@ -22626,52 +22658,69 @@ function hta27DessinerFin(doc,c,R){
   doc.setFont('helvetica','bold');doc.setFontSize(24);doc.setTextColor(...NAVY);doc.text('H TECH INNOV',W/2,25,{align:'center'});
   doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GRIS);
   doc.text(P('Riviera Cocody – Jules Verne, Abidjan, Côte d’Ivoire · www.htechinnov.com'),W/2,31,{align:'center'});
-  // Pavé de droite
-  doc.setFillColor(...VERT);doc.roundedRect(W-62,15,45,20,1.6,1.6,'F');doc.setTextColor(255,255,255);
-  doc.setFont('helvetica','bold');doc.setFontSize(6.2);doc.text(att?'ATTESTATION':'FORMATION',W-39.5,21,{align:'center'});doc.text('H TECH ACADEMY',W-39.5,24.6,{align:'center'});
-  doc.setFontSize(11);doc.text(P(att?'CSPP™':(m.n?'MODULE '+m.n:'DURABILITÉ')),W-39.5,31,{align:'center'});
+  // En haut à droite : badge ou logo du partenaire choisi (rien si aucun partenaire)
+  const pa=c._part;
+  if(pa&&(pa.logo||pa.nom)){const xc=W-40,LW=46;let yy=14.5;
+    doc.setFont('helvetica','bold');doc.setFontSize(5.6);doc.setTextColor(139,107,78);
+    doc.text(P(pa.type==='atp'?T('PARTENAIRE AGRÉÉ (ATP)','ACCREDITED TRAINING PARTNER'):T('EN PARTENARIAT AVEC','IN PARTNERSHIP WITH')),xc,yy,{align:'center'});yy+=1.6;
+    if(pa.logo){try{const fmt=/^data:image\/png/i.test(pa.logo)?'PNG':'JPEG',pr=doc.getImageProperties(pa.logo),k=Math.min(LW/pr.width,17/pr.height),lw=pr.width*k,lh=pr.height*k;
+      doc.addImage(pa.logo,fmt,xc-lw/2,yy+(17-lh)/2,lw,lh);yy+=18.5;}catch(e){yy+=1;}}
+    else yy+=2.5;
+    if(pa.nom&&!pa.logo){doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...NAVY);doc.splitTextToSize(P(pa.nom),LW).slice(0,2).forEach((t,k)=>doc.text(t,xc,yy+k*3.4,{align:'center'}));}
+  }
   // Titre et titulaire
-  doc.setFont('times','normal');doc.setFontSize(33);doc.setTextColor(...BLEU);doc.text(P(att?'Attestation de préparation':'Certificat de fin de formation'),W/2,50,{align:'center'});
-  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...GRIS);doc.text(P(att?'Cette attestation est délivrée à':'Ce certificat est décerné à'),W/2,57,{align:'center'});
+  doc.setFont('times','normal');doc.setFontSize(33);doc.setTextColor(...BLEU);
+  doc.text(P(att?T('Attestation de préparation','Certificate of Preparation'):T('Certificat de fin de formation','Certificate of Completion')),W/2,50,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...GRIS);
+  doc.text(P(att?T('Cette attestation est délivrée à','This certificate is issued to'):T('Ce certificat est décerné à','This certificate is awarded to')),W/2,57,{align:'center'});
   doc.setFont('times','normal');let tn=27;doc.setFontSize(tn);while(doc.getTextWidth(P(c.titulaire||''))>190&&tn>16){tn--;doc.setFontSize(tn);}
   doc.setTextColor(...NAVY);doc.text(P(c.titulaire||''),W/2,68,{align:'center'});
   doc.setDrawColor(...CLAIR);doc.setLineWidth(0.3);doc.line(W/2-70,71,W/2+70,71);
-  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...GRIS);doc.text(P('pour avoir suivi avec succès la formation'),W/2,77.5,{align:'center'});
-  doc.setFont('helvetica','bold');let tf=19;doc.setFontSize(tf);while(doc.getTextWidth(P(c.formation_titre||''))>220&&tf>12){tf--;doc.setFontSize(tf);}
-  doc.setTextColor(...NAVY);doc.text(P(c.formation_titre||''),W/2,86,{align:'center'});
-  const ligne=att?'Préparation à la certification PMI-GPM CSPP™, parcours Management de projet durable H TECH ACADEMY':(m.code?R.libelleModule(m):'');
+  doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...GRIS);
+  doc.text(P(T('pour avoir suivi avec succès la formation','for successfully completing the course')),W/2,77.5,{align:'center'});
+  const titre=EN?(c.formation_titre_en||htaEN(c.formation_titre||'')):(c.formation_titre||'');
+  doc.setFont('helvetica','bold');let tf=19;doc.setFontSize(tf);while(doc.getTextWidth(P(titre))>220&&tf>12){tf--;doc.setFontSize(tf);}
+  doc.setTextColor(...NAVY);doc.text(P(titre),W/2,86,{align:'center'});
+  const pn=tr(p.nom||'');
+  const ligne=att?T('Préparation à la certification PMI-GPM CSPP™ · Certifications PMI-GPM et GPM, H TECH ACADEMY','Preparation for the PMI-GPM CSPP™ certification · PMI-GPM and GPM certifications, H TECH ACADEMY')
+    :(m.code?(m.n?T('Module '+m.n+' du parcours '+pn+' H TECH ACADEMY','Module '+m.n+' of the H TECH ACADEMY '+pn+' pathway')
+                 :T('Formation du parcours '+pn+' H TECH ACADEMY','Course of the H TECH ACADEMY '+pn+' pathway')):'');
   if(ligne){doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...GRIS);doc.text(P(ligne),W/2,92.5,{align:'center'});}
   // Badge
   hta27Badge(doc,R.badge,W/2,113,32,m);
   // Informations
   const info=(lbl,val,x,y,al)=>{doc.setFontSize(9.2);doc.setFont('helvetica','bold');doc.setTextColor(...NAVY);const a=P(lbl)+' : ';
-    doc.setFont('helvetica','bold');const wa=doc.getTextWidth(a);doc.setFont('helvetica','normal');const wv=doc.getTextWidth(P(val));
+    const wa=doc.getTextWidth(a);doc.setFont('helvetica','normal');const wv=doc.getTextWidth(P(val));
     const x0=al==='right'?x-wa-wv:x;doc.setFont('helvetica','bold');doc.text(a,x0,y);doc.setFont('helvetica','normal');doc.setTextColor(...GRIS);doc.text(P(val),x0+wa,y);};
   const h=c.heures||(m.heures?m.heures+' heures':'');
-  info('Durée de la formation',h||'—',24,108);
-  if(p.heures&&m.heures)info('Parcours',m.heures+' h sur '+p.heures+' h',24,115);
+  info(T('Durée de la formation','Course duration'),tr(h)||'—',24,108);
+  if(p.heures&&m.heures)info(T('Parcours','Pathway'),T(m.heures+' h sur '+p.heures+' h',m.heures+' h of '+p.heures+' h'),24,115);
   const d1=c.periode_debut||c.date_obtention,d2=c.periode_fin||c.date_obtention;
-  info('Période',d1&&d2&&d1!==d2?'du '+dfr(d1)+' au '+dfr(d2):'le '+dfr(d2),W-24,108,'right');
-  info('Lieu',c.lieu||'Abidjan / à distance',W-24,115,'right');
+  info(T('Période','Period'),d1&&d2&&d1!==d2?T('du '+dfr(d1)+' au '+dfr(d2),'from '+dfr(d1)+' to '+dfr(d2)):T('le ','on ')+dfr(d2),W-24,108,'right');
+  info(T('Lieu','Location'),tr(c.lieu||'Abidjan / à distance'),W-24,115,'right');
   doc.setFont('helvetica','normal');doc.setFontSize(7.4);doc.setTextColor(...GRIS);
-  doc.text(P(att?'Attestation délivrée par H TECH ACADEMY, partenaire de formation agréé (ATP) GPM. Elle ne constitue pas la certification CSPP™ délivrée par PMI après l’examen Pearson VUE.'
-    :'Formation dispensée par H TECH ACADEMY, marque de formation de H TECH INNOV, et validée par un examen sur le simulateur H TECH ACADEMY.'),W/2,137,{align:'center'});
+  doc.text(P(att?T('Attestation délivrée par H TECH ACADEMY, partenaire de formation agréé (ATP) GPM. Elle ne constitue pas la certification CSPP™ délivrée par PMI après l’examen Pearson VUE.',
+                   'Issued by H TECH ACADEMY, GPM Accredited Training Partner (ATP). It is not the CSPP™ certification issued by PMI after the Pearson VUE exam.')
+    :T('Formation dispensée par H TECH ACADEMY, marque de formation de H TECH INNOV, et validée par un examen sur le simulateur H TECH ACADEMY.',
+       'Training delivered by H TECH ACADEMY, the training brand of H TECH INNOV, and validated by an exam on the H TECH ACADEMY simulator.')),W/2,137,{align:'center'});
   // Pied : numéro, signatures, QR
-  doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(P('Certificat n° '+(c.numero||'')),20,163);
-  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.text(P('Délivré à Abidjan le '+dfr(c.date_obtention)),20,168.5);
+  doc.setFont('helvetica','bold');doc.setFontSize(8.6);doc.setTextColor(...NAVY);doc.text(P(T('Certificat n° ','Certificate no. ')+(c.numero||'')),20,163);
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.text(P(T('Délivré à Abidjan le ','Issued in Abidjan on ')+dfr(c.date_obtention)),20,168.5);
   const sig=(s,lbl,org,x)=>{doc.setDrawColor(...CLAIR);doc.setLineWidth(0.3);doc.line(x-27,155,x+27,155);
     doc.setFont('helvetica','bold');doc.setFontSize(8.8);doc.setTextColor(...NAVY);doc.text(P(lbl),x,161,{align:'center'});
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GRIS);doc.text(P(s&&s.nom?s.nom:org),x,166,{align:'center'});
     if(s&&s.nom)doc.text(P(org),x,170.5,{align:'center'});};
-  sig(c._s1,'Le formateur','H TECH ACADEMY',118);sig(c._s2,'La direction','H TECH INNOV',196);
+  sig(c._s1,T('Le formateur','The trainer'),'H TECH ACADEMY',118);sig(c._s2,T('La direction','Management'),'H TECH INNOV',196);
   try{const q=R.qrcode(0,'M');q.addData(R.urlVerif);q.make();const n=q.getModuleCount(),sz=21,mm=sz/n,qx=W-22-sz,qy=148;
     doc.setFillColor(...NAVY);for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(q.isDark(r,k))doc.rect(qx+k*mm,qy+r*mm,mm+0.02,mm+0.02,'F');
-    doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P('Vérifier en ligne'),qx+sz/2,qy+sz+3.4,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(6.6);doc.setTextColor(21,101,192);doc.text(P(T('Vérifier en ligne','Verify online')),qx+sz/2,qy+sz+3.4,{align:'center'});
     doc.link(qx,qy,sz,sz,{url:R.urlVerif});}catch(e){}
   doc.setDrawColor(225,229,236);doc.setLineWidth(0.25);doc.line(16,180,W-16,180);
   doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...GRIS);
-  doc.text(P(att?'Ce document atteste du suivi de la préparation CSPP™ et de la réussite à l’examen sur le simulateur H TECH ACADEMY.'
-    :'Ce document atteste du suivi de la formation et de la réussite à l’examen '+(m.n?'du module '+m.n+' « '+(m.nom||c.formation_titre)+' »':'de la formation « '+(m.nom||c.formation_titre)+' »')+' sur le simulateur H TECH ACADEMY.'),W/2,186,{align:'center'});
+  const nomM=EN?htaEN(m.nom||c.formation_titre||''):(m.nom||c.formation_titre||'');
+  doc.text(P(att?T('Ce document atteste du suivi de la préparation CSPP™ et de la réussite à l’examen sur le simulateur H TECH ACADEMY.','This document certifies completion of the CSPP™ preparation and success in the exam on the H TECH ACADEMY simulator.')
+    :T('Ce document atteste du suivi de la formation et de la réussite à l’examen '+(m.n?'du module '+m.n+' « '+nomM+' »':'de la formation « '+nomM+' »')+' sur le simulateur H TECH ACADEMY.',
+       'This document certifies completion of the course and success in the exam for '+(m.n?'module '+m.n+' “'+nomM+'”':'the course “'+nomM+'”')+' on the H TECH ACADEMY simulator.')),W/2,186,{align:'center'});
   return doc;
 }
 
@@ -22693,13 +22742,12 @@ function hta27Info(code){
   const a=HTA27.attestations.find(x=>'ATT-'+x.code===code);if(a)return{type:'attestation',a,p:HTA27.parcoursDe(a.parcours)};
   return null;
 }
-function hta27Dfr(d){return d?new Date(String(d).slice(0,10)+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}):'';}
 async function hta27DessinerERP(c){
   await htaLibs();const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4',orientation:'landscape'});
   const i=hta27Info(c.catalogue_code)||{},m=i.m||{},p=i.p||{},badge=m.badge||(i.a&&i.a.badge)||'';
   const logo=(typeof MARQUES_IMG!=='undefined'&&MARQUES_IMG&&MARQUES_IMG.academy)||await hta27Img('logo-academy.jpg');
   hta27DessinerFin(doc,{...c,_module:c.type_certificat==='module'?{code:m.code,n:m.n,nom:m.nom,heures:m.heures,couleur:m.couleur,parcours:m.parcours}:{},_parcours:{nom:p.nom,heures:p.heures}},
-    {P:pdfT,dfr:hta27Dfr,qrcode:window.qrcode,urlVerif:htaUrlVerif(c.numero||''),badge:await hta27Img(badge+'.png'),logoAcademy:logo,libelleModule:x=>HTA27.numeroLibelle(x)});
+    {P:pdfT,lang:c._lang==='en'?'en':'fr',qrcode:window.qrcode,urlVerif:htaUrlVerif(c.numero||''),badge:await hta27Img(badge+'.png'),logoAcademy:logo});
   return doc;
 }
 async function hta27PreparerParcours(c){
@@ -22720,8 +22768,8 @@ function hta27Options(sel){
   return '<option value="">Formation — modèle classique (saisie libre)</option>'+HTA27.parcours.map(p=>`<optgroup label="Parcours ${p.num} · ${esc(p.nom)}">`
     +(p.certificat?`<option value="${p.code}" ${sel===p.code?'selected':''}>🏆 Certification de fin de parcours — ${esc(p.certificat)}</option>`:'')
     +HTA27.modulesDe(p.code).map(m=>`<option value="${m.code}" ${sel===m.code?'selected':''}>🏅 ${m.n?'Module '+m.n+' · ':'Formation · '}${esc(m.nom)}</option>`).join('')
-    +HTA27.attestations.filter(a=>a.parcours===p.code).map(a=>`<option value="ATT-${a.code}" ${sel==='ATT-'+a.code?'selected':''}>📜 Attestation — ${esc(a.nom)}</option>`).join('')
-    +'</optgroup>').join('');
+    +'</optgroup>').join('')
+    +'<optgroup label="Certifications PMI-GPM et GPM">'+HTA27.attestations.map(a=>`<option value="ATT-${a.code}" ${sel==='ATT-'+a.code?'selected':''}>📜 Attestation — ${esc(a.nom)}</option>`).join('')+'</optgroup>';
 }
 function hta27Choisir(initial){
   const el=document.getElementById('htK');if(!el)return;const i=hta27Info(el.value),img=document.getElementById('htBadge');
@@ -22733,12 +22781,13 @@ function hta27Choisir(initial){
   if(i.type==='module'){set('htF',i.m.nom);set('htH',i.m.heures+' heures');}
   else if(i.type==='parcours'){set('htF',i.p.certificat);set('htH',i.p.heures+' heures');}
   else{set('htF',i.a.nom);set('htH',i.a.heures+' heures');}
-  set('htV','aucune');set('htN','');
+  set('htV','aucune');set('htN','');set('htFe',htaEN(document.getElementById('htF').value));
 }
 function hta27LireForm(){
   const v=(document.getElementById('htK')||{}).value||'',i=hta27Info(v);
-  if(!i)return{type_certificat:'formation',catalogue_code:null};
-  return{type_certificat:i.type,catalogue_code:v,periode_debut:gv('htP1')||null,periode_fin:gv('htP2')||null,lieu:g('htL')||null,
+  const fe=(document.getElementById('htFe')||{}).value||'';const en=fe.trim()?{formation_titre_en:fe.trim()}:{};
+  if(!i)return{type_certificat:'formation',catalogue_code:null,...en};
+  return{...en,type_certificat:i.type,catalogue_code:v,periode_debut:gv('htP1')||null,periode_fin:gv('htP2')||null,lieu:g('htL')||null,
 };
 }
 function hta27Vignette(c){
@@ -22750,12 +22799,13 @@ async function hta27Sections(){
   let R=[],err=null;try{const r=await sb.rpc('hta_reussites_a_certifier');if(r.error)err=r.error;R=r.data||[];}catch(e){err=e;}
   window.HTA27_REUSS=R;
   const nb=code=>HTA_ROWS.filter(c=>c.catalogue_code===code&&c.statut==='valide').length;
-  const sansPdf=HTA_ROWS.filter(c=>c.statut==='valide'&&!c.fichier_path);
+  const sansPdf=HTA_ROWS.filter(c=>c.statut==='valide'&&(!c.fichier_path||c.fichier_path_en===null));
   const img=(b,t)=>b?`<img src="${esc(ACAD_URL_SITE+'badges/'+b+'.webp')}" alt="" width="${t||44}" height="${t||44}" style="border-radius:50%;vertical-align:middle" onerror="this.style.visibility='hidden'">`:'';
   return `<div class="card" style="margin-bottom:14px;border-left:4px solid #3F8A1E"><div class="card-title">🏅 Catalogue 2027 : badges et certificats par parcours</div>
     <div class="cell-sub">Chaque module réussi à 80 % sur le simulateur donne un badge et un certificat (n° HTA-GP01-AAAA-00001), délivrés automatiquement aux apprenants connectés et déposés dans leur espace. Les modules du parcours tous validés donnent la certification de fin de parcours (n° HTA-AAAA-GP-000001), sans date d’expiration. Un examen annulé par la surveillance annule le certificat correspondant.</div>
     ${HTA27.parcours.map(p=>`<div style="margin-top:14px"><b>Parcours ${p.num} · ${esc(p.nom)}</b>${p.certificat?` <span class="cell-sub" style="display:inline">— certification de fin de parcours : ${nb(p.code)} délivrée(s)</span>`:''}
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">${HTA27.modulesDe(p.code).map(m=>`<div style="text-align:center;width:104px">${img(m.badge,52)}<div style="font-size:11.5px;line-height:1.25;margin-top:4px;font-weight:600">${esc(m.nom)}</div><div class="cell-sub" style="margin:0">${nb(m.code)} certificat(s)</div></div>`).join('')}</div></div>`).join('')}
+    <div style="margin-top:14px"><b>Certifications PMI-GPM et GPM</b> <span class="cell-sub" style="display:inline">— offre séparée · simulateur CSPP™ : l’examen blanc complet réussi à 80 % donne l’attestation « Préparation CSPP™ » (${HTA_ROWS.filter(c=>c.catalogue_code==='ATT-CSPP'&&c.statut==='valide').length} délivrée(s))</span></div>
   </div>
   ${err?`<div class="card" style="border-left:4px solid #D97706;margin-bottom:14px">⚠️ Exécutez <b>migration-catalogue-2027.sql</b> dans Supabase pour activer les certificats par module (${esc(err.message||String(err))}).</div>`
   :`<div class="card" style="margin-bottom:14px;border-left:4px solid ${R.length?'#D97706':'var(--g200)'}"><div class="card-title" style="margin:0">🎯 Examens de module réussis, à certifier (${R.length})</div>
@@ -22765,7 +22815,7 @@ async function hta27Sections(){
       <div class="cell-sub" style="margin:0">${esc(x.module_nom||x.module)} · ${esc(String(x.pct))} % · ${esc(fmtD(x.date_examen))}</div></div></div>
       <button class="btn btn-primary btn-sm" onclick="hta27Delivrer(${k})">🏅 Délivrer</button></div>`).join('')||'<div class="cell-sub">Aucun examen en attente.</div>'}</div>`}
   ${sansPdf.length?`<div class="card" style="margin-bottom:14px;border-left:4px solid #1565C0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-    <div>📄 <b>${sansPdf.length} certificat(s) sans PDF</b><div class="cell-sub" style="margin:0">Délivrés après un examen sur le simulateur, PDF en attente (fonction academy-certifier non redéployée ou momentanément indisponible).</div></div>
+    <div>📄 <b>${sansPdf.length} certificat(s) sans PDF en français ou en anglais</b><div class="cell-sub" style="margin:0">Les apprenants téléchargent leur certificat dans la langue de leur choix : générez les versions manquantes.</div></div>
     <button class="btn btn-outline btn-sm" onclick="hta27PdfManquants()">📄 Générer les PDF</button></div>`:''}`;
 }
 async function hta27Delivrer(k){
@@ -22782,16 +22832,40 @@ async function hta27Delivrer(k){
   v4Render('academy-certificats');
 }
 async function hta27PdfManquants(silence){
-  const{data,error}=await sb.from('hta_certificats').select('*').eq('statut','valide').is('fichier_path',null);
-  if(error){if(!silence)toast('❌ '+error.message);return;}
+  let r=await sb.from('hta_certificats').select('*').eq('statut','valide').or('fichier_path.is.null,fichier_path_en.is.null');
+  if(r.error)r=await sb.from('hta_certificats').select('*').eq('statut','valide').is('fichier_path',null);
+  if(r.error){if(!silence)toast('❌ '+r.error.message);return;}
   let ok=0;
-  for(const c of data||[]){
-    try{const doc=await htaDessiner(await htaPreparerSignataires({...c})),chemin='certificats-hta/'+c.numero+'.pdf';
-      const up=await sb.storage.from(HTA_BUCKET).upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
-      if(!up.error){await sb.from('hta_certificats').update({fichier_path:chemin}).eq('id',c.id);ok++;}}
-    catch(e){logErr(e);}
+  for(const c of r.data||[]){
+    for(const lang of ['fr','en']){
+      if(lang==='fr'?c.fichier_path:(c.fichier_path_en||c.fichier_path_en===undefined))continue;
+      try{const x=await htaDeposerPdf(c,lang);if(!x.erreur)ok++;}catch(e){logErr(e);}
+    }
   }
   if(!silence){toast('✅ '+ok+' PDF généré(s) et déposé(s) dans les espaces apprenants',6000);v4Render('academy-certificats');}
+}
+// PDF d'un certificat dans une langue, déposé dans le stockage et rattaché au certificat
+async function htaDeposerPdf(c,lang){
+  const doc=await htaDessiner(await htaPreparerSignataires({...c,_lang:lang})),chemin='certificats-hta/'+c.numero+(lang==='en'?'-EN':'')+'.pdf';
+  const up=await sb.storage.from(HTA_BUCKET).upload(chemin,doc.output('blob'),{contentType:'application/pdf',upsert:true});
+  if(!up.error&&c.id){const champ=lang==='en'?'fichier_path_en':'fichier_path';const u=await sb.from('hta_certificats').update({[champ]:chemin}).eq('id',c.id);
+    if(u.error)console.warn('Certificat '+lang+' : '+u.error.message);else c[champ]=chemin;}
+  return{doc,chemin,erreur:up.error};
+}
+// Téléchargement depuis l'ERP : choix de la langue (français ou anglais), à tout moment, même après délivrance
+async function htaPdf(id,lang){
+  const c=HTA_ROWS.find(x=>x.id===id);if(!c)return;
+  if(!lang){document.getElementById('modalBox').style.width='min(440px,96vw)';
+    document.getElementById('modalTitle').textContent='📄 Certificat '+c.numero;
+    document.getElementById('modalBody').innerHTML=`<p style="margin-top:0">Dans quelle langue voulez-vous le certificat de <b>${esc(c.titulaire)}</b> ?</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-primary" onclick="closeModal();htaPdf('${esc(id)}','fr')">🇫🇷 Français</button><button class="btn btn-primary" onclick="closeModal();htaPdf('${esc(id)}','en')">🇬🇧 English</button></div>`;
+    document.getElementById('modalFooter').innerHTML='<button class="btn btn-outline" onclick="closeModal()">Fermer</button>';
+    document.getElementById('modalOverlay').classList.add('open');return;}
+  const champ=lang==='en'?'fichier_path_en':'fichier_path';
+  if(c[champ]){const{data,error}=await sb.storage.from(HTA_BUCKET).createSignedUrl(c[champ],600);if(!error&&data?.signedUrl){window.open(data.signedUrl,'_blank');return;}}
+  const x=await htaDeposerPdf(c,lang);
+  if(x.erreur)toast('⚠️ PDF non enregistré dans le stockage : '+x.erreur.message,9000);
+  x.doc.save(pdfT('Certificat-'+c.numero+(lang==='en'?'-EN':'')+'-'+String(c.titulaire||'').replace(/[^A-Za-z0-9]+/g,'-'))+'.pdf');
 }
 
 </script>
