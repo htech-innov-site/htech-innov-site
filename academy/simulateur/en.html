@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>PMO Simulator — H TECH ACADEMY</title>
+<title>PMO Management Simulator — H TECH ACADEMY</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -192,6 +192,17 @@ header.top nav.tabs button[aria-current="true"]{color:#fff;border-color:#9FD27A}
 .sim-outils{display:flex;gap:10px;align-items:center;font-size:12.5px;color:#C9D6EC;margin-left:auto}
 .sim-outils a{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:4px 10px}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.ghost{color:#C9D6EC;border-color:#C9D6EC}}
+
+.mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}
+.mod-card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border:2px solid var(--line,#d5e0f0);border-radius:14px;background:#fff;cursor:pointer;font:inherit;text-align:center}
+.mod-card[aria-pressed=true]{border-color:#0A2A66;box-shadow:0 0 0 3px rgba(10,42,102,.12)}
+.mod-card img{border-radius:50%}.mod-card span{font-weight:600;font-size:14px;line-height:1.25}.mod-card small{color:#5b6b85;font-size:12px}
+.cert-box{display:flex;gap:16px;align-items:center;margin:18px 0;padding:16px 18px;border-radius:14px;background:#EEF7E9;border:1px solid #BFDDB0}
+.cert-box.ko{background:#FFF6E5;border-color:#F0D49A}.cert-box.att{background:#EEF3FB;border-color:#C9D8F0}
+.cert-box img{border-radius:50%;flex:none}.cert-box b{display:block;font-size:16px;margin-bottom:2px}.cert-box p{margin:2px 0}
+.badges-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:22px 0 6px}
+.badges-row figure{margin:0;text-align:center;width:84px}.badges-row img{border-radius:50%}.badges-row figcaption{font-size:11.5px;color:#5b6b85;line-height:1.2;margin-top:4px}
+.badges-row .off img{filter:grayscale(1);opacity:.35}
 </style>
 </head>
 <body>
@@ -321,6 +332,7 @@ function renderHome(){
    <div class="actions"><button class="btn" data-go="exam">Take a mock exam</button><button class="btn ghost" data-go="practice">Practice by domain</button><button class="btn ghost" data-go="guide">Open the guide</button></div>
   </div>
  </section>
+ ${modRangee()}
  <ul class="legend">${DOMAINS.map(d=>{const mm=mastery(d.id);return `<li style="--c:${d.c}"><span class="sw" style="background:${d.c}"></span><button data-guide="${d.id}">${roman[d.id-1]}. ${esc(d.name)}</button><span class="pct">${d.w}% · ${mm.pct===null?"not started":mm.pct+"%"}</span></li>`}).join("")}</ul>
  <p class="note" style="margin-top:28px">Original questions designed by H TECH ACADEMY. Your progress is saved in your learner space and followed by your expert.</p>`}
 
@@ -336,7 +348,43 @@ function renderGuide(){
   <div class="actions" style="margin-top:22px"><button class="btn" data-practice-dom="${d.id}">Practice this domain</button>${d.id<6?`<button class="btn ghost" data-guide="${d.id+1}">Next domain</button>`:""}</div>
  </article></div>`}
 
-let pSel=new Set([1,2,3,4,5,6]), pCount=10, eFormat="mini";
+let pSel=new Set([1,2,3,4,5,6]), pCount=10, eFormat="module";
+/* ═══ Catalogue 2027 : examen par module, badge et certificat H TECH ACADEMY (réussite à 80 %) ═══ */
+const MODULES=[{"code": "PMO01", "n": "01", "nom": "Exploration", "badge": "pmo-01", "sel": [[1], [3, 1]]}, {"code": "PMO02", "n": "02", "nom": "Design", "badge": "pmo-02", "sel": [[2], [3, 2], [3, 3], [3, 4]]}, {"code": "PMO03", "n": "03", "nom": "Deployment", "badge": "pmo-03", "sel": [[4]]}, {"code": "PMO04", "n": "04", "nom": "Improvement", "badge": "pmo-04", "sel": [[5, 1], [5, 2], [5, 3]]}, {"code": "PMO05", "n": "05", "nom": "Realisation", "badge": "pmo-05", "sel": [[5, 4], [6]]}];
+const MODNB=20;let eModule=MODULES[0].code,MES_BADGES=[];
+const MT={"titre": "Module exam", "titreF": "Course exam", "desc": "Questions from the chosen module · 80% pass mark: H TECH ACADEMY badge and certificate", "descF": "Questions from the chosen course · 80% pass mark: H TECH ACADEMY badge and certificate", "choisir": "Choose the module", "choisirF": "Choose the course", "module": "Module", "examen": "Exam", "regle": "With 80% correct answers you earn the H TECH ACADEMY badge and certificate. The certificate is added to your learner area and can be verified online.", "regleF": "With 80% correct answers you earn the H TECH ACADEMY badge and certificate for the course, the first step towards CSPP™ certification.", "encours": "Issuing your certificate…", "obtenu": "Congratulations! Badge earned", "certif": "Certificate no.", "parcours": "All modules of the pathway are complete: your end-of-pathway certification has been issued.", "espace": "See my certificates", "aValider": "Passed! The H TECH ACADEMY team will issue your certificate and contact you.", "echec": "You need 80% to earn this module’s badge. Review the guide and try the exam again.", "erreur": "Your result is saved, but the certificate could not be issued automatically: ", "deja": "You already had this badge", "mesBadges": "My badges", "aObtenir": "to earn"};
+function qDansModule(q,m){return m.sel.some(s=>s[0]===q.d&&(s.length===1||s[1]===q.t));}
+function modCourant(){return MODULES.find(m=>m.code===eModule)||MODULES[0];}
+function modQuestions(m){return Q.filter(q=>qDansModule(q,m));}
+function modNom(m){return (m.n?MT.module+' '+m.n+' · ':'')+m.nom;}
+function modLabel(){return (MT.examen+' · '+modNom(modCourant())).slice(0,80);}
+function modCarte(){return `<button class="opt-card" data-eformat="module" aria-pressed="${eFormat==="module"}"><strong>${MT.titre}</strong><span>${MT.desc}</span></button>`;}
+function modChoix(){if(eFormat!=="module")return "";
+ return `<div class="panel"><strong>${MT.choisir}</strong><div class="mods">${MODULES.map(m=>{const n=Math.min(MODNB,modQuestions(m).length);
+  return `<button class="mod-card" data-emod="${m.code}" aria-pressed="${m.code===eModule}"><img src="../badges/${m.badge}.webp" alt="" width="64" height="64"><span>${esc(modNom(m))}</span><small>${n} questions · ${n} min${MES_BADGES.includes(m.code)?' · ✓':''}</small></button>`;}).join("")}</div>
+  <p class="note" style="margin:12px 0 0">${MT.regle}</p></div>`;}
+function modRangee(){if(!MODULES.length)return "";
+ return `<div class="badges-row" aria-label="${MT.mesBadges}">${MODULES.map(m=>`<figure class="${MES_BADGES.includes(m.code)?'':'off'}"><img src="../badges/${m.badge}.webp" alt="${esc(m.nom)}" width="64" height="64"><figcaption>${esc(m.nom)}${MES_BADGES.includes(m.code)?' ✓':''}</figcaption></figure>`).join("")}</div>`;}
+async function modChargerBadges(){try{if(!SIM.user)return;const{data}=await sbSim.rpc('hta_mes_badges');MES_BADGES=(data||[]).map(x=>x.code);}catch(e){}}
+async function certifierModule(s){
+ const r=s.result;if(!r||!r.id)return;s.cert={etat:"encours"};if(view==="result")render();
+ try{const{data,error}=await sbSim.rpc('hta_certifier_tentative',{p_tentative:r.id});if(error)throw error;s.cert=data||{};
+  const L=(data&&data.certificats)||[];L.forEach(c=>{if(c.code&&!MES_BADGES.includes(c.code))MES_BADGES.push(c.code);});
+  const ids=L.filter(c=>c.nouveau&&c.id).map(c=>c.id);
+  if(ids.length){try{await sbSim.functions.invoke('academy-certifier',{body:{certificat_ids:ids}});}catch(e){}}}
+ catch(e){s.cert={erreur:(e&&e.message)||String(e)};}
+ if(view==="result"&&session===s)render();}
+function certBloc(){const s=session;if(!s||!s.module||!s.result)return "";
+ const m=MODULES.find(x=>x.code===s.module)||MODULES[0],img=`<img src="../badges/${m.badge}.webp" alt="" width="76" height="76">`,c=s.cert||{};
+ if(s.result.pct<80)return `<div class="cert-box ko">${img}<div><b>${esc(modNom(m))}</b><p>${MT.echec}</p></div></div>`;
+ if(c.etat==="encours")return `<div class="cert-box">${img}<div><b>${esc(modNom(m))}</b><p>${MT.encours}</p></div></div>`;
+ if(c.erreur)return `<div class="cert-box ko">${img}<div><b>${esc(modNom(m))}</b><p>${MT.erreur}${esc(c.erreur)}</p></div></div>`;
+ if(c.a_valider)return `<div class="cert-box att">${img}<div><b>${esc(modNom(m))}</b><p>${MT.aValider}</p></div></div>`;
+ if(c.eligible===false)return `<div class="cert-box ko">${img}<div><b>${esc(modNom(m))}</b><p>${esc(c.raison||'')}</p></div></div>`;
+ const L=c.certificats||[],mo=L.find(x=>x.type==="module")||{},pa=L.find(x=>x.type==="parcours"&&x.nouveau);
+ return `<div class="cert-box">${img}<div><b>${mo.deja?MT.deja:MT.obtenu} : ${esc(modNom(m))}</b>${mo.numero?`<p>${MT.certif} ${esc(mo.numero)}</p>`:''}${pa?`<p><b style="display:inline">${MT.parcours}</b> (${esc(pa.numero)})</p>`:''}
+  <p><a href="${SIM.espace}">${MT.espace}</a></p></div></div>`;}
+
 function renderPracticeSetup(){
  const avail=Q.filter(q=>pSel.has(q.d)).length;
  app.innerHTML=`<div class="setup">
@@ -357,8 +405,10 @@ function renderExamSetup(){
   <div class="options-row">
    <button class="opt-card" data-eformat="mini" aria-pressed="${eFormat==="mini"}"><strong>Mini exam</strong><span>30 questions weighted by domain · 41 min</span></button>
    <button class="opt-card" data-eformat="full" aria-pressed="${eFormat==="full"}"><strong>Full simulator exam</strong><span>${Math.min(120,Q.length)} questions · ${Math.round(Math.min(120,Q.length)*1.375)} min</span></button>
+   ${modCarte()}
   </div>
  </div>
+ ${modChoix()}
  <p class="note" style="margin:0 0 12px;color:#0A2A66;font-weight:600">🛡️ Proctored exam: full screen and camera required until the end. Leaving the exam window or staying out of the camera frame for more than one minute cancels the exam.</p><button class="btn" data-start="exam">Start the exam</button>
  <p class="note" style="margin-top:18px">The levels shown at the end of the exam (above target, target, below target, needs improvement) are H TECH ACADEMY learning benchmarks.</p>
  </div>`}
@@ -371,9 +421,9 @@ function pickExam(n){
 function startSession(mode,opts={}){
  let qs;
  if(mode==="practice"){qs=Q.filter(q=>pSel.has(q.d));if(opts.weak)qs=qs.filter(q=>store.last[q.id]===false);qs=shuffle(qs);if(pCount&&!opts.weak)qs=qs.slice(0,pCount);if(!qs.length)return;}
- else qs=eFormat==="mini"?pickExam(30):pickExam(Math.min(120,Q.length));
+ else qs=eFormat==="module"?shuffle(modQuestions(modCourant())).slice(0,MODNB):eFormat==="mini"?pickExam(30):pickExam(Math.min(120,Q.length));
  session={mode,items:qs.map(q=>({q,order:shuffle(q.o.map((_,i)=>i)),sel:[],flag:false,checked:false})),i:0,start:Date.now(),
-  limit:mode==="exam"?Math.round(qs.length*1.375*60):null,label:mode==="exam"?(eFormat==="mini"?"Mini exam":"Full exam"):"Practice"};
+  limit:mode==="exam"?Math.round(qs.length*1.375*60):null,module:mode==="exam"&&eFormat==="module"?modCourant().code:null,label:mode==="exam"?(eFormat==="module"?modLabel():eFormat==="mini"?"Mini exam":"Full exam"):"Practice"};
  clearInterval(timerId);
  if(session.limit){timerId=setInterval(tick,1000)}
  setView("run")}
@@ -425,6 +475,7 @@ function renderResult(){
  const shown=items.filter(it=>reviewFilter==="all"||(reviewFilter==="wrong"&&!isRight(it))||(reviewFilter==="flag"&&it.flag));
  app.innerHTML=`
  <h2>${esc(s.label)} complete</h2>
+ ${certBloc()}
  <div class="score-head" style="margin-top:18px">
   <div><div class="score-big">${r.pct}%</div><span class="band" style="background:color-mix(in srgb,${bc} 16%,transparent);color:${bc}">${bl}</span></div>
   <div class="muted">${r.ok} correct out of ${r.n}<br>Time: ${fmt(r.secs)}${s.limit?` of ${fmt(s.limit)}`:""}</div>
@@ -468,6 +519,7 @@ document.addEventListener("click",e=>{
  if(t.dataset.psel){const n=+t.dataset.psel;pSel.has(n)?pSel.delete(n):pSel.add(n);render();return}
  if(t.dataset.pcount!==undefined){pCount=+t.dataset.pcount;render();return}
  if(t.dataset.pweak){startSession("practice",{weak:true});return}
+ if(t.dataset.emod){eModule=t.dataset.emod;render();return}
  if(t.dataset.eformat){eFormat=t.dataset.eformat;render();return}
  if(t.dataset.start){startSession(t.dataset.start);return}
  if(t.dataset.rf){reviewFilter=t.dataset.rf;render();return}
@@ -520,6 +572,7 @@ async function simDemarrer(){
   const{data:m}=await sbSim.rpc('sim_maitrise',simArgs());store.last={};(m||[]).forEach(x=>store.last[x.question_id]=x.correct);
   const{data:h}=await sbSim.rpc('sim_historique',simArgs());
   store.history=(h||[]).map(x=>({statut:x.statut||'termine',motif:x.motif_annulation,inc:x.incidents||[],rep:x.nb_repondues,id:x.id,date:x.created_at,label:x.libelle,ok:x.ok,n:x.nb,pct:x.pct,byD:x.par_domaine||{},secs:x.duree_s||0}));
+  await modChargerBadges();
   const jr=a.fin?Math.max(0,Math.ceil((new Date(a.fin)-new Date())/864e5)):null,b=document.getElementById('sim-acces');
   if(b)b.textContent=a.equipe&&!a.actif?'H TECH INNOV team access':((a.titulaire?a.titulaire+' · ':'')+(jr!=null?jr+' '+TP.jours:''));
   document.querySelector('nav.tabs').style.display='';setView('home');
@@ -562,6 +615,7 @@ async function finish(){
  s.result={ok:data.ok,n:data.nb,pct:data.pct,byD:data.par_domaine||{},secs,id:data.id,date:new Date().toISOString(),label:s.label};
  store.history.unshift({id:data.id,date:new Date().toISOString(),label:s.label,ok:data.ok,n:data.nb,pct:data.pct,byD:s.result.byD,secs});
  reviewFilter="all";setView("result");
+ if(s.mode==="exam"&&s.module&&s.result.pct>=80)certifierModule(s);
 }
 
 /* ===================== Rapport de préparation signé (PDF, charte H TECH INNOV) ===================== */
